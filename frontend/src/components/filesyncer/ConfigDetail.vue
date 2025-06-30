@@ -14,8 +14,9 @@ import { SelectDirectory } from '../../../wailsjs/go/main/App'; // 导入新的�
 
 
 // --- Props & Emits ---
-const props = defineProps(['config']);
-const emit = defineEmits(['config-updated']);
+// 接收父组件传来的激活状态和事件处理器
+const props = defineProps(['config', 'isWatching']);
+const emit = defineEmits(['config-updated', 'toggle-watcher']);
 
 
 // --- 响应式状态 ---
@@ -125,37 +126,34 @@ async function handleDeletePair(pairId) {
 
 <template>
   <div class="space-y-8">
-<!--    <div class="p-6 bg-white dark:bg-gray-800 rounded-lg shadow">-->
-<!--      <h2 class="text-xl font-bold mb-4">Connection Settings</h2>-->
-<!--      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">-->
-<!--        <div>-->
-<!--          <label class="block text-sm font-medium mb-1">Config Name</label>-->
-<!--          <input v-model="form.name" type="text" class="w-full p-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md">-->
-<!--        </div>-->
-<!--        <div>-->
-<!--          <label class="block text-sm font-medium mb-1">Host</label>-->
-<!--          <input v-model="form.host" type="text" class="w-full p-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md">-->
-<!--        </div>-->
-<!--      </div>-->
-<!--      <div class="mt-6 flex items-center space-x-4">-->
-<!--        <button @click="handleSaveChanges" class="bg-blue-600 text-white py-2 px-5 rounded-md hover:bg-blue-700">Save Changes</button>-->
-<!--        <button @click="handleTestConnection" class="bg-green-600 text-white py-2 px-5 rounded-md hover:bg-green-700">Test Connection</button>-->
-<!--        <p v-if="testMessage" :class="{-->
-<!--            'text-green-500': testStatus === 'success',-->
-<!--            'text-red-500': testStatus === 'error',-->
-<!--            'text-gray-500': testStatus === 'testing'-->
-<!--         }">{{ testMessage }}</p>-->
-<!--      </div>-->
-<!--    </div>-->
 
     <div class="p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
+
       <div class="flex justify-between items-center mb-4">
         <h2 class="text-xl font-bold">Sync Directories</h2>
-        <button @click="showAddForm = !showAddForm" class="bg-blue-600 text-white py-1 px-3 rounded-md hover:bg-blue-700 text-sm">
-          + Add Sync Pair
-        </button>
-      </div>
 
+        <div class="flex items-center space-x-4">
+          <div class="flex items-center space-x-2">
+            <span class="text-sm font-medium" :class="isWatching ? 'text-green-500' : 'text-gray-500'">
+              {{ isWatching ? 'Active' : 'Paused' }}
+            </span>
+            <button
+                @click="emit('toggle-watcher', config.id, !isWatching)"
+                class="relative inline-flex items-center h-6 rounded-full w-11 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800"
+                :class="isWatching ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'"
+            >
+              <span
+                  class="inline-block w-4 h-4 transform bg-white rounded-full transition-transform"
+                  :class="isWatching ? 'translate-x-6' : 'translate-x-1'"
+              />
+            </button>
+          </div>
+
+          <button @click="showAddForm = !showAddForm" class="bg-blue-600 text-white py-1 px-3 rounded-md hover:bg-blue-700 text-sm">
+            + Add Sync Pair
+          </button>
+        </div>
+      </div>
       <div v-if="showAddForm" class="p-4 mb-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg space-y-3">
         <div>
           <label class="block text-sm font-medium mb-1">Local Path</label>

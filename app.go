@@ -2,14 +2,17 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"DevTools/internal/config"
-	"DevTools/internal/syncer"
+	"devtools/internal/config"
+	"devtools/internal/syncer"
+	"devtools/internal/types"
 )
 
 // App struct
@@ -54,11 +57,11 @@ func (a *App) shutdown(ctx context.Context) {
 
 // --- 配置管理方法 ---
 
-func (a *App) GetConfigs() ([]config.SSHConfig, error) {
+func (a *App) GetConfigs() ([]types.SSHConfig, error) {
 	return a.configManager.GetAllSSHConfigs(), nil
 }
 
-func (a *App) SaveConfig(config config.SSHConfig) error {
+func (a *App) SaveConfig(config types.SSHConfig) error {
 	return a.configManager.SaveSSHConfig(config)
 }
 
@@ -70,11 +73,11 @@ func (a *App) DeleteConfig(configID string) error {
 
 // --- 同步对管理方法 ---
 
-func (a *App) GetSyncPairs(configID string) ([]config.SyncPair, error) {
+func (a *App) GetSyncPairs(configID string) ([]types.SyncPair, error) {
 	return a.configManager.GetSyncPairsByConfigID(configID), nil
 }
 
-func (a *App) SaveSyncPair(pair config.SyncPair) error {
+func (a *App) SaveSyncPair(pair types.SyncPair) error {
 	return a.configManager.SaveSyncPair(pair)
 }
 
@@ -86,7 +89,7 @@ func (a *App) DeleteSyncPair(pairID string) error {
 
 // --- 核心功能方法 ---
 
-func (a *App) TestConnection(config config.SSHConfig) (string, error) {
+func (a *App) TestConnection(config types.SSHConfig) (string, error) {
 	return syncer.TestSSHConnection(config)
 }
 
@@ -101,11 +104,40 @@ func (a *App) UpdateRemoteFileFromClipboard(configID string, remotePath string, 
 // --- 监控控制方法 ---
 
 func (a *App) StartWatching(configID string) error {
+	log.Printf("BACKEND: Received request to start watching config ID: %s", configID)
+
 	cfg, found := a.configManager.GetSSHConfigByID(configID)
 	if !found {
 		return &config.ConfigNotFoundError{ConfigID: configID}
 	}
 	pairs := a.configManager.GetSyncPairsByConfigID(configID)
+
+	// 为每个同步目录对，在后台启动一次“对账”任务
+	for _, pair := range pairs {
+		go func(p types.SyncPair, c types.SSHConfig) {
+			// 定义一个日志发送函数传递给对账函数
+			emitLog := func(level, message string) {
+				entry := types.LogEntry{
+					Timestamp: time.Now().Format("15:04:05"),
+					Level:     level,
+					Message:   message,
+				}
+				runtime.EventsEmit(a.ctx, "log_event", entry)
+			}
+
+			// 建立连接
+			client, err := syncer.NewSFTPClient(c)
+			if err != nil {
+				emitLog("ERROR", fmt.Sprintf("Initial sync failed for %s, could not connect: %v", p.LocalPath, err))
+				return
+			}
+			defer client.Close()
+
+			// 执行对账
+			syncer.ReconcileDirectory(client, p, emitLog)
+		}(pair, cfg)
+	}
+	// 开始监控配置的所有目录
 	for _, pair := range pairs {
 		if err := a.watcherSvc.AddWatch(pair, cfg); err != nil {
 			log.Printf("错误：无法监控 %s -> %v", pair.LocalPath, err)
