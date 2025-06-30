@@ -8,32 +8,13 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+
+	"devtools/internal/types"
 )
 
-// --- 数据结构定义 ---
-
-type SSHConfig struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	Host       string `json:"host"`
-	Port       int    `json:"port"`
-	User       string `json:"user"`
-	AuthMethod string `json:"authMethod"` // "password" or "key"
-	Password   string `json:"password"`   // 注意：生产环境中应加密
-	KeyPath    string `json:"keyPath"`
-}
-
-type SyncPair struct {
-	ID          string `json:"id"`
-	ConfigID    string `json:"configId"`
-	LocalPath   string `json:"localPath"`
-	RemotePath  string `json:"remotePath"`
-	SyncDeletes bool   `json:"syncDeletes"`
-}
-
 type AppConfig struct {
-	SSHConfigs []SSHConfig `json:"sshConfigs"`
-	SyncPairs  []SyncPair  `json:"syncPairs"`
+	SSHConfigs []types.SSHConfig `json:"sshConfigs"`
+	SyncPairs  []types.SyncPair  `json:"syncPairs"`
 }
 
 // --- 错误类型 ---
@@ -57,8 +38,8 @@ func NewConfigManager(path string) *ConfigManager {
 	return &ConfigManager{
 		path: path,
 		config: AppConfig{
-			SSHConfigs: make([]SSHConfig, 0),
-			SyncPairs:  make([]SyncPair, 0),
+			SSHConfigs: make([]types.SSHConfig, 0),
+			SyncPairs:  make([]types.SyncPair, 0),
 		},
 	}
 }
@@ -91,13 +72,13 @@ func (cm *ConfigManager) save() error {
 	return os.WriteFile(cm.path, data, 0640)
 }
 
-func (cm *ConfigManager) GetAllSSHConfigs() []SSHConfig {
+func (cm *ConfigManager) GetAllSSHConfigs() []types.SSHConfig {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	return cm.config.SSHConfigs
 }
 
-func (cm *ConfigManager) GetSSHConfigByID(id string) (SSHConfig, bool) {
+func (cm *ConfigManager) GetSSHConfigByID(id string) (types.SSHConfig, bool) {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	for _, c := range cm.config.SSHConfigs {
@@ -105,10 +86,10 @@ func (cm *ConfigManager) GetSSHConfigByID(id string) (SSHConfig, bool) {
 			return c, true
 		}
 	}
-	return SSHConfig{}, false
+	return types.SSHConfig{}, false
 }
 
-func (cm *ConfigManager) SaveSSHConfig(config SSHConfig) error {
+func (cm *ConfigManager) SaveSSHConfig(config types.SSHConfig) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -135,7 +116,7 @@ func (cm *ConfigManager) DeleteSSHConfig(id string) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
-	newConfigs := make([]SSHConfig, 0)
+	newConfigs := make([]types.SSHConfig, 0)
 	found := false
 	for _, c := range cm.config.SSHConfigs {
 		if c.ID == id {
@@ -150,7 +131,7 @@ func (cm *ConfigManager) DeleteSSHConfig(id string) error {
 	}
 	cm.config.SSHConfigs = newConfigs
 	// 同时删除关联的同步对
-	newPairs := make([]SyncPair, 0)
+	newPairs := make([]types.SyncPair, 0)
 	for _, p := range cm.config.SyncPairs {
 		if p.ConfigID != id {
 			newPairs = append(newPairs, p)
@@ -161,11 +142,11 @@ func (cm *ConfigManager) DeleteSSHConfig(id string) error {
 	return cm.save()
 }
 
-func (cm *ConfigManager) GetSyncPairsByConfigID(configID string) []SyncPair {
+func (cm *ConfigManager) GetSyncPairsByConfigID(configID string) []types.SyncPair {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 
-	pairs := make([]SyncPair, 0)
+	pairs := make([]types.SyncPair, 0)
 	for _, p := range cm.config.SyncPairs {
 		if p.ConfigID == configID {
 			pairs = append(pairs, p)
@@ -174,7 +155,7 @@ func (cm *ConfigManager) GetSyncPairsByConfigID(configID string) []SyncPair {
 	return pairs
 }
 
-func (cm *ConfigManager) SaveSyncPair(pair SyncPair) error {
+func (cm *ConfigManager) SaveSyncPair(pair types.SyncPair) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -201,7 +182,7 @@ func (cm *ConfigManager) DeleteSyncPair(id string) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
-	newPairs := make([]SyncPair, 0)
+	newPairs := make([]types.SyncPair, 0)
 	found := false
 	for _, p := range cm.config.SyncPairs {
 		if p.ID == id {

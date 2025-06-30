@@ -1,4 +1,4 @@
-export namespace config {
+export namespace types {
 	
 	export class SSHConfig {
 	    id: string;

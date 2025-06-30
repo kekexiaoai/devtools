@@ -1,4 +1,4 @@
-module DevTools
+module devtools
 
 go 1.23
 

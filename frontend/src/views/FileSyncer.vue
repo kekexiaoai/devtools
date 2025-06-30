@@ -5,7 +5,7 @@ import ConfigList from '../components/filesyncer/ConfigList.vue';
 import ConfigDetail from '../components/filesyncer/ConfigDetail.vue';
 
 // Wails Go 后端方法
-import { GetConfigs, SaveConfig, TestConnection, SelectFile } from '../../wailsjs/go/main/App';
+import { GetConfigs, SaveConfig, TestConnection, SelectFile, StartWatching, StopWatching } from '../../wailsjs/go/main/App';
 // Wails Runtime 方法，用于文件选择
 
 // --- 状态管理 ---
@@ -13,6 +13,8 @@ import { GetConfigs, SaveConfig, TestConnection, SelectFile } from '../../wailsj
 const configs = ref([]);
 const selectedConfigId = ref(null);
 const selectedConfig = ref(null);
+const activeWatchers = ref({}); // 使用一个对象来存储激活状态, e.g., { "config-id-123": true }
+
 
 // 模态框状态
 const isModalOpen = ref(false);
@@ -116,6 +118,22 @@ async function selectKeyFile() {
     console.log("File selection cancelled or failed:", error);
   }
 }
+
+async function toggleWatcher(configId, isActive) {
+  console.log(`Attempting to ${isActive ? 'START' : 'STOP'} watching for config ID:`, configId);
+
+  try {
+    if (isActive) {
+      await StartWatching(configId);
+      activeWatchers.value[configId] = true;
+    } else {
+      await StopWatching(configId);
+      delete activeWatchers.value[configId];
+    }
+  } catch (error) {
+    alert(`Failed to ${isActive ? 'start' : 'stop'} watching: ` + error);
+  }
+}
 </script>
 
 <template>
@@ -135,6 +153,8 @@ async function selectKeyFile() {
           v-if="selectedConfig"
           :key="selectedConfig.id"
           :config="selectedConfig"
+          :is-watching="activeWatchers[selectedConfig.id] || false"
+          @toggle-watcher="toggleWatcher"
           @config-updated="refreshConfigs"
       />
     </div>
