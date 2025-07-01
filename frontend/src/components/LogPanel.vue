@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, nextTick } from 'vue';
+import {nextTick, ref, watch} from 'vue';
 
 const props = defineProps({
   logs: {
@@ -22,10 +22,14 @@ watch(() => props.logs.length, async () => {
 
 const levelColorClass = (level) => {
   switch (level) {
-    case 'SUCCESS': return 'text-green-400';
-    case 'ERROR': return 'text-red-400';
-    case 'INFO': return 'text-blue-400';
-    default: return 'text-gray-400';
+    case 'SUCCESS':
+      return 'text-green-400';
+    case 'ERROR':
+      return 'text-red-400';
+    case 'INFO':
+      return 'text-blue-400';
+    default:
+      return 'text-gray-400';
   }
 };
 </script>

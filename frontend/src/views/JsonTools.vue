@@ -1,7 +1,7 @@
 <script setup>
 import {computed, reactive, ref} from 'vue';
 import {ArrowDownTrayIcon, ArrowsRightLeftIcon, ChevronLeftIcon, ChevronRightIcon,} from '@heroicons/vue/24/outline';
-import { ShowErrorDialog, ShowInfoDialog } from '../../wailsjs/go/main/App';
+import {ShowErrorDialog, ShowInfoDialog} from '../../wailsjs/go/main/App';
 
 // 导入 vue-json-pretty 组件及其样式
 import VueJsonPretty from 'vue-json-pretty';
@@ -66,7 +66,7 @@ async function minifyAndCopy() {
     await navigator.clipboard.writeText(minifiedText);
     await ShowInfoDialog('Success', 'Minified JSON copied to clipboard!');
   } catch (error) {
-    await ShowErrorDialog('Error', 'Invalid JSON, cannot minify.');
+    await ShowErrorDialog('Error', 'Invalid JSON, cannot minify: ' + error.message);
   }
 }
 

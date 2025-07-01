@@ -1,8 +1,9 @@
 <script setup>
-import { WindowMinimise, WindowToggleMaximise, Quit } from '../../wailsjs/runtime/runtime';
+import {Quit, WindowMinimise, WindowToggleMaximise} from '../../wailsjs/runtime/runtime';
 </script>
 <template>
-  <div style="-wails-draggable: drag;" class="w-full h-8 bg-gray-200 dark:bg-gray-700 flex justify-between items-center px-2 select-none">
+  <div style="-wails-draggable: drag;"
+       class="w-full h-8 bg-gray-200 dark:bg-gray-700 flex justify-between items-center px-2 select-none">
 
     <div class="text-sm font-semibold">DevTools</div>
 

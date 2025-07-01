@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import {onMounted, reactive, ref} from 'vue';
 import ConfigList from '../components/filesyncer/ConfigList.vue';
 import ConfigDetail from '../components/filesyncer/ConfigDetail.vue';
 import Modal from '../components/Modal.vue';
@@ -8,11 +8,11 @@ import Modal from '../components/Modal.vue';
 import {
   GetConfigs,
   SaveConfig,
-  TestConnection,
+  SelectFile,
   StartWatching,
-  StopWatching
+  StopWatching,
+  TestConnection
 } from '../../wailsjs/go/main/App';
-import { SelectFile } from '../../wailsjs/go/main/App';
 
 
 // --- 状态管理 ---
@@ -24,7 +24,7 @@ const activeWatchers = ref({}); // 存储激活状态, e.g., { "config-id-123": 
 // 模态框状态
 const isModalOpen = ref(false);
 const editingConfigId = ref(null); // 用于区分是新建还是编辑
-const testResult = ref({ status: '', message: '' }); // 存储测试连接结果
+const testResult = ref({status: '', message: ''}); // 存储测试连接结果
 
 // 表单状态 (用于新建/编辑模态框)
 const form = reactive({
@@ -46,7 +46,7 @@ function resetForm() {
     id: '', name: '', host: '', port: 22, user: 'root',
     authMethod: 'password', password: '', keyPath: ''
   });
-  testResult.value = { status: '', message: '' };
+  testResult.value = {status: '', message: ''};
 }
 
 // 生命周期钩子：组件挂载时加载配置
@@ -114,12 +114,12 @@ async function handleSaveConfig() {
 
 // 在模态框中测试连接
 async function handleTestConnectionInModal() {
-  testResult.value = { status: 'testing', message: 'Connecting...' };
+  testResult.value = {status: 'testing', message: 'Connecting...'};
   try {
     const result = await TestConnection(form);
-    testResult.value = { status: 'success', message: result };
+    testResult.value = {status: 'success', message: result};
   } catch (error) {
-    testResult.value = { status: 'error', message: error.toString() };
+    testResult.value = {status: 'error', message: error.toString()};
   }
 }
 
@@ -188,11 +188,14 @@ async function selectKeyFileForForm() {
 
     <div class="mt-4 grid grid-cols-[auto,1fr] gap-x-4 gap-y-5 items-center">
       <label for="config-name" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Name</label>
-      <input id="config-name" v-model="form.name" type="text" placeholder="E.g., My Production Server" class="input-field">
+      <input id="config-name" v-model="form.name" type="text" placeholder="E.g., My Production Server"
+             class="input-field">
 
-      <label for="config-host" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Host & Port</label>
+      <label for="config-host" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Host &
+        Port</label>
       <div class="grid grid-cols-3 gap-x-2">
-        <input id="config-host" v-model="form.host" type="text" placeholder="192.168.1.100" class="input-field col-span-2">
+        <input id="config-host" v-model="form.host" type="text" placeholder="192.168.1.100"
+               class="input-field col-span-2">
         <input v-model.number="form.port" type="number" placeholder="22" class="input-field">
       </div>
 
@@ -201,20 +204,31 @@ async function selectKeyFileForForm() {
 
       <label class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Auth Method</label>
       <div class="flex space-x-4">
-        <label class="flex items-center cursor-pointer"><input type="radio" v-model="form.authMethod" value="password" class="h-4 w-4 radio-field"><span class="ml-2">Password</span></label>
-        <label class="flex items-center cursor-pointer"><input type="radio" v-model="form.authMethod" value="key" class="h-4 w-4 radio-field"><span class="ml-2">Key File</span></label>
+        <label class="flex items-center cursor-pointer"><input type="radio" v-model="form.authMethod" value="password"
+                                                               class="h-4 w-4 radio-field"><span
+            class="ml-2">Password</span></label>
+        <label class="flex items-center cursor-pointer"><input type="radio" v-model="form.authMethod" value="key"
+                                                               class="h-4 w-4 radio-field"><span
+            class="ml-2">Key File</span></label>
       </div>
 
       <template v-if="form.authMethod === 'password'">
-        <label for="config-password" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Password</label>
+        <label for="config-password"
+               class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Password</label>
         <input id="config-password" v-model="form.password" type="password" class="input-field">
       </template>
 
       <template v-if="form.authMethod === 'key'">
-        <label for="config-keypath" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Key Path</label>
+        <label for="config-keypath" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Key
+          Path</label>
         <div class="flex items-center">
-          <input id="config-keypath" v-model="form.keyPath" type="text" readonly placeholder="Click Browse to select a key file" class="input-field bg-gray-200 dark:bg-gray-800 rounded-r-none">
-          <button @click="selectKeyFileForForm" class="px-3 py-2 bg-gray-300 dark:bg-gray-600 rounded-r-md text-sm flex-shrink-0 hover:bg-gray-400 dark:hover:bg-gray-500">Browse</button>
+          <input id="config-keypath" v-model="form.keyPath" type="text" readonly
+                 placeholder="Click Browse to select a key file"
+                 class="input-field bg-gray-200 dark:bg-gray-800 rounded-r-none">
+          <button @click="selectKeyFileForForm"
+                  class="px-3 py-2 bg-gray-300 dark:bg-gray-600 rounded-r-md text-sm flex-shrink-0 hover:bg-gray-400 dark:hover:bg-gray-500">
+            Browse
+          </button>
         </div>
       </template>
 
@@ -247,15 +261,19 @@ async function selectKeyFileForForm() {
 .input-field {
   @apply w-full p-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none;
 }
+
 .radio-field {
   @apply text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:checked:bg-indigo-600;
 }
+
 .btn {
   @apply px-4 py-2 text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800;
 }
+
 .btn-primary {
   @apply bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500;
 }
+
 .btn-secondary {
   @apply bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 focus:ring-gray-500;
 }

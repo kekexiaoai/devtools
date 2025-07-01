@@ -1,23 +1,22 @@
 <script setup>
-import { ref } from 'vue';
-import { defineProps, defineEmits } from 'vue';
+import {defineEmits, ref} from 'vue';
 // 确保已安装: pnpm install @heroicons/vue
 import {
-  FolderArrowDownIcon,
+  ChevronDoubleLeftIcon,
+  ChevronDoubleRightIcon,
   CodeBracketSquareIcon,
-  ChevronDoubleLeftIcon, // 用于收起
-  ChevronDoubleRightIcon, // 用于展开
+  FolderArrowDownIcon,
 } from '@heroicons/vue/24/outline';
 
-const props = defineProps(['modelValue']);
+// const props = defineProps(['modelValue']);
 const emit = defineEmits(['update:modelValue']);
 
 // 1. 新增状态，控制侧边栏是否收起 (false 为展开)
 const isCollapsed = ref(false);
 
 const tools = [
-  { id: 'FileSyncer', name: 'File Syncer', icon: FolderArrowDownIcon },
-  { id: 'JsonTools', name: 'JSON Tools', icon: CodeBracketSquareIcon },
+  {id: 'FileSyncer', name: 'File Syncer', icon: FolderArrowDownIcon},
+  {id: 'JsonTools', name: 'JSON Tools', icon: CodeBracketSquareIcon},
 ];
 
 function toggleSidebar() {
@@ -45,7 +44,7 @@ function toggleSidebar() {
             isCollapsed ? 'justify-center' : 'justify-start' // 3. 动态对齐
           ]"
       >
-        <component :is="tool.icon" class="h-6 w-6 flex-shrink-0" />
+        <component :is="tool.icon" class="h-6 w-6 flex-shrink-0"/>
 
         <span
             v-show="!isCollapsed"
@@ -66,7 +65,7 @@ function toggleSidebar() {
             isCollapsed ? 'justify-center' : 'justify-start'
           ]"
       >
-        <component :is="isCollapsed ? ChevronDoubleRightIcon : ChevronDoubleLeftIcon" class="h-6 w-6 flex-shrink-0" />
+        <component :is="isCollapsed ? ChevronDoubleRightIcon : ChevronDoubleLeftIcon" class="h-6 w-6 flex-shrink-0"/>
         <span v-show="!isCollapsed" class="ml-4 font-semibold text-sm whitespace-nowrap">Collapse</span>
       </button>
     </div>

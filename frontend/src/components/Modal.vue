@@ -27,18 +27,22 @@ const props = defineProps({
       }"
     >
 
-      <div class="flex-shrink-0 flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-3 p-6">
+      <div
+          class="flex-shrink-0 flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-3 p-6">
         <slot name="header"></slot>
         <button @click="emit('close')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
         </button>
       </div>
 
       <div class="px-6 py-4 overflow-y-auto" :class="{'flex-grow': props.size === 'responsive'}">
-        <slot />
+        <slot/>
       </div>
 
-      <div class="flex-shrink-0 mt-auto border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-b-lg">
+      <div
+          class="flex-shrink-0 mt-auto border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-b-lg">
         <slot name="footer"></slot>
       </div>
     </div>
