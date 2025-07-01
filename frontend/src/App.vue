@@ -53,31 +53,31 @@ function clearLogs() {
 
 <template>
   <div class="flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
-    <Sidebar v-model="activeTool"/>
+    <Sidebar v-model="activeTool" />
 
     <div class="flex-1 flex flex-col overflow-hidden">
 
       <main class="flex-1 overflow-y-auto">
-        <FileSyncer v-if="activeTool === 'FileSyncer'"/>
-        <JsonTools v-if="activeTool === 'JsonTools'"/>
+        <FileSyncer v-if="activeTool === 'FileSyncer'" />
+        <JsonTools v-if="activeTool === 'JsonTools'" />
       </main>
 
-      <div v-if="isLogPanelOpen" class="h-48 flex-shrink-0">
-        <LogPanel :logs="logs" @clear-logs="clearLogs"/>
-      </div>
-
-      <div
-          class="h-6 flex-shrink-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between px-2 text-xs">
-        <button @click="toggleLogPanel"
-                class="flex items-center space-x-1 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
-          <span>{{ isLogPanelOpen ? '▼' : '▲' }}</span>
-          <span>Logs</span>
-        </button>
-
-        <div class="flex-1 text-right truncate" :class="statusColorClass">
-          <span>{{ latestLogStatus.message }}</span>
+      <template v-if="activeTool === 'FileSyncer'">
+        <div v-if="isLogPanelOpen" class="h-48 flex-shrink-0">
+          <LogPanel :logs="logs" @clear-logs="clearLogs" />
         </div>
-      </div>
+
+        <div class="h-6 flex-shrink-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between px-2 text-xs">
+          <button @click="toggleLogPanel" class="flex items-center space-x-1 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+            <span>{{ isLogPanelOpen ? '▼' : '▲' }}</span>
+            <span>Logs</span>
+          </button>
+
+          <div class="flex-1 text-right truncate" :class="statusColorClass">
+            <span>{{ latestLogStatus.message }}</span>
+          </div>
+        </div>
+      </template>
     </div>
   </div>
 </template>
