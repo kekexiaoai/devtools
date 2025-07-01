@@ -75,11 +75,11 @@ jobs:
         shell: pwsh
         run: |
           jq --arg ver "${{ steps.normalise_version.outputs.version }}" '.info.productVersion = $ver' wails.json > tmp.json
-          Remove-Item wails.json
+          Remove-Item wails.json -Force
           Rename-Item tmp.json wails.json
-
+          
           jq --arg ver "${{ steps.normalise_version.outputs.version }}" '.version = $ver' frontend/package.json > tmp.json
-          Remove-Item frontend/package.json
+          Remove-Item frontend/package.json -Force
           Rename-Item tmp.json frontend/package.json
 
       - name: Build frontend assets
