@@ -148,7 +148,7 @@ async function syncClipboardContent(closeOnSuccess = true) {
 </script>
 
 <template>
-  <div>
+  <div class="text-left">
     <div class="p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
       <div class="flex justify-between items-center mb-4">
         <h2 class="text-xl font-bold">Sync Directories</h2>
@@ -221,7 +221,8 @@ async function syncClipboardContent(closeOnSuccess = true) {
           <p class="p-2 text-gray-700 dark:text-gray-300 font-mono truncate">
             {{ form.clipboardFilePath || 'Not set' }}
           </p>
-          <button @click="isEditingClipboardPath = true" class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-sm rounded-md flex-shrink-0 hover:bg-gray-300 dark:hover:bg-gray-500">
+          <button @click="isEditingClipboardPath = true"
+                  class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-sm rounded-md flex-shrink-0 hover:bg-gray-300 dark:hover:bg-gray-500">
             Edit
           </button>
         </div>
@@ -233,8 +234,12 @@ async function syncClipboardContent(closeOnSuccess = true) {
               placeholder="/home/user/my_notes.txt"
               class="w-full p-2 bg-gray-100 dark:bg-gray-700 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500"
           >
-          <button @click="cancelEditClipboardPath" class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-sm rounded-md flex-shrink-0">Cancel</button>
-          <button @click="handleSaveChanges" class="px-4 py-2 bg-green-600 text-white text-sm rounded-md flex-shrink-0">Save</button>
+          <button @click="cancelEditClipboardPath"
+                  class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-sm rounded-md flex-shrink-0">Cancel
+          </button>
+          <button @click="handleSaveChanges" class="px-4 py-2 bg-green-600 text-white text-sm rounded-md flex-shrink-0">
+            Save
+          </button>
         </div>
       </div>
 
@@ -255,23 +260,26 @@ async function syncClipboardContent(closeOnSuccess = true) {
       <h3 class="text-lg font-medium">Sync to: {{ form.clipboardFilePath }}</h3>
     </template>
 
-    <textarea
-        v-model="clipboardContent"
-        placeholder="Paste your content here..."
-        class="w-full h-64 p-2 mt-4 font-mono text-sm bg-gray-100 dark:bg-gray-700 rounded-md">
-    </textarea>
+    <div class="h-full flex flex-col">
+      <textarea
+          v-model="clipboardContent"
+          placeholder="Paste your content here..."
+          class="flex-grow w-full p-2 font-mono text-sm bg-gray-100 dark:bg-gray-700 rounded-md resize-none"
+      ></textarea>
 
-    <div class="mt-2 space-y-2 text-sm text-gray-600 dark:text-gray-300">
-      <label class="flex items-center cursor-pointer">
-        <input type="checkbox" v-model="syncAsHTML"
-               class="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-gray-600 dark:bg-gray-900">
-        <span class="ml-2">Sync as viewable HTML (wraps content in `&lt;pre&gt;` tag)</span>
-      </label>
-      <label class="flex items-center cursor-pointer">
-        <input type="checkbox" v-model="autoSyncOnPaste"
-               class="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-gray-600 dark:bg-gray-900">
-        <span class="ml-2">Auto-sync on paste</span>
-      </label>
+
+      <div class="mt-2 space-y-2 text-sm text-gray-600 dark:text-gray-300">
+        <label class="flex items-center cursor-pointer">
+          <input type="checkbox" v-model="syncAsHTML"
+                 class="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-gray-600 dark:bg-gray-900">
+          <span class="ml-2">Sync as viewable HTML (wraps content in `&lt;pre&gt;` tag)</span>
+        </label>
+        <label class="flex items-center cursor-pointer">
+          <input type="checkbox" v-model="autoSyncOnPaste"
+                 class="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-gray-600 dark:bg-gray-900">
+          <span class="ml-2">Auto-sync on paste</span>
+        </label>
+      </div>
     </div>
 
     <template #footer>
