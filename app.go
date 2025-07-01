@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -36,6 +37,35 @@ func (a *App) startup(ctx context.Context) {
 	if err != nil {
 		log.Fatalf("无法获取用户配置目录: %v", err)
 	}
+	// --- 日志文件初始化 ---
+	logDir := filepath.Join(userConfigDir, "DevTools") // 日志和配置放同一个目录
+	if err := os.MkdirAll(logDir, 0750); err != nil {
+		// 如果创建目录失败，也别让程序崩溃，只是打印出来
+		log.Printf("警告: 创建日志目录失败: %v", err)
+	} else {
+		logFilePath := filepath.Join(logDir, "app.log")
+		// O_CREATE: 如果文件不存在则创建
+		// O_WRONLY: 以只写模式打开
+		// O_APPEND: 在文件末尾追加内容
+		logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0660)
+		if err != nil {
+			log.Printf("警告: 打开日志文件失败: %v", err)
+		} else {
+			fmt.Printf("运行模式: debug=%t, 日志文件路径: %s\n", IsDebug, logFilePath)
+			// 将日志输出重定向到文件
+			// 在开发模式下，我们希望日志同时输出到终端和文件
+			// 在生产模式下，只输出到文件
+			if IsDebug {
+				// 同时写入文件和标准错误输出(即终端)
+				mw := io.MultiWriter(os.Stderr, logFile)
+				log.SetOutput(mw)
+			} else {
+				log.SetOutput(logFile)
+			}
+		}
+	}
+	log.Println("-------------------- App Starting --------------------")
+
 	configPath := filepath.Join(userConfigDir, "DevTools", "config.json")
 	a.configManager = config.NewConfigManager(configPath)
 	if err := a.configManager.Load(); err != nil {
