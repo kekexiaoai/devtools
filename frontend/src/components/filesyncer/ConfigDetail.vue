@@ -255,7 +255,7 @@ async function syncClipboardContent(closeOnSuccess = true) {
     </div>
   </div>
 
-  <Modal v-if="isClipboardModalOpen" @close="isClipboardModalOpen = false">
+  <Modal v-if="isClipboardModalOpen" @close="isClipboardModalOpen = false" size="responsive">
     <template #header>
       <h3 class="text-lg font-medium">Sync to: {{ form.clipboardFilePath }}</h3>
     </template>

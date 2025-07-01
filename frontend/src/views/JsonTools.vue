@@ -1,40 +1,57 @@
 <script setup>
-import {reactive, ref} from 'vue';
-import {ArrowDownTrayIcon, ArrowsRightLeftIcon, ChevronLeftIcon, ChevronRightIcon} from '@heroicons/vue/24/outline';
+import {computed, reactive, ref} from 'vue';
+import {ArrowDownTrayIcon, ArrowsRightLeftIcon, ChevronLeftIcon, ChevronRightIcon,} from '@heroicons/vue/24/outline';
 
-// 1. 导入 vue-json-pretty 组件及其样式
+// 导入 vue-json-pretty 组件及其样式
 import VueJsonPretty from 'vue-json-pretty';
 import 'vue-json-pretty/lib/styles.css';
 
+// 导入 Codemirror 相关组件和扩展
+import {Codemirror} from 'vue-codemirror';
+import {json} from '@codemirror/lang-json';
+import {oneDark} from '@codemirror/theme-one-dark';
+import {EditorView} from '@codemirror/view';
+
 // --- 状态管理 ---
 const jsonInput = ref('');
-// 将原来的 jsonOutput 拆分为两部分
-const jsonObjectOutput = ref({}); // 存储解析后的 JS 对象，用于树状图展示
+const jsonObjectOutput = ref({});
 const validationResult = reactive({isValid: null, message: ''});
-
-// 新增：控制左侧输入框的显示
 const isInputVisible = ref(true);
 
+// 检查当前是否为暗黑模式，用于切换主题
+const isDarkMode = computed(() => window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+// 设置 Codemirror 的扩展
+
+const cmExtensions = computed(() => {
+  // 基础扩展是 JSON 语言支持
+  const exts = [json(), EditorView.lineWrapping];
+
+  if (isDarkMode.value) {
+    exts.push(oneDark); // 暗黑模式下使用 oneDark 主题
+  }
+  return exts;
+});
+
+// --- 方法定义 (保持不变) ---
 function toggleInputView() {
   isInputVisible.value = !isInputVisible.value;
 }
 
-// 格式化与校验
 function formatAndValidate() {
   if (!jsonInput.value.trim()) {
     validationResult.isValid = null;
     validationResult.message = '';
-    jsonOutput.value = '';
+    jsonObjectOutput.value = {};
     return;
   }
-
   try {
     const jsonObj = JSON.parse(jsonInput.value);
-    jsonObjectOutput.value = jsonObj; // 2. 将解析后的对象赋给新状态
+    jsonObjectOutput.value = jsonObj;
     validationResult.isValid = true;
     validationResult.message = 'Valid JSON';
   } catch (error) {
-    jsonObjectOutput.value = {}; // 清空对象
+    jsonObjectOutput.value = {};
     validationResult.isValid = false;
     validationResult.message = `Invalid JSON: ${error.message}`;
   }
@@ -52,29 +69,6 @@ async function minifyAndCopy() {
   }
 }
 
-// 压缩 JSON
-function minify() {
-  if (!jsonInput.value.trim()) {
-    validationResult.isValid = null;
-    validationResult.message = '';
-    jsonOutput.value = '';
-    return;
-  }
-
-  try {
-    const jsonObj = JSON.parse(jsonInput.value);
-    // 不带额外参数的 JSON.stringify 会生成压缩后的字符串
-    jsonOutput.value = JSON.stringify(jsonObj);
-    validationResult.isValid = true;
-    validationResult.message = 'Valid JSON';
-  } catch (error) {
-    jsonOutput.value = '';
-    validationResult.isValid = false;
-    validationResult.message = `Invalid JSON: ${error.message}`;
-  }
-}
-
-// 复制输出结果
 async function copyOutput() {
   if (!jsonObjectOutput.value || Object.keys(jsonObjectOutput.value).length === 0) return;
   try {
@@ -95,7 +89,7 @@ function clearAll() {
 </script>
 
 <template>
-  <div class="h-full flex flex-col p-4 space-y-4">
+  <div class="h-full flex flex-col p-4 space-y-4  dark:bg-gray-900">
     <div class="flex-shrink-0 flex items-center space-x-2">
       <button @click="formatAndValidate"
               class="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
@@ -128,17 +122,20 @@ function clearAll() {
     </div>
 
     <div class="flex-grow flex items-stretch space-x-2 overflow-hidden">
-
-      <transition name="slide-fade">
-        <div v-if="isInputVisible" class="w-1/2 h-full flex flex-col">
-          <label class="mb-1 text-sm font-semibold">Input</label>
-          <textarea
+      <div v-if="isInputVisible" class="w-1/2 h-full flex flex-col p-1 transition-all duration-300 ease-in-out">
+        <label class="mb-1 text-sm font-semibold text-gray-800 dark:text-gray-200">Input</label>
+        <div class="flex-grow w-full border border-gray-300 dark:border-gray-600 rounded-md overflow-hidden">
+          <codemirror
               v-model="jsonInput"
               placeholder="Paste your JSON here..."
-              class="m-1 flex-grow w-full p-2 font-mono text-sm bg-gray-100 dark:bg-gray-700 rounded-md resize-none"
-          ></textarea>
+              :style="{ height: '100%' }"
+              :autofocus="true"
+              :indent-with-tab="true"
+              :tab-size="2"
+              :extensions="cmExtensions"
+          />
         </div>
-      </transition>
+      </div>
 
       <div class="flex-shrink-0 flex items-center justify-center">
         <button @click="toggleInputView"
@@ -148,40 +145,40 @@ function clearAll() {
         </button>
       </div>
 
-      <div class="h-full flex flex-col" :class="isInputVisible ? 'w-1/2' : 'w-full'">
-        <label class="mb-1 text-sm font-semibold">Output</label>
-        <div
-            class="w-full flex-grow p-4 bg-gray-100 dark:bg-gray-800 rounded-md border border-gray-300 dark:border-gray-600 overflow-auto">
+      <div class="h-full flex flex-col p-1" :class="isInputVisible ? 'w-1/2' : 'w-full'">
+        <label class="mb-1 text-sm font-semibold text-gray-800 dark:text-gray-200">Output</label>
+        <div class="w-full flex-grow rounded-md border border-gray-300 dark:border-gray-600 overflow-auto">
           <VueJsonPretty
               v-if="Object.keys(jsonObjectOutput).length > 0"
               :data="jsonObjectOutput"
               :deep="3"
               show-line
               show-icon
+              class="p-4"
+              :theme="isDarkMode ? 'vjp-dark' : 'vjp-light'"
           />
-          <div v-else class="text-gray-400">Result will be shown here...</div>
+          <div v-else class="p-4 text-gray-400">Result will be shown here...</div>
         </div>
       </div>
     </div>
   </div>
 </template>
 
-
 <style>
-/* 添加一个简单的过渡效果 */
-.slide-fade-enter-active,
-.slide-fade-leave-active {
-  transition: all 0.3s ease-out;
+/* 使 Codemirror 编辑器填满其容器并修复对齐 */
+.cm-editor {
+  height: 100%;
+  text-align: left !important; /* 强制左对齐 */
 }
 
-.slide-fade-enter-from,
-.slide-fade-leave-to {
-  transform: translateX(-20px);
-  opacity: 0;
-  width: 0;
+/* 暗黑模式下，让 Codemirror 的 gutter (行号区域) 背景色与主题匹配 */
+.cm-theme-dark .cm-gutters {
+  background-color: #282c34 !important;
 }
 
+/* vue-json-pretty 的样式微调 (保持不变) */
 .vjs-tree {
   font-size: 13px !important;
+  background-color: transparent;
 }
 </style>
