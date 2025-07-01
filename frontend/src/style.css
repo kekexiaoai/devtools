@@ -5,7 +5,8 @@
 
 /* 自定义文本选中样式 */
 ::selection {
-    background-color: #6366f1; /* a shade of indigo */
+    background-color: #6366f1;
+    /* a shade of indigo */
     color: white;
 }
 
@@ -15,7 +16,7 @@
     font-style: normal;
     font-weight: 400;
     src: local(""),
-    url("assets/fonts/nunito-v16-latin-regular.woff2") format("woff2");
+        url("assets/fonts/nunito-v16-latin-regular.woff2") format("woff2");
 }
 
 
@@ -24,6 +25,7 @@
   这是 Tailwind 推荐的做法。
 */
 @layer base {
+
     /*
       为 html 和 body 设置基础样式
       - 移除了所有 text-align: center。
@@ -47,21 +49,51 @@
     */
     input,
     textarea,
-    .cm-content, /* 这是 CodeMirror 编辑器内容区的类名 */
-    .vjs-value { /* 这是 vue-json-pretty 中值的类名 */
+    .cm-content,
+    /* 这是 CodeMirror 编辑器内容区的类名 */
+    .vjs-value {
+        /* 这是 vue-json-pretty 中值的类名 */
         @apply select-text;
     }
 
     /* textarea 的默认样式
     */
     textarea {
-        @apply
-        border border-gray-300 dark:border-gray-600
-        rounded-md
-        bg-gray-100 dark:bg-gray-800
-        text-gray-900 dark:text-gray-200
-        focus:ring-2 focus:ring-blue-500
-        focus:border-blue-500
-        focus:outline-none;
+        @apply border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none;
+    }
+}
+
+/* 将可复用的组件样式定义在 @layer components 中 */
+@layer components {
+    .btn {
+        @apply px-4 py-2 text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 flex-shrink-0;
+    }
+
+    .btn-primary {
+        @apply bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500;
+    }
+
+    .btn-secondary {
+        @apply bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 focus:ring-gray-500;
+    }
+
+    .input-field {
+        @apply w-full p-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none;
+    }
+
+    .radio-field {
+        @apply text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:checked:bg-indigo-600;
+    }
+
+    .btn {
+        @apply px-4 py-2 text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800;
+    }
+
+    .btn-primary {
+        @apply bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500;
+    }
+
+    .btn-secondary {
+        @apply bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 focus:ring-gray-500;
     }
 }

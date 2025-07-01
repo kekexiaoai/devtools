@@ -75,9 +75,9 @@ async function copyOutput() {
   try {
     const formattedText = JSON.stringify(jsonObjectOutput.value, null, 2);
     await navigator.clipboard.writeText(formattedText);
-    alert('Formatted JSON copied to clipboard!');
+    await ShowInfoDialog('Success','Formatted JSON copied to clipboard!');
   } catch (err) {
-    alert('Failed to copy: ' + err);
+    await ShowErrorDialog('Error', 'Failed to copy: ' + err);
   }
 }
 

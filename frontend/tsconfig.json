@@ -16,6 +16,10 @@
     ],
     "skipLibCheck": true
   },
+  "exclude": [
+    "node_modules",
+    "**/*.spec.ts"
+  ],
   "include": [
     "src/**/*.ts",
     "src/**/*.d.ts",
