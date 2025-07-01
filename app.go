@@ -233,3 +233,15 @@ func (a *App) ShowErrorDialog(title string, message string) {
 		Message: message,
 	})
 }
+
+// ShowConfirmDialog 显示一个原生的确认对话框，并返回用户的选择
+func (a *App) ShowConfirmDialog(title string, message string) (string, error) {
+	return runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
+		Type:          runtime.QuestionDialog,
+		Title:         title,
+		Message:       message,
+		Buttons:       []string{"Yes", "No"},
+		DefaultButton: "No",
+		CancelButton:  "No",
+	})
+}

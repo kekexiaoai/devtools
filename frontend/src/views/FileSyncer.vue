@@ -3,6 +3,8 @@ import {onMounted, reactive, ref} from 'vue';
 import ConfigList from '../components/filesyncer/ConfigList.vue';
 import ConfigDetail from '../components/filesyncer/ConfigDetail.vue';
 import Modal from '../components/Modal.vue';
+import {ShowErrorDialog, ShowInfoDialog} from '../../wailsjs/go/main/App';
+
 
 // --- Wails 方法导入 ---
 import {
@@ -64,7 +66,7 @@ async function refreshConfigs() {
     }
   } catch (error) {
     console.error("Failed to load configs:", error);
-    alert("Failed to load configurations.");
+    await ShowErrorDialog('Error', "Failed to load configurations: " + error.message);
   }
 }
 
@@ -104,11 +106,11 @@ async function handleSaveConfig() {
   }
   try {
     await SaveConfig(form);
-    alert('Configuration saved successfully!');
+    await ShowInfoDialog('Success','Configuration saved successfully!');
     handleModalClose();
     await refreshConfigs();
   } catch (error) {
-    alert('Failed to save configuration: ' + error);
+    await ShowErrorDialog('Error', 'Failed to save configuration: ' + error);
   }
 }
 
@@ -134,7 +136,7 @@ async function toggleWatcher(configId, isActive) {
       delete activeWatchers.value[configId];
     }
   } catch (error) {
-    alert(`Failed to ${isActive ? 'start' : 'stop'} watching: ` + error);
+    await ShowErrorDialog('Error', `Failed to ${isActive ? 'start' : 'stop'} watching: ` + error);
   }
 }
 
@@ -177,104 +179,82 @@ async function selectKeyFileForForm() {
         <p>Select or create a configuration to get started.</p>
       </div>
     </div>
-  </div>
 
-  <Modal v-if="isModalOpen" @close="handleModalClose" size="standard">
-    <template #header>
-      <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">
-        {{ editingConfigId ? 'Edit Configuration' : 'Create New Configuration' }}
-      </h3>
-    </template>
 
-    <div class="mt-4 grid grid-cols-[auto,1fr] gap-x-4 gap-y-5 items-center">
-      <label for="config-name" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Name</label>
-      <input id="config-name" v-model="form.name" type="text" placeholder="E.g., My Production Server"
-             class="input-field">
-
-      <label for="config-host" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Host &
-        Port</label>
-      <div class="grid grid-cols-3 gap-x-2">
-        <input id="config-host" v-model="form.host" type="text" placeholder="192.168.1.100"
-               class="input-field col-span-2">
-        <input v-model.number="form.port" type="number" placeholder="22" class="input-field">
-      </div>
-
-      <label for="config-user" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">User</label>
-      <input id="config-user" v-model="form.user" type="text" placeholder="root" class="input-field">
-
-      <label class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Auth Method</label>
-      <div class="flex space-x-4">
-        <label class="flex items-center cursor-pointer"><input type="radio" v-model="form.authMethod" value="password"
-                                                               class="h-4 w-4 radio-field"><span
-            class="ml-2">Password</span></label>
-        <label class="flex items-center cursor-pointer"><input type="radio" v-model="form.authMethod" value="key"
-                                                               class="h-4 w-4 radio-field"><span
-            class="ml-2">Key File</span></label>
-      </div>
-
-      <template v-if="form.authMethod === 'password'">
-        <label for="config-password"
-               class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Password</label>
-        <input id="config-password" v-model="form.password" type="password" class="input-field">
+    <Modal v-if="isModalOpen" @close="handleModalClose" size="standard">
+      <template #header>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+          {{ editingConfigId ? 'Edit Configuration' : 'Create New Configuration' }}
+        </h3>
       </template>
 
-      <template v-if="form.authMethod === 'key'">
-        <label for="config-keypath" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Key
-          Path</label>
-        <div class="flex items-center">
-          <input id="config-keypath" v-model="form.keyPath" type="text" readonly
-                 placeholder="Click Browse to select a key file"
-                 class="input-field bg-gray-200 dark:bg-gray-800 rounded-r-none">
-          <button @click="selectKeyFileForForm"
-                  class="px-3 py-2 bg-gray-300 dark:bg-gray-600 rounded-r-md text-sm flex-shrink-0 hover:bg-gray-400 dark:hover:bg-gray-500">
-            Browse
-          </button>
+      <div class="mt-4 grid grid-cols-[auto,1fr] gap-x-4 gap-y-5 items-center">
+        <label for="config-name" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Name</label>
+        <input id="config-name" v-model="form.name" type="text" placeholder="E.g., My Production Server"
+              class="input-field">
+
+        <label for="config-host" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Host &
+          Port</label>
+        <div class="grid grid-cols-3 gap-x-2">
+          <input id="config-host" v-model="form.host" type="text" placeholder="192.168.1.100"
+                class="input-field col-span-2">
+          <input v-model.number="form.port" type="number" placeholder="22" class="input-field">
         </div>
-      </template>
 
-      <div v-if="testResult.message" class="col-span-2">
-        <p class="text-sm p-2 rounded-md mt-2 text-center" :class="{
-          'text-green-800 bg-green-100 dark:text-green-200 dark:bg-green-900/50': testResult.status === 'success',
-          'text-red-800 bg-red-100 dark:text-red-200 dark:bg-red-900/50': testResult.status === 'error',
-          'text-gray-800 bg-gray-100 dark:text-gray-200 dark:bg-gray-700': testResult.status === 'testing'
-        }">{{ testResult.message }}</p>
+        <label for="config-user" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">User</label>
+        <input id="config-user" v-model="form.user" type="text" placeholder="root" class="input-field">
+
+        <label class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Auth Method</label>
+        <div class="flex space-x-4">
+          <label class="flex items-center cursor-pointer"><input type="radio" v-model="form.authMethod" value="password"
+                                                                class="h-4 w-4 radio-field"><span
+              class="ml-2">Password</span></label>
+          <label class="flex items-center cursor-pointer"><input type="radio" v-model="form.authMethod" value="key"
+                                                                class="h-4 w-4 radio-field"><span
+              class="ml-2">Key File</span></label>
+        </div>
+
+        <template v-if="form.authMethod === 'password'">
+          <label for="config-password"
+                class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Password</label>
+          <input id="config-password" v-model="form.password" type="password" class="input-field">
+        </template>
+
+        <template v-if="form.authMethod === 'key'">
+          <label for="config-keypath" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Key
+            Path</label>
+          <div class="flex items-center">
+            <input id="config-keypath" v-model="form.keyPath" type="text" readonly
+                  placeholder="Click Browse to select a key file"
+                  class="input-field bg-gray-200 dark:bg-gray-800 rounded-r-none">
+            <button @click="selectKeyFileForForm"
+                    class="px-3 py-2 bg-gray-300 dark:bg-gray-600 rounded-r-md text-sm flex-shrink-0 hover:bg-gray-400 dark:hover:bg-gray-500">
+              Browse
+            </button>
+          </div>
+        </template>
+
+        <div v-if="testResult.message" class="col-span-2">
+          <p class="text-sm p-2 rounded-md mt-2 text-center" :class="{
+            'text-green-800 bg-green-100 dark:text-green-200 dark:bg-green-900/50': testResult.status === 'success',
+            'text-red-800 bg-red-100 dark:text-red-200 dark:bg-red-900/50': testResult.status === 'error',
+            'text-gray-800 bg-gray-100 dark:text-gray-200 dark:bg-gray-700': testResult.status === 'testing'
+          }">{{ testResult.message }}</p>
+        </div>
       </div>
-    </div>
 
-    <template #footer>
-      <button @click="handleTestConnectionInModal" class="btn btn-secondary">
-        Test Connection
-      </button>
-      <div class="flex-grow"></div>
-      <button @click="handleModalClose" class="btn btn-secondary">
-        Cancel
-      </button>
-      <button @click="handleSaveConfig" class="btn btn-primary">
-        Save
-      </button>
-    </template>
-  </Modal>
+      <template #footer>
+        <button @click="handleTestConnectionInModal" class="btn btn-secondary">
+          Test Connection
+        </button>
+        <div class="flex-grow"></div>
+        <button @click="handleModalClose" class="btn btn-secondary">
+          Cancel
+        </button>
+        <button @click="handleSaveConfig" class="btn btn-primary">
+          Save
+        </button>
+      </template>
+    </Modal>
+  </div>
 </template>
-
-<style scoped>
-/* 定义一些可复用的样式，让模板更简洁 */
-.input-field {
-  @apply w-full p-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none;
-}
-
-.radio-field {
-  @apply text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:checked:bg-indigo-600;
-}
-
-.btn {
-  @apply px-4 py-2 text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800;
-}
-
-.btn-primary {
-  @apply bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500;
-}
-
-.btn-secondary {
-  @apply bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 focus:ring-gray-500;
-}
-</style>

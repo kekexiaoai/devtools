@@ -105,6 +105,7 @@ jobs:
         shell: bash
         working-directory: ./build
         run: |
+          # mv devtools.app DevTools.app
           ./create-dmg/create-dmg \
             --no-internet-enable \
             --volname "DevTools" \
