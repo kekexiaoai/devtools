@@ -24,4 +24,4 @@ export function StopWatching(arg1:string):Promise<void>;
 
 export function TestConnection(arg1:types.SSHConfig):Promise<string>;
 
-export function UpdateRemoteFileFromClipboard(arg1:string,arg2:string,arg3:string):Promise<void>;
+export function UpdateRemoteFileFromClipboard(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<void>;
