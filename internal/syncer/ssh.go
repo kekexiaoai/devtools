@@ -1,7 +1,9 @@
 package syncer
 
 import (
+	"bytes"
 	"fmt"
+	"html/template"
 	"io"
 	"io/fs"
 	"log"
@@ -82,14 +84,14 @@ func TestSSHConnection(cfg types.SSHConfig) (string, error) {
 	return "连接成功!", nil
 }
 
-func UpdateRemoteFile(cfg types.SSHConfig, remotePath string, content string) error {
-	client, err := NewSFTPClient(cfg)
+// UpdateRemoteFile contains the updated HTML template with corrected JavaScript.
+func UpdateRemoteFile(config types.SSHConfig, remotePath string, content string, asHTML bool) error {
+	client, err := NewSFTPClient(config)
 	if err != nil {
 		return err
 	}
 	defer client.Close()
 
-	// 确保远程目录存在
 	remoteDir := filepath.Dir(remotePath)
 	if err := client.MkdirAll(remoteDir); err != nil {
 		return fmt.Errorf("创建远程目录失败: %w", err)
@@ -101,7 +103,72 @@ func UpdateRemoteFile(cfg types.SSHConfig, remotePath string, content string) er
 	}
 	defer f.Close()
 
-	if _, err := f.Write([]byte(content)); err != nil {
+	var contentToWrite []byte
+	if asHTML {
+		// This template now uses a fallback copy method that works with local files.
+		const tmpl = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pasted Content</title>
+    <style>
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f8f9fa; color: #212529; }
+        .container { max-width: 1000px; margin: 2rem auto; padding: 2rem; }
+		.header { display: flex; justify-content: flex-end; margin-bottom: 1rem; }
+        #copy-btn { font-size: 14px; padding: 8px 16px; cursor: pointer; border: 1px solid #ccc; border-radius: 6px; background-color: #fff; }
+        #copy-btn:hover { background-color: #f1f3f5; }
+        pre { white-space: pre-wrap; word-wrap: break-word; background-color: #fff; padding: 1.5em; border-radius: 6px; border: 1px solid #dee2e6; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <button id="copy-btn">Copy to Clipboard</button>
+        </div>
+        <pre id="content-block">{{.}}</pre>
+    </div>
+    <script>
+        document.getElementById('copy-btn').addEventListener('click', function() {
+            const btn = this;
+            const content = document.getElementById('content-block').innerText;
+            
+            // Create a temporary textarea element to hold the text
+            const textarea = document.createElement('textarea');
+            textarea.value = content;
+            textarea.style.position = 'fixed';  // Prevent scrolling to bottom of page in MS Edge.
+            textarea.style.left = '-9999px';
+            document.body.appendChild(textarea);
+            
+            // Select and copy the text
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                btn.innerText = 'Copied!';
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                btn.innerText = 'Error!';
+            } finally {
+                // Clean up the temporary element
+                document.body.removeChild(textarea);
+                setTimeout(() => { btn.innerText = 'Copy to Clipboard'; }, 2000);
+            }
+        });
+    </` + `script>
+</body>
+</html>`
+
+		t := template.Must(template.New("webpage").Parse(tmpl))
+		var buf bytes.Buffer
+		if err := t.Execute(&buf, content); err != nil {
+			return fmt.Errorf("HTML模板执行失败: %w", err)
+		}
+		contentToWrite = buf.Bytes()
+	} else {
+		contentToWrite = []byte(content)
+	}
+
+	if _, err := f.Write(contentToWrite); err != nil {
 		return fmt.Errorf("写入远程文件失败: %w", err)
 	}
 	return nil

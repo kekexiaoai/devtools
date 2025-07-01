@@ -9,6 +9,7 @@ export namespace types {
 	    authMethod: string;
 	    password: string;
 	    keyPath: string;
+	    clipboardFilePath?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SSHConfig(source);
@@ -24,6 +25,7 @@ export namespace types {
 	        this.authMethod = source["authMethod"];
 	        this.password = source["password"];
 	        this.keyPath = source["keyPath"];
+	        this.clipboardFilePath = source["clipboardFilePath"];
 	    }
 	}
 	export class SyncPair {

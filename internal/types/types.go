@@ -15,6 +15,8 @@ type SSHConfig struct {
 	AuthMethod string `json:"authMethod"` // "password" or "key"
 	Password   string `json:"password"`   // 注意：生产环境中应加密
 	KeyPath    string `json:"keyPath"`
+
+	ClipboardFilePath string `json:"clipboardFilePath,omitempty"`
 }
 
 type SyncPair struct {

@@ -93,12 +93,13 @@ func (a *App) TestConnection(config types.SSHConfig) (string, error) {
 	return syncer.TestSSHConnection(config)
 }
 
-func (a *App) UpdateRemoteFileFromClipboard(configID string, remotePath string, content string) error {
+func (a *App) UpdateRemoteFileFromClipboard(configID string, remotePath string, content string, asHTML bool) error {
 	cfg, found := a.configManager.GetSSHConfigByID(configID)
 	if !found {
 		return &config.ConfigNotFoundError{ConfigID: configID}
 	}
-	return syncer.UpdateRemoteFile(cfg, remotePath, content)
+	// 将 asHTML 参数传递给底层的 syncer 函数
+	return syncer.UpdateRemoteFile(cfg, remotePath, content, asHTML)
 }
 
 // --- 监控控制方法 ---

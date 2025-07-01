@@ -20,7 +20,7 @@
         </button>
       </div>
 
-      <div class="mt-4">
+      <div class="mt-4 px-6 flex-grow overflow-y-auto">
         <slot />
       </div>
 
