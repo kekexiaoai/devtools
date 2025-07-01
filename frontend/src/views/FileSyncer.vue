@@ -1,54 +1,46 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
-import Modal from '../components/Modal.vue';
 import ConfigList from '../components/filesyncer/ConfigList.vue';
 import ConfigDetail from '../components/filesyncer/ConfigDetail.vue';
+import Modal from '../components/Modal.vue';
 
-// Wails Go 后端方法
-import { GetConfigs, SaveConfig, TestConnection, SelectFile, StartWatching, StopWatching } from '../../wailsjs/go/main/App';
-// Wails Runtime 方法，用于文件选择
+// --- Wails 方法导入 ---
+import {
+  GetConfigs,
+  SaveConfig,
+  TestConnection,
+  StartWatching,
+  StopWatching
+} from '../../wailsjs/go/main/App';
+import { SelectFile } from '../../wailsjs/go/main/App';
+
 
 // --- 状态管理 ---
-
 const configs = ref([]);
 const selectedConfigId = ref(null);
 const selectedConfig = ref(null);
-const activeWatchers = ref({}); // 使用一个对象来存储激活状态, e.g., { "config-id-123": true }
-
+const activeWatchers = ref({}); // 存储激活状态, e.g., { "config-id-123": true }
 
 // 模态框状态
 const isModalOpen = ref(false);
 const editingConfigId = ref(null); // 用于区分是新建还是编辑
+const testResult = ref({ status: '', message: '' }); // 存储测试连接结果
 
-// 表单状态
+// 表单状态 (用于新建/编辑模态框)
 const form = reactive({
-  id: '', name: '', host: '', port: 22, user: 'root',
-  authMethod: 'password', password: '', keyPath: ''
+  id: '',
+  name: '',
+  host: '',
+  port: 22,
+  user: 'root',
+  authMethod: 'password', // 'password' or 'key'
+  password: '',
+  keyPath: ''
 });
 
-// 测试连接状态
-const testResult = ref({ status: '', message: '' }); // status: 'testing', 'success', 'error'
+// --- 方法定义 ---
 
-// --- 生命周期 & 数据加载 ---
-
-onMounted(async () => {
-  await refreshConfigs();
-});
-
-async function refreshConfigs() {
-  configs.value = await GetConfigs();
-  if (configs.value.length > 0 && !selectedConfigId.value) {
-    handleSelectConfig(configs.value[0].id);
-  }
-}
-
-function handleSelectConfig(id) {
-  selectedConfigId.value = id;
-  selectedConfig.value = configs.value.find(c => c.id === id) || null;
-}
-
-// --- 模态框控制 ---
-
+// 重置表单和相关状态
 function resetForm() {
   Object.assign(form, {
     id: '', name: '', host: '', port: 22, user: 'root',
@@ -57,12 +49,39 @@ function resetForm() {
   testResult.value = { status: '', message: '' };
 }
 
+// 生命周期钩子：组件挂载时加载配置
+onMounted(async () => {
+  await refreshConfigs();
+});
+
+// 刷新配置列表
+async function refreshConfigs() {
+  try {
+    configs.value = await GetConfigs();
+    // 如果列表不为空且没有选中项，则默认选中第一个
+    if (configs.value.length > 0 && !selectedConfigId.value) {
+      handleSelectConfig(configs.value[0].id);
+    }
+  } catch (error) {
+    console.error("Failed to load configs:", error);
+    alert("Failed to load configurations.");
+  }
+}
+
+// 处理左侧列表的选中事件
+function handleSelectConfig(id) {
+  selectedConfigId.value = id;
+  selectedConfig.value = configs.value.find(c => c.id === id) || null;
+}
+
+// 打开“新建配置”模态框
 function handleOpenCreateModal() {
   resetForm();
   editingConfigId.value = null; // 清除编辑ID，表示是新建
   isModalOpen.value = true;
 }
 
+// 打开“编辑配置”模态框
 function handleOpenEditModal(configId) {
   const configToEdit = configs.value.find(c => c.id === configId);
   if (configToEdit) {
@@ -73,18 +92,16 @@ function handleOpenEditModal(configId) {
   }
 }
 
+// 关闭模态框
 function handleModalClose() {
   isModalOpen.value = false;
 }
 
-// --- 表单与后端交互 ---
-
+// 保存配置（新建或编辑）
 async function handleSaveConfig() {
-  // 如果是编辑模式，把ID赋给表单
   if (editingConfigId.value) {
     form.id = editingConfigId.value;
   }
-
   try {
     await SaveConfig(form);
     alert('Configuration saved successfully!');
@@ -95,33 +112,19 @@ async function handleSaveConfig() {
   }
 }
 
+// 在模态框中测试连接
 async function handleTestConnectionInModal() {
   testResult.value = { status: 'testing', message: 'Connecting...' };
   try {
     const result = await TestConnection(form);
     testResult.value = { status: 'success', message: result };
   } catch (error) {
-    testResult.value = { status: 'error', message: error };
+    testResult.value = { status: 'error', message: error.toString() };
   }
 }
 
-async function selectKeyFile() {
-  try {
-    // 直接调用我们后端 App 结构体上的 SelectFile 方法
-    const filePath = await SelectFile("Select SSH Private Key");
-    if (filePath) {
-      form.keyPath = filePath;
-    }
-  } catch (error) {
-    // 这个错误通常是用户取消了对话框，可以安全地忽略
-    // 只有在发生真实错误时，Wails才会返回一个非空的error
-    console.log("File selection cancelled or failed:", error);
-  }
-}
-
+// 切换同步服务的激活状态
 async function toggleWatcher(configId, isActive) {
-  console.log(`Attempting to ${isActive ? 'START' : 'STOP'} watching for config ID:`, configId);
-
   try {
     if (isActive) {
       await StartWatching(configId);
@@ -132,6 +135,18 @@ async function toggleWatcher(configId, isActive) {
     }
   } catch (error) {
     alert(`Failed to ${isActive ? 'start' : 'stop'} watching: ` + error);
+  }
+}
+
+// 选择密钥文件
+async function selectKeyFileForForm() {
+  try {
+    const filePath = await SelectFile("Select SSH Private Key");
+    if (filePath) {
+      form.keyPath = filePath;
+    }
+  } catch (error) {
+    console.error("Error selecting file:", error);
   }
 }
 </script>
@@ -164,69 +179,84 @@ async function toggleWatcher(configId, isActive) {
     </div>
   </div>
 
-  <Modal v-if="isModalOpen" @close="handleModalClose">
+  <Modal v-if="isModalOpen" @close="handleModalClose" size="standard">
     <template #header>
-      <h3 class="text-lg font-medium ...">{{ editingConfigId ? 'Edit Configuration' : 'Create New Configuration' }}</h3>
+      <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+        {{ editingConfigId ? 'Edit Configuration' : 'Create New Configuration' }}
+      </h3>
     </template>
 
-    <div class="mt-4 space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-      <div>
-        <label class="block text-sm font-medium mb-1">Config Name</label>
-        <input v-model="form.name" type="text" placeholder="E.g., My Production Server" class="w-full p-2 ...">
-      </div>
-      <div class="grid grid-cols-3 gap-4">
-        <div class="col-span-2">
-          <label class="block text-sm font-medium mb-1">Host</label>
-          <input v-model="form.host" type="text" placeholder="192.168.1.100" class="w-full p-2 ...">
-        </div>
-        <div>
-          <label class="block text-sm font-medium mb-1">Port</label>
-          <input v-model.number="form.port" type="number" class="w-full p-2 ...">
-        </div>
-      </div>
-      <div>
-        <label class="block text-sm font-medium mb-1">User</label>
-        <input v-model="form.user" type="text" placeholder="root" class="w-full p-2 ...">
+    <div class="mt-4 grid grid-cols-[auto,1fr] gap-x-4 gap-y-5 items-center">
+      <label for="config-name" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Name</label>
+      <input id="config-name" v-model="form.name" type="text" placeholder="E.g., My Production Server" class="input-field">
+
+      <label for="config-host" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Host & Port</label>
+      <div class="grid grid-cols-3 gap-x-2">
+        <input id="config-host" v-model="form.host" type="text" placeholder="192.168.1.100" class="input-field col-span-2">
+        <input v-model.number="form.port" type="number" placeholder="22" class="input-field">
       </div>
 
-      <div>
-        <label class="block text-sm font-medium mb-1">Authentication Method</label>
-        <div class="flex space-x-4">
-          <label class="flex items-center">
-            <input type="radio" v-model="form.authMethod" value="password" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300">
-            <span class="ml-2">Password</span>
-          </label>
-          <label class="flex items-center">
-            <input type="radio" v-model="form.authMethod" value="key" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300">
-            <span class="ml-2">Key File</span>
-          </label>
-        </div>
+      <label for="config-user" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">User</label>
+      <input id="config-user" v-model="form.user" type="text" placeholder="root" class="input-field">
+
+      <label class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Auth Method</label>
+      <div class="flex space-x-4">
+        <label class="flex items-center cursor-pointer"><input type="radio" v-model="form.authMethod" value="password" class="h-4 w-4 radio-field"><span class="ml-2">Password</span></label>
+        <label class="flex items-center cursor-pointer"><input type="radio" v-model="form.authMethod" value="key" class="h-4 w-4 radio-field"><span class="ml-2">Key File</span></label>
       </div>
 
-      <div v-if="form.authMethod === 'password'">
-        <label class="block text-sm font-medium mb-1">Password</label>
-        <input v-model="form.password" type="password" class="w-full p-2 ...">
-      </div>
-      <div v-if="form.authMethod === 'key'">
-        <label class="block text-sm font-medium mb-1">Private Key Path</label>
+      <template v-if="form.authMethod === 'password'">
+        <label for="config-password" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Password</label>
+        <input id="config-password" v-model="form.password" type="password" class="input-field">
+      </template>
+
+      <template v-if="form.authMethod === 'key'">
+        <label for="config-keypath" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Key Path</label>
         <div class="flex items-center">
-          <input v-model="form.keyPath" type="text" readonly placeholder="Click Browse to select a key file" class="w-full p-2 bg-gray-200 ...">
-          <button @click="selectKeyFile" class="ml-2 px-3 py-2 bg-gray-300 dark:bg-gray-600 rounded-md text-sm">Browse</button>
+          <input id="config-keypath" v-model="form.keyPath" type="text" readonly placeholder="Click Browse to select a key file" class="input-field bg-gray-200 dark:bg-gray-800 rounded-r-none">
+          <button @click="selectKeyFileForForm" class="px-3 py-2 bg-gray-300 dark:bg-gray-600 rounded-r-md text-sm flex-shrink-0 hover:bg-gray-400 dark:hover:bg-gray-500">Browse</button>
         </div>
-      </div>
+      </template>
 
-      <p v-if="testResult.message" class="text-sm p-2 rounded-md" :class="{
+      <div v-if="testResult.message" class="col-span-2">
+        <p class="text-sm p-2 rounded-md mt-2 text-center" :class="{
           'text-green-800 bg-green-100 dark:text-green-200 dark:bg-green-900/50': testResult.status === 'success',
           'text-red-800 bg-red-100 dark:text-red-200 dark:bg-red-900/50': testResult.status === 'error',
           'text-gray-800 bg-gray-100 dark:text-gray-200 dark:bg-gray-700': testResult.status === 'testing'
-      }">{{ testResult.message }}</p>
-
+        }">{{ testResult.message }}</p>
+      </div>
     </div>
 
     <template #footer>
-      <button @click="handleModalClose" class="px-4 py-2 ...">Cancel</button>
-      <button @click="handleTestConnectionInModal" class="px-4 py-2 ...">Test Connection</button>
-      <button @click="handleSaveConfig" class="px-4 py-2 bg-indigo-600 ...">Save</button>
+      <button @click="handleTestConnectionInModal" class="btn btn-secondary">
+        Test Connection
+      </button>
+      <div class="flex-grow"></div>
+      <button @click="handleModalClose" class="btn btn-secondary">
+        Cancel
+      </button>
+      <button @click="handleSaveConfig" class="btn btn-primary">
+        Save
+      </button>
     </template>
   </Modal>
 </template>
+
+<style scoped>
+/* 定义一些可复用的样式，让模板更简洁 */
+.input-field {
+  @apply w-full p-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none;
+}
+.radio-field {
+  @apply text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:checked:bg-indigo-600;
+}
+.btn {
+  @apply px-4 py-2 text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800;
+}
+.btn-primary {
+  @apply bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500;
+}
+.btn-secondary {
+  @apply bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 focus:ring-gray-500;
+}
+</style>

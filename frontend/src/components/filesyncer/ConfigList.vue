@@ -15,7 +15,7 @@ function createNewConfig() {
     <button @click="createNewConfig" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition mb-4">
       + New Configuration
     </button>
-    <ul class="space-y-2 overflow-y-auto">
+    <ul class="space-y-2 overflow-y-auto text-left">
       <li
           v-for="config in configs"
           :key="config.id"
