@@ -72,9 +72,15 @@ jobs:
         run: npm install -g pnpm@10.12.1
 
       - name: Update version in JSON files
+        shell: pwsh
         run: |
-          jq --arg ver "${{ steps.normalise_version.outputs.version }}" '.info.productVersion = $ver' wails.json > tmp.json && mv tmp.json wails.json
-          jq --arg ver "${{ steps.normalise_version.outputs.version }}" '.version = $ver' frontend/package.json > tmp.json && mv tmp.json frontend/package.json
+          jq --arg ver "${{ steps.normalise_version.outputs.version }}" '.info.productVersion = $ver' wails.json > tmp.json
+          Remove-Item wails.json
+          Rename-Item tmp.json wails.json
+
+          jq --arg ver "${{ steps.normalise_version.outputs.version }}" '.version = $ver' frontend/package.json > tmp.json
+          Remove-Item frontend/package.json
+          Rename-Item tmp.json frontend/package.json
 
       - name: Build frontend assets
         working-directory: frontend
