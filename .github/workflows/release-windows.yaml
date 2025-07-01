@@ -63,21 +63,24 @@ jobs:
         shell: bash
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
-      - name: Setup Node
-        uses: actions/setup-node@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 22.11.0
+
+      - name: Install pnpm
+        run: npm install -g pnpm@10.12.1
+
+      - name: Update version in JSON files
+        run: |
+          jq --arg ver "${{ steps.normalise_version.outputs.version }}" '.info.productVersion = $ver' wails.json > tmp.json && mv tmp.json wails.json
+          jq --arg ver "${{ steps.normalise_version.outputs.version }}" '.version = $ver' frontend/package.json > tmp.json && mv tmp.json frontend/package.json
 
       - name: Build frontend assets
-        shell: bash
+        working-directory: frontend
         run: |
-          npm install -g npm@9
-          jq '.info.productVersion = "${{ steps.normalise_version.outputs.version }}"' wails.json > tmp.json
-          mv tmp.json wails.json
-          cd frontend
-          jq '.version = "${{ steps.normalise_version.outputs.version }}"' package.json > tmp.json
-          mv tmp.json package.json
-          npm install
+          pnpm install
+          pnpm run build
 
       - name: Build Windows portable app
         shell: bash
