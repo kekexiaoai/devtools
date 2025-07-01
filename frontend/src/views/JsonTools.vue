@@ -135,7 +135,7 @@ function clearAll() {
           <textarea
               v-model="jsonInput"
               placeholder="Paste your JSON here..."
-              class="w-full flex-grow p-2 font-mono ..."
+              class="m-1 flex-grow w-full p-2 font-mono text-sm bg-gray-100 dark:bg-gray-700 rounded-md resize-none"
           ></textarea>
         </div>
       </transition>

@@ -9,15 +9,12 @@ import JsonTools from "./views/JsonTools.vue";
 const activeTool = ref('FileSyncer');
 const logs = ref([]);
 
-// 2. 将默认值改为 false
 const isLogPanelOpen = ref(false);
 
-// 3. 新增一个切换面板显示状态的函数
 function toggleLogPanel() {
   isLogPanelOpen.value = !isLogPanelOpen.value;
 }
 
-// 4. (可选但推荐) 创建一个计算属性来显示最新状态
 const latestLogStatus = computed(() => {
   if (logs.value.length === 0) {
     return {level: 'INFO', message: 'Ready'};
