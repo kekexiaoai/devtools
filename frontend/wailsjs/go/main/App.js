@@ -34,6 +34,14 @@ export function SelectFile(arg1) {
   return window['go']['main']['App']['SelectFile'](arg1);
 }
 
+export function ShowErrorDialog(arg1, arg2) {
+  return window['go']['main']['App']['ShowErrorDialog'](arg1, arg2);
+}
+
+export function ShowInfoDialog(arg1, arg2) {
+  return window['go']['main']['App']['ShowInfoDialog'](arg1, arg2);
+}
+
 export function StartWatching(arg1) {
   return window['go']['main']['App']['StartWatching'](arg1);
 }
