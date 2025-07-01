@@ -1,16 +1,23 @@
 <script setup>
-import { ref, reactive } from 'vue';
-import { ClipboardDocumentCheckIcon, ArrowDownTrayIcon, TrashIcon, ArrowsRightLeftIcon } from '@heroicons/vue/24/outline';
+import {reactive, ref} from 'vue';
+import {ArrowDownTrayIcon, ArrowsRightLeftIcon, ChevronLeftIcon, ChevronRightIcon} from '@heroicons/vue/24/outline';
+
+// 1. 导入 vue-json-pretty 组件及其样式
+import VueJsonPretty from 'vue-json-pretty';
+import 'vue-json-pretty/lib/styles.css';
 
 // --- 状态管理 ---
 const jsonInput = ref('');
-const jsonOutput = ref('');
-const validationResult = reactive({
-  isValid: null, // null, true, or false
-  message: ''
-});
+// 将原来的 jsonOutput 拆分为两部分
+const jsonObjectOutput = ref({}); // 存储解析后的 JS 对象，用于树状图展示
+const validationResult = reactive({isValid: null, message: ''});
 
-// --- 核心方法 ---
+// 新增：控制左侧输入框的显示
+const isInputVisible = ref(true);
+
+function toggleInputView() {
+  isInputVisible.value = !isInputVisible.value;
+}
 
 // 格式化与校验
 function formatAndValidate() {
@@ -23,14 +30,25 @@ function formatAndValidate() {
 
   try {
     const jsonObj = JSON.parse(jsonInput.value);
-    // 使用 JSON.stringify 的第三个参数 '2' 来进行美化，表示缩进2个空格
-    jsonOutput.value = JSON.stringify(jsonObj, null, 2);
+    jsonObjectOutput.value = jsonObj; // 2. 将解析后的对象赋给新状态
     validationResult.isValid = true;
     validationResult.message = 'Valid JSON';
   } catch (error) {
-    jsonOutput.value = ''; // 清空输出
+    jsonObjectOutput.value = {}; // 清空对象
     validationResult.isValid = false;
     validationResult.message = `Invalid JSON: ${error.message}`;
+  }
+}
+
+async function minifyAndCopy() {
+  if (!jsonInput.value.trim()) return;
+  try {
+    const jsonObj = JSON.parse(jsonInput.value);
+    const minifiedText = JSON.stringify(jsonObj);
+    await navigator.clipboard.writeText(minifiedText);
+    alert('Minified JSON copied to clipboard!');
+  } catch (error) {
+    alert('Invalid JSON, cannot minify.');
   }
 }
 
@@ -58,19 +76,19 @@ function minify() {
 
 // 复制输出结果
 async function copyOutput() {
-  if (!jsonOutput.value) return;
+  if (!jsonObjectOutput.value || Object.keys(jsonObjectOutput.value).length === 0) return;
   try {
-    await navigator.clipboard.writeText(jsonOutput.value);
-    alert('Output copied to clipboard!');
+    const formattedText = JSON.stringify(jsonObjectOutput.value, null, 2);
+    await navigator.clipboard.writeText(formattedText);
+    alert('Formatted JSON copied to clipboard!');
   } catch (err) {
     alert('Failed to copy: ' + err);
   }
 }
 
-// 清空所有
 function clearAll() {
   jsonInput.value = '';
-  jsonOutput.value = '';
+  jsonObjectOutput.value = {};
   validationResult.isValid = null;
   validationResult.message = '';
 }
@@ -79,17 +97,21 @@ function clearAll() {
 <template>
   <div class="h-full flex flex-col p-4 space-y-4">
     <div class="flex-shrink-0 flex items-center space-x-2">
-      <button @click="formatAndValidate" class="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
+      <button @click="formatAndValidate"
+              class="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
         <ArrowsRightLeftIcon class="h-5 w-5"/>
         <span>Format / Validate</span>
       </button>
-      <button @click="minify" class="flex items-center space-x-2 px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm">
+      <button @click="minifyAndCopy"
+              class="flex items-center space-x-2 px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm">
         <ArrowDownTrayIcon class="h-5 w-5"/>
-        <span>Minify</span>
+        <span>Minify & Copy</span>
       </button>
-      <div class="flex-grow"></div> <button @click="copyOutput" :disabled="!jsonOutput" class="px-3 py-2 bg-gray-200 dark:bg-gray-700 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
-      Copy Output
-    </button>
+      <div class="flex-grow"></div>
+      <button @click="copyOutput" :disabled="Object.keys(jsonObjectOutput).length === 0"
+              class="px-3 py-2 bg-gray-200 dark:bg-gray-700 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+        Copy Output
+      </button>
       <button @click="clearAll" class="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 text-sm">
         Clear
       </button>
@@ -105,24 +127,61 @@ function clearAll() {
       {{ validationResult.message }}
     </div>
 
-    <div class="flex-grow flex space-x-4 overflow-hidden">
-      <div class="w-1/2 h-full flex flex-col">
-        <label class="mb-1 text-sm font-semibold">Input</label>
-        <textarea
-            v-model="jsonInput"
-            placeholder="Paste your JSON here..."
-            class="w-full flex-grow p-2 font-mono text-sm bg-gray-100 dark:bg-gray-800 rounded-md border border-gray-300 dark:border-gray-600 resize-none focus:ring-blue-500 focus:border-blue-500"
-        ></textarea>
+    <div class="flex-grow flex items-stretch space-x-2 overflow-hidden">
+
+      <transition name="slide-fade">
+        <div v-if="isInputVisible" class="w-1/2 h-full flex flex-col">
+          <label class="mb-1 text-sm font-semibold">Input</label>
+          <textarea
+              v-model="jsonInput"
+              placeholder="Paste your JSON here..."
+              class="w-full flex-grow p-2 font-mono ..."
+          ></textarea>
+        </div>
+      </transition>
+
+      <div class="flex-shrink-0 flex items-center justify-center">
+        <button @click="toggleInputView"
+                class="h-8 w-5 bg-gray-200 dark:bg-gray-700 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center justify-center">
+          <ChevronLeftIcon v-if="isInputVisible" class="h-4 w-4"/>
+          <ChevronRightIcon v-else class="h-4 w-4"/>
+        </button>
       </div>
-      <div class="w-1/2 h-full flex flex-col">
+
+      <div class="h-full flex flex-col" :class="isInputVisible ? 'w-1/2' : 'w-full'">
         <label class="mb-1 text-sm font-semibold">Output</label>
-        <textarea
-            :value="jsonOutput"
-            readonly
-            placeholder="Result will be shown here..."
-            class="w-full flex-grow p-2 font-mono text-sm bg-gray-100 dark:bg-gray-800 rounded-md border border-gray-300 dark:border-gray-600 resize-none"
-        ></textarea>
+        <div
+            class="w-full flex-grow p-4 bg-gray-100 dark:bg-gray-800 rounded-md border border-gray-300 dark:border-gray-600 overflow-auto">
+          <VueJsonPretty
+              v-if="Object.keys(jsonObjectOutput).length > 0"
+              :data="jsonObjectOutput"
+              :deep="3"
+              show-line
+              show-icon
+          />
+          <div v-else class="text-gray-400">Result will be shown here...</div>
+        </div>
       </div>
     </div>
   </div>
 </template>
+
+
+<style>
+/* 添加一个简单的过渡效果 */
+.slide-fade-enter-active,
+.slide-fade-leave-active {
+  transition: all 0.3s ease-out;
+}
+
+.slide-fade-enter-from,
+.slide-fade-leave-to {
+  transform: translateX(-20px);
+  opacity: 0;
+  width: 0;
+}
+
+.vjs-tree {
+  font-size: 13px !important;
+}
+</style>
