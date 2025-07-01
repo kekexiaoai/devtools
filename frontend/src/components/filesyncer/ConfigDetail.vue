@@ -31,8 +31,8 @@ const newPair = reactive({localPath: '', remotePath: ''});
 // 剪贴板功能状态
 const isClipboardModalOpen = ref(false);
 const clipboardContent = ref('');
-const syncAsHTML = ref(false);         // <-- 新增：是否作为HTML同步
-const autoSyncOnPaste = ref(false);      // <-- 新增：是否粘贴后自动同步
+const syncAsHTML = ref(true);         // <-- 新增：是否作为HTML同步
+const autoSyncOnPaste = ref(true);      // <-- 新增：是否粘贴后自动同步
 const syncStatus = ref(''); // 新增：用于在模态框内显示同步状态
 
 
