@@ -5,6 +5,7 @@ import LogPanel from './components/LogPanel.vue';
 import FileSyncer from './views/FileSyncer.vue';
 import {EventsOn} from '../wailsjs/runtime/runtime';
 import JsonTools from "./views/JsonTools.vue";
+// import TitleBar from './components/TitleBar.vue';
 
 const activeTool = ref('FileSyncer');
 const logs = ref([]);

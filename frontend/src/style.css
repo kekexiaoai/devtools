@@ -2,20 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-html {
-    background-color: rgba(27, 38, 54, 1);
-    text-align: center;
+
+/* 自定义文本选中样式 */
+::selection {
+    background-color: #6366f1; /* a shade of indigo */
     color: white;
 }
 
-body {
-    margin: 0;
-    color: white;
-    font-family: "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
-    "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-    sans-serif;
-}
-
+/* 自定义字体引入 (如果需要使用 "Nunito" 字体，则保留) */
 @font-face {
     font-family: "Nunito";
     font-style: normal;
@@ -24,7 +18,42 @@ body {
     url("assets/fonts/nunito-v16-latin-regular.woff2") format("woff2");
 }
 
+
+/*
+  使用 @layer base 来统一管理所有基础元素的默认样式。
+  这是 Tailwind 推荐的做法。
+*/
 @layer base {
+    /*
+      为 html 和 body 设置基础样式
+      - 移除了所有 text-align: center。
+      - 统一了背景色和文字颜色。
+      - 使用 @apply font-sans; 来应用系统字体，而不是手动写 font-family。
+    */
+    html {
+        background-color: rgba(27, 38, 54, 1);
+    }
+
+    /* 在 body 上应用 select-none，这将作为全局默认设置。
+       整个应用的所有元素都会继承这个属性，默认都不可选中。
+    */
+    body {
+        @apply bg-transparent text-white font-sans select-none;
+    }
+
+    /* 为需要选中的特定元素重新启用文本选择。
+       我们将 input, textarea, 以及 CodeMirror 和 vue-json-pretty 的内容区域组合在一起，
+       为它们应用 select-text，允许用户像往常一样选中和复制其中的文本。
+    */
+    input,
+    textarea,
+    .cm-content, /* 这是 CodeMirror 编辑器内容区的类名 */
+    .vjs-value { /* 这是 vue-json-pretty 中值的类名 */
+        @apply select-text;
+    }
+
+    /* textarea 的默认样式
+    */
     textarea {
         @apply
         border border-gray-300 dark:border-gray-600
@@ -35,9 +64,4 @@ body {
         focus:border-blue-500
         focus:outline-none;
     }
-}
-
-#app {
-    height: 100vh;
-    text-align: center;
 }
