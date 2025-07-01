@@ -185,3 +185,21 @@ func (a *App) SelectDirectory(title string) (string, error) {
 	// 调用 Go runtime 的 OpenDirectoryDialog 函数
 	return runtime.OpenDirectoryDialog(a.ctx, options)
 }
+
+// ShowInfoDialog 显示一个原生的信息对话框
+func (a *App) ShowInfoDialog(title string, message string) {
+	runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
+		Type:    runtime.InfoDialog,
+		Title:   title,
+		Message: message,
+	})
+}
+
+// ShowErrorDialog 显示一个原生的错误对话框
+func (a *App) ShowErrorDialog(title string, message string) {
+	runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
+		Type:    runtime.ErrorDialog,
+		Title:   title,
+		Message: message,
+	})
+}
