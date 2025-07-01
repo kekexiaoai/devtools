@@ -138,7 +138,7 @@ async function toggleWatcher(configId, isActive) {
 
 <template>
   <div class="flex h-full">
-    <div class="w-1/3 max-w-xs border-r ...">
+    <div class="w-1/3 max-w-xs flex-shrink-0 border-r border-gray-200 dark:border-gray-700">
       <ConfigList
           :configs="configs"
           :selected-id="selectedConfigId"
@@ -148,6 +148,7 @@ async function toggleWatcher(configId, isActive) {
           @edit-config="handleOpenEditModal"
       />
     </div>
+
     <div class="flex-1 p-6 overflow-y-auto">
       <ConfigDetail
           v-if="selectedConfig"
@@ -157,6 +158,9 @@ async function toggleWatcher(configId, isActive) {
           @toggle-watcher="toggleWatcher"
           @config-updated="refreshConfigs"
       />
+      <div v-else class="flex items-center justify-center h-full text-gray-500">
+        <p>Select or create a configuration to get started.</p>
+      </div>
     </div>
   </div>
 

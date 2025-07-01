@@ -34,7 +34,7 @@ const clipboardContent = ref('');
 const syncAsHTML = ref(true);         // <-- 新增：是否作为HTML同步
 const autoSyncOnPaste = ref(true);      // <-- 新增：是否粘贴后自动同步
 const syncStatus = ref(''); // 新增：用于在模态框内显示同步状态
-
+const isEditingClipboardPath = ref(false);
 
 // --- 数据获取与监控 ---
 async function fetchSyncPairs() {
@@ -51,19 +51,32 @@ onMounted(fetchSyncPairs);
 watch(() => props.config.id, () => {
   Object.assign(form, props.config);
   fetchSyncPairs();
+  isEditingClipboardPath.value = false;
 });
 
 
 // --- 方法定义 ---
 async function handleSaveChanges() {
+  console.log('Save Path button clicked!');
   try {
     await SaveConfig(form);
     emit('config-updated');
+    console.log('Configuration saved!');
+    isEditingClipboardPath.value = false;
+    console.log('isEditingClipboardPath', isEditingClipboardPath.value);
     alert('Configuration saved!');
   } catch (error) {
+    console.error('Failed to save configuration:', error);
     alert('Failed to save configuration: ' + error);
   }
 }
+
+function cancelEditClipboardPath() {
+  // 从 prop 中恢复原始值，丢弃用户的输入
+  form.clipboardFilePath = props.config.clipboardFilePath || '';
+  isEditingClipboardPath.value = false;
+}
+
 
 async function handleBrowseLocalDirectory() {
   try {
@@ -200,19 +213,37 @@ async function syncClipboardContent(closeOnSuccess = true) {
 
     <div class="mt-8 p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
       <h2 class="text-xl font-bold mb-4">Clipboard to Remote File</h2>
+
       <div>
         <label class="block text-sm font-medium mb-1">Remote File Path</label>
-        <div class="flex items-center space-x-2">
-          <input v-model="form.clipboardFilePath" type="text" placeholder="/home/user/my_notes.txt"
-                 class="w-full p-2 bg-gray-100 dark:bg-gray-700 rounded-md">
-          <button @click="handleSaveChanges"
-                  class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-sm rounded-md flex-shrink-0">Save Path
+
+        <div v-if="!isEditingClipboardPath" class="flex items-center justify-between">
+          <p class="p-2 text-gray-700 dark:text-gray-300 font-mono truncate">
+            {{ form.clipboardFilePath || 'Not set' }}
+          </p>
+          <button @click="isEditingClipboardPath = true" class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-sm rounded-md flex-shrink-0 hover:bg-gray-300 dark:hover:bg-gray-500">
+            Edit
           </button>
         </div>
+
+        <div v-else class="flex items-center space-x-2">
+          <input
+              v-model="form.clipboardFilePath"
+              type="text"
+              placeholder="/home/user/my_notes.txt"
+              class="w-full p-2 bg-gray-100 dark:bg-gray-700 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500"
+          >
+          <button @click="cancelEditClipboardPath" class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-sm rounded-md flex-shrink-0">Cancel</button>
+          <button @click="handleSaveChanges" class="px-4 py-2 bg-green-600 text-white text-sm rounded-md flex-shrink-0">Save</button>
+        </div>
       </div>
+
       <div class="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
-        <button @click="openClipboardEditor" :disabled="!form.clipboardFilePath"
-                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
+        <button
+            @click="openClipboardEditor"
+            :disabled="!form.clipboardFilePath || isEditingClipboardPath"
+            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+        >
           Open Editor & Sync
         </button>
       </div>
