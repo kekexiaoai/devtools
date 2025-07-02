@@ -4,3 +4,9 @@ frontend/dist
 
 .DS_Store
 frontend/tsconfig.node.tsbuildinfo
+certificate.pem
+certificate.pfx
+.gitignore
+script.mjs
+.gitignore
+private-key.pem
