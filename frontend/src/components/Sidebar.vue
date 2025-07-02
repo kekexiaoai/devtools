@@ -1,33 +1,34 @@
 <script setup>
-import {defineEmits, ref} from 'vue';
-// 确保已安装: pnpm install @heroicons/vue
+import { ref } from 'vue';
+import { defineProps, defineEmits } from 'vue';
 import {
+  FolderArrowDownIcon,
+  CodeBracketSquareIcon,
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
-  CodeBracketSquareIcon,
-  FolderArrowDownIcon,
 } from '@heroicons/vue/24/outline';
 
-// const props = defineProps(['modelValue']);
+// Declares that the component accepts 'modelValue' from its parent (for v-model)
+const props = defineProps(['modelValue']);
 const emit = defineEmits(['update:modelValue']);
 
-// 1. 新增状态，控制侧边栏是否收起 (false 为展开)
-const isCollapsed = ref(false);
+// This state variable was missing. It controls the collapse/expand state.
+const isCollapsed = ref(false); // false = expanded, true = collapsed
 
 const tools = [
-  {id: 'FileSyncer', name: 'File Syncer', icon: FolderArrowDownIcon},
-  {id: 'JsonTools', name: 'JSON Tools', icon: CodeBracketSquareIcon},
+  { id: 'FileSyncer', name: 'File Syncer', icon: FolderArrowDownIcon },
+  { id: 'JsonTools', name: 'JSON Tools', icon: CodeBracketSquareIcon },
 ];
 
+// This function was missing. It toggles the state.
 function toggleSidebar() {
   isCollapsed.value = !isCollapsed.value;
-  console.log('Sidebar is now collapsed:', isCollapsed.value);
 }
 </script>
 
 <template>
   <aside
-      class="bg-white dark:bg-gray-800 p-2 flex flex-col shadow-lg transition-all duration-300 ease-in-out"
+      class="bg-white dark:bg-gray-800 p-2 flex flex-col shadow-lg transition-all duration-300 ease-in-out select-none"
       :class="isCollapsed ? 'w-16' : 'w-56'"
   >
     <div class="flex-grow">
@@ -41,11 +42,10 @@ function toggleSidebar() {
             modelValue === tool.id
               ? 'bg-indigo-600 text-white'
               : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700',
-            isCollapsed ? 'justify-center' : 'justify-start' // 3. 动态对齐
+            isCollapsed ? 'justify-center' : 'justify-start'
           ]"
       >
-        <component :is="tool.icon" class="h-6 w-6 flex-shrink-0"/>
-
+        <component :is="tool.icon" class="h-6 w-6 flex-shrink-0" />
         <span
             v-show="!isCollapsed"
             class="ml-4 font-semibold text-sm whitespace-nowrap"
@@ -65,7 +65,7 @@ function toggleSidebar() {
             isCollapsed ? 'justify-center' : 'justify-start'
           ]"
       >
-        <component :is="isCollapsed ? ChevronDoubleRightIcon : ChevronDoubleLeftIcon" class="h-6 w-6 flex-shrink-0"/>
+        <component :is="isCollapsed ? ChevronDoubleRightIcon : ChevronDoubleLeftIcon" class="h-6 w-6 flex-shrink-0" />
         <span v-show="!isCollapsed" class="ml-4 font-semibold text-sm whitespace-nowrap">Collapse</span>
       </button>
     </div>

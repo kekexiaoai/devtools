@@ -5,7 +5,7 @@ import ClipboardTool from './ClipboardTool.vue';
 
 // 定义 props 和 emits，与之前保持一致
 const props = defineProps(['config', 'isWatching']);
-const emit = defineEmits(['config-updated', 'toggle-watcher']);
+const emit = defineEmits(['config-updated', 'toggle-watcher', 'log-event']);
 </script>
 
 <template>
@@ -19,6 +19,10 @@ const emit = defineEmits(['config-updated', 'toggle-watcher']);
     <ClipboardTool 
       :config="props.config" 
       @config-updated="emit('config-updated')"
+      @log-event="(logEntry) => {
+        console.log('ConfigDetail: Caught log-event, re-emitting.', logEntry);
+        emit('log-event', logEntry);
+      }"
     />
   </div>
 </template>
