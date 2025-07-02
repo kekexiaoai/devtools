@@ -109,3 +109,42 @@
     opacity: 0;
     transform: scale(0.95);
 }
+
+/* ======================================================= */
+/* ↓↓↓ 全局自定义滚动条样式 ↓↓↓                             */
+/* ======================================================= */
+
+/* 为所有滚动条设置一个基础宽度 */
+::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+/* 滚动条的轨道（背景） */
+::-webkit-scrollbar-track {
+    /* 设置为透明，让它看起来像是悬浮在内容之上 */
+    background: transparent;
+}
+
+/* 滚动条的滑块（可以拖动的那个部分） */
+::-webkit-scrollbar-thumb {
+    /* 在亮色模式下，使用一个半透明的深灰色 */
+    background-color: rgba(0, 0, 0, 0.25);
+    /* 在暗黑模式下，使用一个半透明的浅灰色 */
+    @apply dark:bg-gray-600/50;
+
+    /* 设置圆角，让它看起来更现代化 */
+    border-radius: 10px;
+
+    /* 关键技巧：添加一个透明的边框，并让背景只裁剪在内容区。
+       这会在滑块周围产生一个“内边距”的效果，让滑块看起来更细。
+    */
+    border: 3px solid transparent;
+    background-clip: content-box;
+}
+
+/* 当鼠标悬浮在滑块上时，让它变得更不透明，提供交互反馈 */
+::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(0, 0, 0, 0.4);
+    @apply dark:bg-gray-500/80;
+}
