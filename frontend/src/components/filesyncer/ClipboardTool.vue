@@ -23,6 +23,7 @@ const clipboardContent = ref('')
 const syncAsHTML = ref(true)
 const autoSyncOnPaste = ref(true)
 const syncStatus = ref('')
+const closeOnSuccess = ref(true);
 
 watch(
   () => props.config,
@@ -32,6 +33,13 @@ watch(
   },
   { deep: true }
 )
+
+watch(clipboardContent, (newValue, oldValue) => {
+  // 当内容发生变化，并且之前的状态是'Success!'时，清除状态
+  if (syncStatus.value === 'Success!' && newValue !== oldValue) {
+    syncStatus.value = '';
+  }
+});
 
 async function handleSaveChanges() {
   if (!form.clipboardFilePath || !form.clipboardFilePath.trim()) {
@@ -65,14 +73,14 @@ async function pasteFromClipboard() {
     const text = await ClipboardGetText()
     clipboardContent.value = text
     if (autoSyncOnPaste.value) {
-      await syncClipboardContent(false)
+      await syncClipboardContent()
     }
   } catch (error) {
     await ShowErrorDialog('Error', 'Could not get text from clipboard: ' + error)
   }
 }
 
-async function syncClipboardContent(closeOnSuccess = true) {
+async function syncClipboardContent() {
   if (!form.clipboardFilePath)
     return await ShowErrorDialog('Error', 'Please configure remote file path first.')
   if (!clipboardContent.value) return await ShowErrorDialog('Error', 'Content is empty.')
@@ -93,10 +101,10 @@ async function syncClipboardContent(closeOnSuccess = true) {
     // 在这里打印日志，确认事件已发出
     console.log('ClipboardTool: Emitting log-event', logEntry);
     emit('log-event', logEntry);
-    if (closeOnSuccess) {
+    if (closeOnSuccess.value) {
       setTimeout(() => {
-        isClipboardModalOpen.value = false
-      }, 1000)
+        isClipboardModalOpen.value = false;
+      }, 1000);
     }
   } catch (error) {
     syncStatus.value = `Error: ${error}`
@@ -201,6 +209,14 @@ async function handleNativePaste(event) {
               class="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-gray-600 dark:bg-gray-900"
             /><span class="ml-2">Auto-sync on paste</span></label
           >
+          <label class="flex items-center cursor-pointer">
+            <input
+                type="checkbox"
+                v-model="closeOnSuccess"
+                class="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300 dark:border-gray-600 dark:bg-gray-900"
+            >
+            <span class="ml-2">Close modal on successful sync</span>
+          </label>
         </div>
       </div>
       <template #footer>
