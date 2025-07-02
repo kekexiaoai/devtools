@@ -85,6 +85,22 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 }
 
+func (b *App) beforeClose(ctx context.Context) (prevent bool) {
+	selection, err := runtime.MessageDialog(b.ctx, runtime.MessageDialogOptions{
+		Title:         "Quit?",
+		Message:       "Are you sure you want to quit?",
+		Buttons:       []string{"Yes", "No"},
+		DefaultButton: "Yes",
+		CancelButton:  "No",
+	})
+
+	if err != nil {
+		return false
+	}
+
+	return selection != "Yes"
+}
+
 // --- 配置管理方法 ---
 
 func (a *App) GetConfigs() ([]types.SSHConfig, error) {
