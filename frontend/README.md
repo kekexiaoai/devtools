@@ -21,3 +21,8 @@ manual `h(...)` calls), you can enable Volar's Take Over mode by following these
 2. Reload the VS Code window by running `Developer: Reload Window` from the command palette.
 
 You can learn more about Take Over mode [here](https://github.com/johnsoncodehk/volar/discussions/471).
+
+
+## Shadcn-vue
+1. pnpm dlx shadcn-vue@latest init
+2. pnpm dlx shadcn-vue@latest add button dialog input label radio-group
