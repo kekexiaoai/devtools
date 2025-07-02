@@ -1,9 +1,24 @@
 <script setup>
-import {onMounted, reactive, ref} from 'vue';
+import { onMounted, reactive, ref } from 'vue';
 import ConfigList from '../components/filesyncer/ConfigList.vue';
 import ConfigDetail from '../components/filesyncer/ConfigDetail.vue';
 import Modal from '../components/Modal.vue';
-import {ShowErrorDialog, ShowInfoDialog} from '../../wailsjs/go/main/App';
+import { ShowErrorDialog, ShowInfoDialog } from '../../wailsjs/go/main/App';
+
+
+// 导入 shadcn-vue 组件
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 
 
 // --- Wails 方法导入 ---
@@ -30,7 +45,7 @@ const activeWatchers = ref({}); // 存储激活状态, e.g., { "config-id-123": 
 // 模态框状态
 const isModalOpen = ref(false);
 const editingConfigId = ref(null); // 用于区分是新建还是编辑
-const testResult = ref({status: '', message: ''}); // 存储测试连接结果
+const testResult = ref({ status: '', message: '' }); // 存储测试连接结果
 
 // 表单状态 (用于新建/编辑模态框)
 const form = reactive({
@@ -52,7 +67,7 @@ function resetForm() {
     id: '', name: '', host: '', port: 22, user: 'root',
     authMethod: 'password', password: '', keyPath: ''
   });
-  testResult.value = {status: '', message: ''};
+  testResult.value = { status: '', message: '' };
 }
 
 // 生命周期钩子：组件挂载时加载配置
@@ -110,7 +125,7 @@ async function handleSaveConfig() {
   }
   try {
     await SaveConfig(form);
-    await ShowInfoDialog('Success','Configuration saved successfully!');
+    await ShowInfoDialog('Success', 'Configuration saved successfully!');
     handleModalClose();
     await refreshConfigs();
   } catch (error) {
@@ -121,8 +136,8 @@ async function handleSaveConfig() {
 async function handleDeleteConfig(configId) {
   // Use the native confirmation dialog
   const choice = await ShowConfirmDialog(
-      "Confirm Deletion",
-      "Are you sure you want to permanently delete this configuration? This action cannot be undone."
+    "Confirm Deletion",
+    "Are you sure you want to permanently delete this configuration? This action cannot be undone."
   );
 
   if (choice !== "Yes") {
@@ -149,12 +164,12 @@ async function handleDeleteConfig(configId) {
 
 // 在模态框中测试连接
 async function handleTestConnectionInModal() {
-  testResult.value = {status: 'testing', message: 'Connecting...'};
+  testResult.value = { status: 'testing', message: 'Connecting...' };
   try {
     const result = await TestConnection(form);
-    testResult.value = {status: 'success', message: result};
+    testResult.value = { status: 'success', message: result };
   } catch (error) {
-    testResult.value = {status: 'error', message: error.toString()};
+    testResult.value = { status: 'error', message: error.toString() };
   }
 }
 
@@ -219,80 +234,66 @@ async function selectKeyFileForForm() {
     </div>
 
 
-    <Modal v-if="isModalOpen" @close="handleModalClose" size="standard">
-      <template #header>
-        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">
-          {{ editingConfigId ? 'Edit Configuration' : 'Create New Configuration' }}
-        </h3>
-      </template>
+    <Dialog :open="isModalOpen" @update:open="isModalOpen = $event">
+      <DialogContent class="sm:max-w-[625px] grid-rows-[auto,1fr,auto]">
+        <DialogHeader>
+          <DialogTitle>{{ editingConfigId ? 'Edit Configuration' : 'Create New Configuration' }}</DialogTitle>
+          <DialogDescription>
+            Provide the details for your SSH connection. Click save when you're done.
+          </DialogDescription>
+        </DialogHeader>
 
-      <div class="mt-4 grid grid-cols-[auto,1fr] gap-x-4 gap-y-5 items-center">
-        <label for="config-name" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Name</label>
-        <input id="config-name" v-model="form.name" type="text" placeholder="E.g., My Production Server"
-              class="input-field">
-
-        <label for="config-host" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Host &
-          Port</label>
-        <div class="grid grid-cols-3 gap-x-2">
-          <input id="config-host" v-model="form.host" type="text" placeholder="192.168.1.100"
-                class="input-field col-span-2">
-          <input v-model.number="form.port" type="number" placeholder="22" class="input-field">
-        </div>
-
-        <label for="config-user" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">User</label>
-        <input id="config-user" v-model="form.user" type="text" placeholder="root" class="input-field">
-
-        <label class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Auth Method</label>
-        <div class="flex space-x-4">
-          <label class="flex items-center cursor-pointer"><input type="radio" v-model="form.authMethod" value="password"
-                                                                class="h-4 w-4 radio-field"><span
-              class="ml-2">Password</span></label>
-          <label class="flex items-center cursor-pointer"><input type="radio" v-model="form.authMethod" value="key"
-                                                                class="h-4 w-4 radio-field"><span
-              class="ml-2">Key File</span></label>
-        </div>
-
-        <template v-if="form.authMethod === 'password'">
-          <label for="config-password"
-                class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Password</label>
-          <input id="config-password" v-model="form.password" type="password" class="input-field">
-        </template>
-
-        <template v-if="form.authMethod === 'key'">
-          <label for="config-keypath" class="text-sm font-medium text-gray-700 dark:text-gray-300 text-right">Key
-            Path</label>
-          <div class="flex items-center">
-            <input id="config-keypath" v-model="form.keyPath" type="text" readonly
-                  placeholder="Click Browse to select a key file"
-                  class="input-field bg-gray-200 dark:bg-gray-800 rounded-r-none">
-            <button @click="selectKeyFileForForm"
-                    class="px-3 py-2 bg-gray-300 dark:bg-gray-600 rounded-r-md text-sm flex-shrink-0 hover:bg-gray-400 dark:hover:bg-gray-500">
-              Browse
-            </button>
+        <div class="grid gap-4 py-4">
+          <div class="grid grid-cols-4 items-center gap-4">
+            <Label for="name" class="text-right">Name</Label>
+            <Input id="name" v-model="form.name" placeholder="E.g., Production Server" class="col-span-3" />
           </div>
-        </template>
-
-        <div v-if="testResult.message" class="col-span-2">
-          <p class="text-sm p-2 rounded-md mt-2 text-center" :class="{
-            'text-green-800 bg-green-100 dark:text-green-200 dark:bg-green-900/50': testResult.status === 'success',
-            'text-red-800 bg-red-100 dark:text-red-200 dark:bg-red-900/50': testResult.status === 'error',
-            'text-gray-800 bg-gray-100 dark:text-gray-200 dark:bg-gray-700': testResult.status === 'testing'
-          }">{{ testResult.message }}</p>
+          <div class="grid grid-cols-4 items-center gap-4">
+            <Label for="host" class="text-right">Host & Port</Label>
+            <div class="col-span-3 grid grid-cols-3 gap-2">
+              <Input id="host" v-model="form.host" class="col-span-2" placeholder="192.168.1.1" />
+              <Input type="number" v-model.number="form.port" placeholder="22"/>
+            </div>
+          </div>
+          <div class="grid grid-cols-4 items-center gap-4">
+            <Label for="user" class="text-right">User</Label>
+            <Input id="user" v-model="form.user" class="col-span-3" placeholder="root" />
+          </div>
+          <div class="grid grid-cols-4 items-center gap-4">
+            <Label class="text-right">Auth Method</Label>
+            <RadioGroup v-model="form.authMethod" default-value="password" class="col-span-3 flex items-center space-x-4">
+              <div class="flex items-center space-x-2">
+                <RadioGroupItem id="r-password" value="password" />
+                <Label for="r-password">Password</Label>
+              </div>
+              <div class="flex items-center space-x-2">
+                <RadioGroupItem id="r-key" value="key" />
+                <Label for="r-key">Key File</Label>
+              </div>
+            </RadioGroup>
+          </div>
+          <div v-if="form.authMethod === 'password'" class="grid grid-cols-4 items-center gap-4">
+            <Label for="password" class="text-right">Password</Label>
+            <Input id="password" v-model="form.password" type="password" class="col-span-3" />
+          </div>
+          <div v-if="form.authMethod === 'key'" class="grid grid-cols-4 items-center gap-4">
+            <Label for="key" class="text-right">Key Path</Label>
+            <div class="col-span-3 flex items-center">
+              <Input id="key" v-model="form.keyPath" readonly placeholder="Click Browse..." />
+              <Button @click="selectKeyFileForForm" type="button" variant="outline" class="ml-2">Browse</Button>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <template #footer>
-        <button @click="handleTestConnectionInModal" class="btn btn-secondary">
-          Test Connection
-        </button>
-        <div class="flex-grow"></div>
-        <button @click="handleModalClose" class="btn btn-secondary">
-          Cancel
-        </button>
-        <button @click="handleSaveConfig" class="btn btn-primary">
-          Save
-        </button>
-      </template>
-    </Modal>
+        <DialogFooter>
+          <p v-if="testResult.message" class="text-sm mr-auto" :class="{
+            'text-green-600': testResult.status === 'success',
+            'text-red-600': testResult.status === 'error'
+          }">{{ testResult.message }}</p>
+          <Button @click="handleTestConnectionInModal" type="button" variant="outline">Test Connection</Button>
+          <Button @click="handleSaveConfig" type="button">Save</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
