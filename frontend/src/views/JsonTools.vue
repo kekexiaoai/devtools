@@ -1,5 +1,5 @@
 <script setup>
-import {computed, reactive, ref} from 'vue';
+import {computed, reactive, ref, inject} from 'vue';
 import {ArrowDownTrayIcon, ArrowsRightLeftIcon, ChevronLeftIcon, ChevronRightIcon,} from '@heroicons/vue/24/outline';
 import {ShowErrorDialog, ShowInfoDialog} from '../../wailsjs/go/main/App';
 
@@ -12,6 +12,8 @@ import {Codemirror} from 'vue-codemirror';
 import {json} from '@codemirror/lang-json';
 import {oneDark} from '@codemirror/theme-one-dark';
 import {EditorView} from '@codemirror/view';
+
+const showDialog = inject('showDialog');
 
 // --- 状态管理 ---
 const jsonInput = ref('');
@@ -86,6 +88,14 @@ function clearAll() {
   jsonObjectOutput.value = {};
   validationResult.isValid = null;
   validationResult.message = '';
+
+  if (showDialog) {
+    showDialog({
+      title: 'Cleared',
+      message: 'Input and output fields have been cleared.',
+      type: 'info' // 类型为 'info' 会显示蓝色图标
+    });
+  }
 }
 </script>
 

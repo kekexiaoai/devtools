@@ -97,3 +97,15 @@
         @apply bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 focus:ring-gray-500;
     }
 }
+
+/* 为模态框创建一个更快速、带轻微缩放的“弹出”效果 */
+.modal-pop-enter-active,
+.modal-pop-leave-active {
+    transition: all 150ms ease-out;
+}
+
+.modal-pop-enter-from,
+.modal-pop-leave-to {
+    opacity: 0;
+    transform: scale(0.95);
+}

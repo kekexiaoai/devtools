@@ -1,10 +1,11 @@
 <script setup>
-import {computed, onMounted, ref} from 'vue'; // 1. 导入 computed
+import {computed, onMounted, ref, provide} from 'vue'; // 1. 导入 computed
 import Sidebar from './components/Sidebar.vue';
 import LogPanel from './components/LogPanel.vue';
 import FileSyncer from './views/FileSyncer.vue';
 import {EventsOn} from '../wailsjs/runtime/runtime';
 import JsonTools from "./views/JsonTools.vue";
+import InfoModal from "./components/ui/InfoModal.vue";
 // import TitleBar from './components/TitleBar.vue';
 
 const activeTool = ref('FileSyncer');
@@ -55,6 +56,22 @@ onMounted(() => {
 function clearLogs() {
   logs.value = [];
 }
+
+const dialog = ref({
+  show: false,
+  title: '',
+  message: '',
+  type: 'info',
+});
+
+// 创建一个方法来显示对话框
+function showDialog({ title, message, type = 'info' }) {
+  dialog.value = { show: true, title, message, type };
+}
+
+// 使用 provide 将这个方法提供给所有子组件
+provide('showDialog', showDialog);
+
 </script>
 
 <template>
@@ -88,4 +105,15 @@ function clearLogs() {
       </template>
     </div>
   </div>
+
+  <transition name="modal-pop">
+    <InfoModal
+        v-if="dialog.show"
+        :show="dialog.show"
+        :title="dialog.title"
+        :message="dialog.message"
+        :type="dialog.type"
+        @close="dialog.show = false"
+    />
+  </transition>
 </template>
