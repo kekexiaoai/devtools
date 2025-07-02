@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"log"
@@ -12,6 +13,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 //go:embed all:frontend/dist
@@ -51,7 +53,24 @@ func main() {
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		OnStartup:        app.startup,
 		OnShutdown:       app.shutdown,
-		OnBeforeClose:    app.beforeClose,
+		OnBeforeClose: func(ctx context.Context) (prevent bool) {
+			if !isMacOS {
+				return false
+			}
+			selection, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
+				Title:         "Quit?",
+				Message:       "Are you sure you want to quit?",
+				Buttons:       []string{"Yes", "No"},
+				DefaultButton: "Yes",
+				CancelButton:  "No",
+			})
+
+			if err != nil {
+				return false
+			}
+
+			return selection != "Yes"
+		},
 		Bind: []interface{}{
 			app,
 		},
