@@ -264,11 +264,12 @@ func ReconcileDirectory(client *sftp.Client, pair types.SyncPair, emitLog func(l
 
 		// 检查点1: 远程文件不存在
 		if os.IsNotExist(err) {
-			emitLog("INFO", fmt.Sprintf("Remote file not found, syncing: %s", localPath))
+			// 修改日志格式，下同
+			emitLog("INFO", fmt.Sprintf("Remote missing, syncing: %s -> %s", localPath, remotePath))
 			if syncErr := syncFile(client, localPath, remotePath); syncErr != nil {
-				emitLog("ERROR", fmt.Sprintf("Failed to sync new file %s: %v", localPath, syncErr))
+				emitLog("ERROR", fmt.Sprintf("Failed sync: %s -> %s (%v)", localPath, remotePath, syncErr))
 			} else {
-				emitLog("SUCCESS", fmt.Sprintf("Synced new file: %s", localPath))
+				emitLog("SUCCESS", fmt.Sprintf("Synced: %s -> %s", localPath, remotePath))
 			}
 			return nil
 		}
@@ -281,11 +282,11 @@ func ReconcileDirectory(client *sftp.Client, pair types.SyncPair, emitLog func(l
 
 		// 检查点2: 远程文件存在，但大小不一致
 		if localInfo.Size() != remoteInfo.Size() {
-			emitLog("INFO", fmt.Sprintf("File sizes differ, syncing: %s (%d bytes vs %d bytes)", localPath, localInfo.Size(), remoteInfo.Size()))
+			emitLog("INFO", fmt.Sprintf("Size differs, syncing: %s -> %s", localPath, remotePath))
 			if syncErr := syncFile(client, localPath, remotePath); syncErr != nil {
-				emitLog("ERROR", fmt.Sprintf("Failed to sync modified file %s: %v", localPath, syncErr))
+				emitLog("ERROR", fmt.Sprintf("Failed sync: %s -> %s (%v)", localPath, remotePath, syncErr))
 			} else {
-				emitLog("SUCCESS", fmt.Sprintf("Synced modified file: %s", localPath))
+				emitLog("SUCCESS", fmt.Sprintf("Synced: %s -> %s", localPath, remotePath))
 			}
 			return nil
 		}
