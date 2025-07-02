@@ -1,0 +1,16 @@
+{
+    "tailwindConfigViewer.workspacePath": "./frontend",
+    "volar.autoCreateProjectReferences": true,
+    "volar.workspaceMode": "auto",
+    "volar.tsdk": "node_modules/typescript/lib",
+    "typescript.tsdk": "node_modules/typescript/lib",
+    "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": "explicit"
+    },
+    "eslint.workingDirectories": [
+        "./frontend"
+    ],
+    "path-intellisense.mappings": {
+        "@": "${workspaceFolder}/frontend/src"
+    }
+}
