@@ -10,12 +10,16 @@ import {ShowErrorDialog, ShowInfoDialog} from '../../wailsjs/go/main/App';
 import {
   GetConfigs,
   SaveConfig,
+  DeleteConfig,
   SelectFile,
   StartWatching,
   StopWatching,
-  TestConnection
+  TestConnection,
+  ShowConfirmDialog,
 } from '../../wailsjs/go/main/App';
 
+
+const emit = defineEmits(['log-event']);
 
 // --- 状态管理 ---
 const configs = ref([]);
@@ -114,6 +118,35 @@ async function handleSaveConfig() {
   }
 }
 
+async function handleDeleteConfig(configId) {
+  // Use the native confirmation dialog
+  const choice = await ShowConfirmDialog(
+      "Confirm Deletion",
+      "Are you sure you want to permanently delete this configuration? This action cannot be undone."
+  );
+
+  if (choice !== "Yes") {
+    return; // User cancelled
+  }
+
+  try {
+    await DeleteConfig(configId);
+
+    // If the deleted config was the currently selected one, clear the selection
+    if (selectedConfigId.value === configId) {
+      selectedConfigId.value = null;
+      selectedConfig.value = null;
+    }
+
+    // Refresh the list to show the item has been removed
+    await refreshConfigs();
+
+  } catch (error) {
+    // Use the native error dialog
+    await ShowErrorDialog('Deletion Failed', `Failed to delete configuration: ${error}`);
+  }
+}
+
 // 在模态框中测试连接
 async function handleTestConnectionInModal() {
   testResult.value = {status: 'testing', message: 'Connecting...'};
@@ -163,6 +196,7 @@ async function selectKeyFileForForm() {
           @configs-updated="refreshConfigs"
           @new-config-request="handleOpenCreateModal"
           @edit-config="handleOpenEditModal"
+          @delete-config="handleDeleteConfig"
       />
     </div>
 
@@ -174,6 +208,10 @@ async function selectKeyFileForForm() {
           :is-watching="activeWatchers[selectedConfig.id] || false"
           @toggle-watcher="toggleWatcher"
           @config-updated="refreshConfigs"
+          @log-event="(logEntry) => {
+            console.log('FileSyncer: Caught log-event, re-emitting.', logEntry);
+            $emit('log-event', logEntry);
+          }"
       />
       <div v-else class="flex items-center justify-center h-full text-gray-500">
         <p>Select or create a configuration to get started.</p>

@@ -9,7 +9,8 @@ import {
 import { ClipboardGetText } from '../../../wailsjs/runtime/runtime'
 
 const props = defineProps(['config'])
-const emit = defineEmits(['config-updated'])
+const emit = defineEmits(['config-updated', 'log-event']);
+
 
 const createFormState = (config) => ({
   clipboardFilePath: config?.clipboardFilePath || '',
@@ -85,6 +86,13 @@ async function syncClipboardContent(closeOnSuccess = true) {
       syncAsHTML.value
     )
     syncStatus.value = 'Success!'
+    const logEntry = {
+      level: 'SUCCESS',
+      message: `Clipboard content synced to: ${form.clipboardFilePath}`
+    };
+    // 在这里打印日志，确认事件已发出
+    console.log('ClipboardTool: Emitting log-event', logEntry);
+    emit('log-event', logEntry);
     if (closeOnSuccess) {
       setTimeout(() => {
         isClipboardModalOpen.value = false
@@ -92,6 +100,10 @@ async function syncClipboardContent(closeOnSuccess = true) {
     }
   } catch (error) {
     syncStatus.value = `Error: ${error}`
+    emit('log-event', {
+      level: 'ERROR',
+      message: `Failed to sync clipboard: ${error}`
+    });
   }
 }
 

@@ -34,14 +34,22 @@ const statusColorClass = computed(() => {
   }
 });
 
+function addLogEntry(logEntry) {
+  console.log('App.vue: Received log entry!', logEntry);
+
+  const fullLogEntry = {
+    ...logEntry,
+    timestamp: new Date().toLocaleTimeString() // 补充完整的时间戳
+  };
+
+  logs.value.push(fullLogEntry);
+  if (logs.value.length > 200) {
+    logs.value.shift();
+  }
+}
 
 onMounted(() => {
-  EventsOn('log_event', (logEntry) => {
-    logs.value.push(logEntry);
-    if (logs.value.length > 200) {
-      logs.value.shift();
-    }
-  });
+  EventsOn('log_event', addLogEntry);
 });
 
 function clearLogs() {
@@ -56,7 +64,7 @@ function clearLogs() {
     <div class="flex-1 flex flex-col overflow-hidden">
 
       <main class="flex-1 overflow-y-auto">
-        <FileSyncer v-if="activeTool === 'FileSyncer'"/>
+        <FileSyncer v-if="activeTool === 'FileSyncer'" @log-event="addLogEntry"/>
         <JsonTools v-if="activeTool === 'JsonTools'"/>
       </main>
 

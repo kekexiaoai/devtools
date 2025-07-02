@@ -1,8 +1,8 @@
 <script setup>
-import {PencilIcon} from '@heroicons/vue/24/solid'; // 导入编辑图标
+import {PencilIcon,TrashIcon} from '@heroicons/vue/24/solid'; // 导入编辑图标
 
 defineProps(['configs', 'selectedId']);
-const emit = defineEmits(['select-config', 'configs-updated', 'new-config-request']);
+const emit = defineEmits(['select-config', 'configs-updated', 'new-config-request', 'edit-config', 'delete-config']);
 
 function createNewConfig() {
   // 打开一个模态框来创建新配置
@@ -28,12 +28,24 @@ function createNewConfig() {
           <h3 class="font-semibold text-sm">{{ config.name }}</h3>
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ config.user }}@{{ config.host }}</p>
         </div>
-        <button
-            @click.stop="emit('edit-config', config.id)"
-            class="p-1 text-gray-400 hover:text-gray-800 dark:hover:text-white rounded-full hover:bg-gray-300 dark:hover:bg-gray-600"
-        >
-          <PencilIcon class="h-4 w-4"/>
-        </button>
+
+        <div class="flex items-center space-x-1 flex-shrink-0">
+          <button
+              @click.stop="emit('edit-config', config.id)"
+              class="p-1 text-gray-400 hover:text-gray-800 dark:hover:text-white rounded-full hover:bg-gray-300 dark:hover:bg-gray-600"
+              title="Edit Configuration"
+          >
+            <PencilIcon class="h-4 w-4"/>
+          </button>
+
+          <button
+              @click.stop="emit('delete-config', config.id)"
+              class="p-1 text-gray-400 hover:text-red-500 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600"
+              title="Delete Configuration"
+          >
+            <TrashIcon class="h-4 w-4"/>
+          </button>
+        </div>
       </li>
     </ul>
   </div>
