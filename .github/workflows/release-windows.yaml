@@ -124,7 +124,7 @@ jobs:
           
           echo "Importing certificate to trust store"
           $pfxPassword = ConvertTo-SecureString -String '${{ secrets.WIN_SIGNING_CERT_PASSWORD }}' -AsPlainText -Force
-          Import-PfxCertificate -FilePath certificate\certificate.pfx -CertStoreLocation Cert:\CurrentUser\My -Password $pfxPassword
+          Import-PfxCertificate -FilePath certificate\certificate.pfx -CertStoreLocation Cert:\CurrentUser\Root -Password $pfxPassword
           
           echo "Signing DevTools installer"
           & 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe' sign `
