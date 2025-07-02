@@ -1,0 +1,6 @@
+// tsconfig.base.json (项目根目录)
+{
+  "references": [
+    { "path": "./frontend/tsconfig.json" } // 指向实际前端目录
+  ]
+}
