@@ -17,7 +17,7 @@ const isVisible = ref(false);
     <div
       v-if="isVisible && text"
       class="
-        absolute bottom-full left-1/2 mb-2 w-max max-w-xs -translate-x-1/2
+        absolute bottom-full left-1/2 mb-2 w-max max-w-lg -translate-x-1/2
         transform rounded-md px-3 py-1.5 text-sm
         font-semibold shadow-lg z-10
         
