@@ -40,7 +40,7 @@
        整个应用的所有元素都会继承这个属性，默认都不可选中。
     */
     body {
-        @apply bg-transparent text-white font-sans select-none;
+        @apply bg-transparent text-white text-sm font-sans select-none;
     }
 
     /* 为需要选中的特定元素重新启用文本选择。

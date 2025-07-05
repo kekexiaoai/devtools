@@ -1,5 +1,5 @@
 <script setup>
-import {computed, reactive, ref, inject} from 'vue';
+import {computed, reactive, ref, inject, nextTick} from 'vue';
 import {ArrowDownTrayIcon, ArrowsRightLeftIcon, ChevronLeftIcon, ChevronRightIcon,} from '@heroicons/vue/24/outline';
 import {ShowErrorDialog, ShowInfoDialog} from '../../wailsjs/go/main/App';
 
@@ -20,6 +20,7 @@ const jsonInput = ref('');
 const jsonObjectOutput = ref({});
 const validationResult = reactive({isValid: null, message: ''});
 const isInputVisible = ref(true);
+const isCopying = ref(false);
 
 // 检查当前是否为暗黑模式，用于切换主题
 const isDarkMode = computed(() => window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -73,13 +74,18 @@ async function minifyAndCopy() {
 }
 
 async function copyOutput() {
+  if (isCopying.value) return; // 防止重复点击
   if (!jsonObjectOutput.value || Object.keys(jsonObjectOutput.value).length === 0) return;
+  isCopying.value = true;
+  await nextTick(); // 确保 DOM 更新后再执行复制
   try {
     const formattedText = JSON.stringify(jsonObjectOutput.value, null, 2);
     await navigator.clipboard.writeText(formattedText);
     await ShowInfoDialog('Success','Formatted JSON copied to clipboard!');
   } catch (err) {
     await ShowErrorDialog('Error', 'Failed to copy: ' + err);
+  } finally {
+    isCopying.value = false; // 重置状态
   }
 }
 
@@ -113,9 +119,13 @@ function clearAll() {
         <span>Minify & Copy</span>
       </button>
       <div class="flex-grow"></div>
-      <button @click="copyOutput" :disabled="Object.keys(jsonObjectOutput).length === 0"
+      <button @click="copyOutput" :disabled="Object.keys(jsonObjectOutput).length === 0 || isCopying"
               class="px-3 py-2 bg-gray-200 dark:bg-gray-700 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
-        Copy Output
+        <span v-if="isCopying" class="flex items-center">
+          <SpartlesIcon class="animate-spin h-4 w-4 mr-2"/>
+          Copying...
+        </span>
+        <span v-else>Copy Output</span>
       </button>
       <button @click="clearAll" class="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 text-sm">
         Clear
