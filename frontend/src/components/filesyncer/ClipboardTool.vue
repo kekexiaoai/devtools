@@ -211,30 +211,29 @@ async function handleNativePaste(event) {
         </div>
       </div>
       <template #footer>
-        <div class="flex items-center w-full justify-between gap-x-4">
-            <!-- <div>
-                <button @click="pasteFromClipboard" class="btn btn-secondary">Paste from Clipboard</button>
-            </div> -->
+        <div class="flex items-center w-full gap-x-4">
+          
+          <!-- <div class="flex-shrink-0">
+            <button @click="pasteFromClipboard" class="btn btn-secondary">Paste from Clipboard</button>
+          </div> -->
 
-            <Tooltip
-             v-if="syncStatus" 
-             :text="syncStatus"
-             class="flex-1 min-w-0 text-center"
-             >
-                <span
-                    class="text-sm font-medium truncate cursor-help"
-                    :class="{
-                        'text-green-500': syncStatus === 'Success!',
-                        'text-red-500': syncStatus.startsWith('Error'),
-                    }"
-                >{{ syncStatus }}</span>
+          <div class="flex-grow min-w-0 text-right pr-4">
+            <Tooltip v-if="syncStatus" :text="syncStatus" class="inline-block w-full">
+              <p
+                class="text-sm font-medium truncate"
+                :class="{
+                  'text-green-500': syncStatus === 'Success!',
+                  'text-red-500': syncStatus.startsWith('Error'),
+                }"
+              >{{ syncStatus }}</p>
             </Tooltip>
-            <div v-else class="flex-1"></div>
+          </div>
+          
+          <div class="flex items-center space-x-3 flex-shrink-0">
+            <button @click="isClipboardModalOpen = false" class="btn btn-secondary">Cancel</button>
+            <button @click="syncClipboardContent(true)" class="btn btn-primary">Sync to Remote</button>
+          </div>
 
-            <div class="flex items-center space-x-3 ml-auto">
-                <button @click="isClipboardModalOpen = false" class="btn btn-secondary">Cancel</button>
-                <button @click="syncClipboardContent(true)" class="btn btn-primary">Sync to Remote</button>
-            </div>
         </div>
       </template>
     </Modal>
