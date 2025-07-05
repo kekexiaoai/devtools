@@ -17,13 +17,15 @@ const isVisible = ref(false);
     <div
       v-if="isVisible && text"
       class="
-        absolute bottom-full left-1/2 mb-2 w-max -translate-x-1/2 max-w-lg
-        transform rounded-md bg-gray-900 px-3 py-2 text-sm
-        font-semibold text-white shadow-lg z-10
+        absolute bottom-full left-1/2 mb-2 w-max max-w-xs -translate-x-1/2
+        transform rounded-md px-3 py-1.5 text-sm
+        font-semibold shadow-lg z-10
         
-        /* ↓↓↓ 新增的关键样式 ↓↓↓ */
-        text-left           /* 文本左对齐 */
-        whitespace-normal   /* 允许文本正常换行 */
+
+        bg-gray-900 text-white
+        dark:bg-gray-50 dark:text-gray-900
+        
+        text-left whitespace-normal
       "
     >
       {{ text }}
