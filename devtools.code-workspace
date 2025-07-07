@@ -1,0 +1,49 @@
+{
+    "folders": [
+        {
+            "name": "Backend (Go)",
+            "path": "."
+        },
+        {
+            "name": "Frontend (React)",
+            "path": "frontend"
+        }
+    ],
+    "settings": {
+        // --- 编辑器通用设置 ---
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.codeActionsOnSave": {
+            "source.fixAll.eslint": "explicit"
+        },
+        // --- 特定语言的格式化程序 ---
+        "[go]": {
+            "editor.defaultFormatter": "golang.go"
+        },
+        "[typescriptreact]": {
+            "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[typescript]": {
+            "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[javascript]": {
+            "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[json]": {
+            "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        // --- 修复 gopls 警告的关键配置 ---
+        "gopls": {
+            "buildFlags": [
+                "-tags=debug"
+            ]
+        },
+        // --- 修复 Tailwind CSS 警告 ---
+        "css.lint.unknownAtRules": "ignore",
+        // --- 文件关联 (可选但推荐) ---
+        "files.associations": {
+            "*.css": "tailwindcss"
+        },
+        "go.buildTags": ""
+    }
+}

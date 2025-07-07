@@ -21,7 +21,7 @@
     },
     "gopls": {
         "buildFlags": [
-            "-tags=debug,release"
-        ]
+            "-tags=debug"
+        ],
     }
 }
