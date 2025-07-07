@@ -4,13 +4,24 @@
     "volar.workspaceMode": "auto",
     "volar.tsdk": "node_modules/typescript/lib",
     "typescript.tsdk": "node_modules/typescript/lib",
-    "editor.codeActionsOnSave": {
-        "source.fixAll.eslint": "explicit"
-    },
     "eslint.workingDirectories": [
         "./frontend"
     ],
     "path-intellisense.mappings": {
         "@": "${workspaceFolder}/frontend/src"
+    },
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": "explicit"
+    },
+    "css.lint.unknownAtRules": "ignore",
+    "[jsonc]": {
+        "editor.defaultFormatter": "vscode.json-language-features"
+    },
+    "gopls": {
+        "buildFlags": [
+            "-tags=debug,release"
+        ]
     }
 }
