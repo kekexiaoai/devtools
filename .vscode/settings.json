@@ -23,5 +23,8 @@
         "buildFlags": [
             "-tags=debug"
         ],
+    },
+    "[makefile]": {
+        "editor.defaultFormatter": "eshojaei.mbake-makefile-formatter"
     }
 }

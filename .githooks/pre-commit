@@ -1,0 +1,6 @@
+#!/bin/sh
+set -e
+
+echo "🔍 [pre-commit] 正在运行 frontend 的 lint-staged..."
+cd frontend || exit 1
+pnpm exec lint-staged
