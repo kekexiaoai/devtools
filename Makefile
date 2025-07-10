@@ -3,9 +3,8 @@
 GITHOOKS_DIR := .githooks
 PRE_COMMIT_HOOK := $(GITHOOKS_DIR)/pre-commit
 
-# 前端目录和文件匹配规则（根据实际项目结构调整）
+# 前端目录
 FRONTEND_DIR := frontend
-SRC_FILES := 'src/**/*.{ts,tsx,js,jsx,vue}'  # 匹配 src 目录下的所有代码文件
 
 .PHONY: help hooks clean-hooks show-hooks lint format format-check dev build
 
@@ -31,14 +30,11 @@ $(PRE_COMMIT_HOOK):
 	@echo '#!/bin/sh' > $(PRE_COMMIT_HOOK)
 	@echo 'set -e' >> $(PRE_COMMIT_HOOK)
 	@echo '' >> $(PRE_COMMIT_HOOK)
-	@echo 'echo "🔍 [pre-commit] 运行前端代码检查和格式化..."' >> $(PRE_COMMIT_HOOK)
-	@echo 'cd frontend || exit 1' >> $(PRE_COMMIT_HOOK)
+	@echo 'echo "🔍 [pre-commit] 自动格式化并检查代码..."' >> $(PRE_COMMIT_HOOK)
+	@echo 'cd $(FRONTEND_DIR) || exit 1' >> $(PRE_COMMIT_HOOK)
 	@echo '' >> $(PRE_COMMIT_HOOK)
-	@echo '# 先检查 ESLint 错误（覆盖所有前端目录）' >> $(PRE_COMMIT_HOOK)
-	@echo 'pnpm exec eslint src --ext .ts,.tsx,.js,.jsx' >> $(PRE_COMMIT_HOOK)  # 检查常见扩展名
-	@echo '' >> $(PRE_COMMIT_HOOK)
-	@echo '# 再检查 Prettier 格式' >> $(PRE_COMMIT_HOOK)
-	@echo "pnpm exec prettier --check 'src/**/*.{ts,tsx,js,jsx,vue}'" >> $(PRE_COMMIT_HOOK)
+	@echo '# 执行前端项目中定义的 lint 和 format 脚本' >> $(PRE_COMMIT_HOOK)
+	@echo 'pnpm run lint-all' >> $(PRE_COMMIT_HOOK)  # 调用完整检查（类型+格式）
 	@echo '' >> $(PRE_COMMIT_HOOK)
 	@echo 'echo "✅ 代码检查通过，准备提交..."' >> $(PRE_COMMIT_HOOK)
 
@@ -53,27 +49,32 @@ show-hooks:  ## 🔍 显示当前 Git hooks 配置路径
 
 # --------- 前端代码检查与格式化 -----------
 
-lint:  ## 🔎 运行 ESLint 检查（仅检查错误，不自动修复）
-	@echo "🔍 运行 ESLint 检查前端代码..."
-	@cd $(FRONTEND_DIR) && pnpm exec eslint src --ext .ts,.tsx,.js,.jsx
+lint:  ## 🔎 运行 ESLint 检查
+	@echo "🔍 运行 ESLint 检查..."
+	@cd $(FRONTEND_DIR) && pnpm run lint
 
-format-check:  ## 📋 检查未格式化的文件（Prettier）
-	@echo "🔍 检查未格式化的文件（Prettier）..."
-	@cd $(FRONTEND_DIR) && pnpm exec prettier --check $(SRC_FILES)
+format-check:  ## 📋 检查未格式化的文件
+	@echo "🔍 检查未格式化的文件..."
+	@cd $(FRONTEND_DIR) && pnpm run format:check
 
-format:  ## ✨ 自动格式化所有前端代码（ESLint+Prettier）
-	@echo "✨ 自动修复 ESLint 可修复错误..."
-	@cd $(FRONTEND_DIR) && pnpm exec eslint src --ext .ts,.tsx,.js,.jsx --fix
-	@echo "✨ 自动格式化代码（Prettier）..."
-	@cd $(FRONTEND_DIR) && pnpm exec prettier --write $(SRC_FILES)
-	@echo "✅ 格式化完成！"
+format:  ## ✨ 自动格式化所有前端代码
+	@echo "✨ 自动格式化代码..."
+	@cd $(FRONTEND_DIR) && pnpm run format
+
+lint-all:  ## 🔍 运行完整检查（类型+格式+lint）
+	@echo "🔍 运行完整代码检查..."
+	@cd $(FRONTEND_DIR) && pnpm run lint-all
 
 # --------- Wails 相关 -----------
 
-dev:  ## 🚀 启动 Wails 开发环境
-	@echo "🚀 启动 Wails 开发环境..."
-	@wails dev
+dev:  ## 🚀 启动开发环境
+	@echo "🚀 启动开发环境..."
+	@cd $(FRONTEND_DIR) && pnpm run dev
 
-build:  ## 📦 构建 Wails 项目（生成可执行文件）
-	@echo "📦 构建 Wails 项目..."
-	@wails build
+build:  ## 📦 构建生产版本
+	@echo "📦 构建生产版本..."
+	@cd $(FRONTEND_DIR) && pnpm run build
+
+preview:  ## 🔍 预览生产版本
+	@echo "🔍 预览生产版本..."
+	@cd $(FRONTEND_DIR) && pnpm run preview

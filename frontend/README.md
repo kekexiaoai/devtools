@@ -93,3 +93,4 @@ export default config
 
 ### 如何在提交代码时自动 Lint 和 Prettier？
 
+- make hooks
