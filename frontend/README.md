@@ -1,4 +1,3 @@
-
 # DevTools 前端配置解析
 
 本文档旨在详细解释本项目 `frontend` 目录中各个核心配置文件的作用，以及其中关键配置项的含义。
@@ -21,18 +20,18 @@
 这是 [Vite](https://vitejs.dev/) 的配置文件，控制着我们的前端代码如何被编译、打包和提供服务。
 
 ```typescript
-import path from "path";
-import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import path from 'path'
+import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite'
 
 export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      '@': path.resolve(__dirname, './src'),
     },
   },
-});
+})
 ```
 
 - **`plugins: [react()]`**: 告诉 Vite 我们正在使用 React。这个插件会自动处理 JSX 语法的转换和 React 的热更新（Fast Refresh）功能。
@@ -49,10 +48,10 @@ export default defineConfig({
 ```javascript
 const config = {
   plugins: {
-    "@tailwindcss/postcss": {}, // 使用新的 @tailwindcss/postcss 包
+    '@tailwindcss/postcss': {}, // 使用新的 @tailwindcss/postcss 包
   },
-};
-export default config;
+}
+export default config
 ```
 
 - 这个文件告诉 Vite 在处理 CSS 时，需要通过 `@tailwindcss/postcss` 这个插件进行处理。
@@ -63,7 +62,7 @@ export default config;
 
 ```css
 /* 1. 导入 Tailwind CSS 的所有部分 */
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* 2. 使用 @layer 定义我们自己的全局优化样式 */
 @layer base {
@@ -91,3 +90,61 @@ export default config;
 - **`.eslintrc.cjs`**: 通过 `extends` 继承了一系列社区推荐的最佳实践规则集，帮我们自动检查代码质量和潜在错误。
 - **`.prettierrc.json`**: 只定义代码的外观风格，如使用单引号、不加分号等，确保团队代码风格统一。
 - **`eslint-config-prettier`**: 在 `.eslintrc.cjs` 的 `extends` 数组中，`'prettier'` 必须放在最后，它会关闭 ESLint 中所有与 Prettier 格式化功能冲突的规则，避免两个工具“打架”。
+
+### 如何在提交代码时自动 Lint 和 Prettier？
+
+可以保证所有提交到代码库的代码都符合规范。我们将使用 **`husky`** 和 **`lint-staged`** 这两个行业标准工具来实现。
+
+- **`husky`**: 让我们可以很方便地使用 Git 钩子（hooks）。
+- **`lint-staged`**: 一个非常智能的工具，它只会对您\*\*本次提交中暂存（staged）\*\*的文件执行 lint 和 format，而不是整个项目，速度非常快。
+
+#### **第一步：安装依赖**
+
+在 `frontend` 目录下运行：
+
+```bash
+pnpm add -D husky lint-staged
+```
+
+#### **第二步：初始化 `husky`**
+
+这个命令会自动在 `package.json` 中添加一个脚本，并在项目根目录创建 `.husky` 文件夹。
+
+```bash
+pnpm exec husky init
+```
+
+#### **第三步：创建 `pre-commit` 钩子**
+
+这个命令会创建一个 `pre-commit` 文件，并让它在每次提交前运行 `lint-staged`。
+
+```bash
+echo "pnpm exec lint-staged" > .husky/pre-commit
+```
+
+#### **第四步：配置 `lint-staged`**
+
+最后，我们需要告诉 `lint-staged` 具体要执行什么命令。
+
+**打开 `frontend/package.json` 文件，在最外层（与 `name`, `scripts` 同级）添加以下 `lint-staged` 配置：**
+
+```json
+{
+  "name": "frontend",
+  // ...
+  "devDependencies": {
+    // ...
+  },
+  // ↓↓↓ 在这里添加新的配置块 ↓↓↓
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": ["prettier --write", "eslint --fix"]
+  }
+}
+```
+
+**配置解释**:
+
+- 这段配置的意思是：对于所有暂存的 `.js`, `.jsx`, `.ts`, `.tsx` 文件...
+- 先运行 `prettier --write` 来自动格式化它们。
+- 再运行 `eslint --fix` 来自动修复所有可修复的 lint 问题。
+- 如果有无法自动修复的 lint 错误，本次 `git commit` 将会自动失败，阻止您提交不规范的代码。
