@@ -1,19 +1,39 @@
-# Makefile - 统一项目管理（含 Git Hooks、前端 Lint/Format、Wails）
+# Makefile - 统一项目管理（Wails 与前端独立命令并存）
 
 GITHOOKS_DIR := .githooks
 PRE_COMMIT_HOOK := $(GITHOOKS_DIR)/pre-commit
 
-# 前端目录
+# 项目目录
 FRONTEND_DIR := frontend
+OUTPUT_DIR := dist
 
-.PHONY: help hooks clean-hooks show-hooks lint format format-check dev build
+.PHONY: help hooks clean-hooks show-hooks lint format format-check \
+         frontend-dev frontend-build frontend-preview \
+         dev build preview
 
-help:  ## 📜 显示所有可用命令
-	@echo "🛠️ 项目管理命令列表："
-	@echo "===================="
+help:  ## 📜 显示所有可用命令（分类展示）
+	@echo "\n  使用 \033[36mmake <command>\033[0m 执行以下命令：\n"
+	
+	@echo " 🔧 Git Hooks 管理"
+	@grep -E '^(hooks|clean-hooks|show-hooks):.*?## ' $(MAKEFILE_LIST) | \
+	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	
+	@echo "\n ✨ 代码检查与格式化"
+	@grep -E '^(lint|format|format-check|lint-all):.*?## ' $(MAKEFILE_LIST) | \
+	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	
+	@echo "\n 🌐 前端独立命令"
+	@grep -E '^(frontend-dev|frontend-build|frontend-preview):.*?## ' $(MAKEFILE_LIST) | \
+	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	
+	@echo "\n 🚀 Wails 集成命令"
+	@grep -E '^(dev|build|preview):.*?## ' $(MAKEFILE_LIST) | \
+	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+help-all:  ## 📜 显示所有可用命令
+	@echo "\n  使用 \033[36mmake <command>\033[0m 执行以下命令：\n\n"
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
-	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
-	@echo "===================="
+	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 # --------- Git Hooks 相关 -----------
 
@@ -34,7 +54,7 @@ $(PRE_COMMIT_HOOK):
 	@echo 'cd $(FRONTEND_DIR) || exit 1' >> $(PRE_COMMIT_HOOK)
 	@echo '' >> $(PRE_COMMIT_HOOK)
 	@echo '# 执行前端项目中定义的 lint 和 format 脚本' >> $(PRE_COMMIT_HOOK)
-	@echo 'pnpm run lint-all' >> $(PRE_COMMIT_HOOK)  # 调用完整检查（类型+格式）
+	@echo 'pnpm run lint-all' >> $(PRE_COMMIT_HOOK)
 	@echo '' >> $(PRE_COMMIT_HOOK)
 	@echo 'echo "✅ 代码检查通过，准备提交..."' >> $(PRE_COMMIT_HOOK)
 
@@ -65,16 +85,33 @@ lint-all:  ## 🔍 运行完整检查（类型+格式+lint）
 	@echo "🔍 运行完整代码检查..."
 	@cd $(FRONTEND_DIR) && pnpm run lint-all
 
-# --------- Wails 相关 -----------
+# --------- 前端原生开发命令 -----------
 
-dev:  ## 🚀 启动开发环境
-	@echo "🚀 启动开发环境..."
+frontend-dev:  ## 🌐 启动前端原生开发环境（独立运行）
+	@echo "🌐 启动前端开发服务器..."
 	@cd $(FRONTEND_DIR) && pnpm run dev
 
-build:  ## 📦 构建生产版本
-	@echo "📦 构建生产版本..."
+frontend-build:  ## 🌐 构建前端生产资源（独立打包）
+	@echo "📦 构建前端生产版本..."
 	@cd $(FRONTEND_DIR) && pnpm run build
 
-preview:  ## 🔍 预览生产版本
-	@echo "🔍 预览生产版本..."
+frontend-preview:  ## 🌐 预览前端生产版本（独立预览）
+	@echo "🔍 预览前端生产版本..."
 	@cd $(FRONTEND_DIR) && pnpm run preview
+
+# --------- Wails 集成开发命令 -----------
+
+dev:  ## 🚀 启动 Wails 开发环境（前后端联动）
+	@echo "🚀 启动 Wails 开发模式..."
+	@cd $(FRONTEND_DIR) && pnpm run dev &  # 前端后台运行
+	@wails dev  # Wails 主应用监听前端变化
+
+build:  ## 📦 构建 Wails 生产版本（打包为可执行文件）
+	@echo "📦 构建前端资源..."
+	@cd $(FRONTEND_DIR) && pnpm run build
+	@echo "📦 构建 Wails 应用..."
+	@wails build -o $(OUTPUT_DIR)/app -ldflags="-s -w"
+
+preview:  ## 🔍 预览 Wails 生产版本（运行打包后的应用）
+	@echo "🔍 预览 Wails 应用..."
+	@$(OUTPUT_DIR)/app
