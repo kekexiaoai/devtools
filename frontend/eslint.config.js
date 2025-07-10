@@ -6,15 +6,25 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import prettierConfig from 'eslint-config-prettier'
 
 export default tseslint.config(
-  // 全局配置 & 推荐规则
+  // 全局忽略配置
   {
-    ignores: ['dist', 'eslint.config.js'],
+    // 忽略 dist (构建产物) 和 wailsjs (自动生成) 目录
+    ignores: ['dist', 'wailsjs'],
   },
+
+  // 全局文件和语言选项
   {
     files: ['**/*.{js,mjs,cjs,ts,jsx,tsx}'],
-    languageOptions: { globals: globals.browser },
+    languageOptions: {
+      globals: globals.browser,
+      parserOptions: {
+        ecmaFeatures: { jsx: true }, // 明确开启JSX解析
+      },
+    },
   },
-  ...tseslint.configs.recommended, // typescript-eslint 的推荐规则
+
+  // Typescript 推荐规则
+  ...tseslint.configs.recommended,
 
   // React 相关配置
   {
@@ -23,6 +33,11 @@ export default tseslint.config(
       react: {
         version: 'detect', // 自动检测 React 版本
       },
+    },
+    // 告诉 ESLint 我们使用新的 JSX Transform
+    rules: {
+      'react/react-in-jsx-scope': 'off',
+      'react/jsx-uses-react': 'off',
     },
   },
   {
