@@ -1,10 +1,17 @@
-import React from 'react';
+import { useState } from 'react'
+import { Sidebar } from './components/Sidebar'
 
 function App() {
+  const [activeTool, setActiveTool] = useState('fileSyncer')
+
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold">Hello from React + Vite!</h1>
-      <p>Frontend setup is working.</p>
+    <div id="App" className="flex h-screen bg-secondary/30">
+      <Sidebar activeTool={activeTool} onToolChange={setActiveTool} />
+      <main className="flex-1 flex flex-col  overflow-hidden">
+        {activeTool === 'FileSyncer' && (
+          <div className="p-4">File Syncer View be here.</div>
+        )}
+      </main>
     </div>
   )
 }

@@ -36,7 +36,7 @@ export default defineConfig({
 ```
 
 - **`plugins: [react()]`**: 告诉 Vite 我们正在使用 React。这个插件会自动处理 JSX 语法的转换和 React 的热更新（Fast Refresh）功能。
-- **`resolve.alias`**: 这是路径别名配置。我们定义了一个别名 `@"，让它指向 `src`目录。这让我们可以在代码中使用`import X from '@/components/...'`这样清晰的路径，而不用去写`../../components/...\` 这样繁琐又容易出错的相对路径。
+- **`resolve.alias`**: 这是路径别名配置。我们定义了一个别名 `@"，让它指向`src`目录。这让我们可以在代码中使用`import X from '@/components/...'`这样清晰的路径，而不用去写`../../components/...\` 这样繁琐又容易出错的相对路径。
 
 ## 3\. PostCSS 与 Tailwind CSS v4 的配置
 
@@ -56,7 +56,6 @@ export default config;
 ```
 
 - 这个文件告诉 Vite 在处理 CSS 时，需要通过 `@tailwindcss/postcss` 这个插件进行处理。
-
 
 ## 4\. `src/style.css` - 全局样式入口
 

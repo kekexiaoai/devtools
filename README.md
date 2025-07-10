@@ -49,56 +49,69 @@ _这将根据 `package.json` 和 `pnpm-lock.yaml` 文件，安装所有必需的
 
 本项目使用最新版的 Tailwind CSS。其配置方式与旧版不同，核心在于 `postcss.config.mjs`。
 
-1.  **安装核心依赖**:
+1. **安装核心依赖**:
 
-    ```bash
-    pnpm add -D tailwindcss @tailwindcss/postcss postcss
-    ```
+   ```bash
+   pnpm add -D tailwindcss @tailwindcss/postcss postcss
+   ```
 
-2.  **创建 PostCSS 配置文件**:
-    在 `frontend` 目录下创建 `postcss.config.mjs` 文件：
+2. **创建 PostCSS 配置文件**:
+   在 `frontend` 目录下创建 `postcss.config.mjs` 文件：
 
-    ```javascript
-    const config = {
-      plugins: {
-        "@tailwindcss/postcss": {},
-      },
-    };
-    export default config;
-    ```
+   ```javascript
+   const config = {
+     plugins: {
+       "@tailwindcss/postcss": {},
+     },
+   };
+   export default config;
+   ```
 
-3.  **创建全局样式入口**:
-    在 `frontend/src/style.css` 中，使用最新的 `@import` 指令：
+3. **创建全局样式入口**:
+   在 `frontend/src/style.css` 中，使用最新的 `@import` 指令：
 
-    ```css
-    @import "tailwindcss";
-    ```
+   ```css
+   @import "tailwindcss";
+   ```
 
-    并确保此文件在 `frontend/src/main.tsx` 中被导入。
+   并确保此文件在 `frontend/src/main.tsx` 中被导入。
 
 ### 2.4. 配置代码质量与格式化工具
 
 本项目使用 ESLint + Prettier 来保证代码质量和风格统一。
 
-1.  **安装开发依赖**:
+1. **安装开发依赖**:
 
-    ```bash
-    pnpm add -D eslint prettier eslint-plugin-react-hooks eslint-plugin-react-refresh @typescript-eslint/eslint-plugin @typescript-eslint/parser eslint-config-prettier
-    ```
+   ```bash
+   pnpm add -D eslint prettier eslint-plugin-react-hooks eslint-plugin-react-refresh @typescript-eslint/eslint-plugin @typescript-eslint/parser eslint-config-prettier
+   ```
 
-2.  **创建配置文件**:
-    在 `frontend` 目录下创建 `.eslintrc.cjs` 和 `.prettierrc.json` 文件（请参考项目中已有的文件内容）。
+2. **创建配置文件**:
+   在 `frontend` 目录下创建 `.eslintrc.cjs` 和 `.prettierrc.json` 文件（请参考项目中已有的文件内容）。
 
-3.  **配置 VS Code 集成**:
-    推荐安装插件 `Tailwind CSS IntelliSense`, `ESLint`, `Prettier`。并在项目根目录创建 `.vscode/settings.json` 以实现保存时自动格式化。
+3. **配置 VS Code 集成**:
+   推荐安装插件 `Tailwind CSS IntelliSense`, `ESLint`, `Prettier`。并在项目根目录创建 `.vscode/settings.json` 以实现保存时自动格式化。
 
-    ```json
-    {
-      "editor.formatOnSave": true,
-      "editor.defaultFormatter": "esbenp.prettier-vscode",
-      "css.lint.unknownAtRules": "ignore"
-    }
-    ```
+   ```json
+   {
+     "editor.formatOnSave": true,
+     "editor.defaultFormatter": "esbenp.prettier-vscode",
+     "css.lint.unknownAtRules": "ignore"
+   }
+   ```
+
+### 2.5. 安装 shadcn 组件
+
+```bash
+pnpm dlx shadcn@latest init
+pnpm dlx shadcn@latest add button
+```
+
+### 2.6. 安装其它组件
+
+```bash
+pnpm add lucide-react
+```
 
 ## 3. 推荐 vscode 插件
 
