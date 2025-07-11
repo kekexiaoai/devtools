@@ -8,8 +8,7 @@ import prettierConfig from 'eslint-config-prettier'
 export default tseslint.config(
   // 全局忽略配置
   {
-    // 忽略 dist (构建产物) 和 wailsjs (自动生成) 目录
-    ignores: ['dist', 'wailsjs'],
+    ignores: ['dist/', 'wailsjs/', 'eslint.config.js'],
   },
 
   // 全局文件和语言选项
@@ -17,21 +16,32 @@ export default tseslint.config(
     files: ['**/*.{js,mjs,cjs,ts,jsx,tsx}'],
     languageOptions: {
       globals: globals.browser,
+      parser: tseslint.parser, // 明确指定使用TS解析器
       parserOptions: {
-        ecmaFeatures: { jsx: true }, // 明确开启JSX解析
+        ecmaFeatures: { jsx: true },
+        // 这会告诉ESLint去查找当前目录下的 tsconfig.json
+        project: true,
+        // 告诉解析器 tsconfig.json 文件的根目录在哪里
+        tsconfigRootDir: import.meta.dirname,
       },
     },
   },
 
   // Typescript 推荐规则
-  ...tseslint.configs.recommended,
+  ...tseslint.configs.recommendedTypeChecked, // <-- 使用包含类型检查的规则集
 
   // React 相关配置
   {
     ...pluginReactConfig,
+    // 告诉 ESLint 我们使用新的 JSX Transform
+    rules: {
+      // React 17 及更高版本
+      'react/react-in-jsx-scope': 'off',
+      'react/jsx-uses-react': 'off',
+    },
     settings: {
       react: {
-        version: 'detect', // 自动检测 React 版本
+        version: 'detect',
       },
     },
     // 告诉 ESLint 我们使用新的 JSX Transform
@@ -40,8 +50,10 @@ export default tseslint.config(
       'react/jsx-uses-react': 'off',
     },
   },
+
+  // React Hooks 和 Refresh 插件
   {
-    files: ['**/*.{ts,tsx}'], // 只对 ts/tsx 文件应用 react-hooks
+    files: ['**/*.{ts,tsx}'],
     plugins: {
       'react-hooks': reactHooks,
       'react-refresh': reactRefresh,
