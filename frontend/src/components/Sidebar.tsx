@@ -55,7 +55,7 @@ export function Sidebar({ activeTool, onToolChange }: SidebarProps) {
             {/* React 中没有 v-if，我们使用JS的逻辑与(&&)操作符 */}
             {/* 如果 !isCollapsed 为 true，则渲染后面的 <span> */}
             {!isCollapsed && (
-              <span className="ml-4 font-semibold text-sm whitespace-nowrap">
+              <span className="ml-4 font-semibold text-sm whitespace-nowrap transition-all duration-200 ${isCollapsed ? 'w-0 opacity-0 ml-0' : 'w-auto opacity-100 ml-4'}">
                 {tool.name}
               </span>
             )}

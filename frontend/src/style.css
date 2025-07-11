@@ -1,5 +1,5 @@
 @import 'tailwindcss';
-@import "tw-animate-css";
+@import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -116,5 +116,15 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+
+  :root {
+    /* 默认尺寸，shadcn-vue 会将 1rem 计算为 16px */
+    --font-size-base: 14px;
+  }
+
+  /* 我们将通过改变 :root 的 font-size 来影响所有 rem 单位的计算 */
+  html {
+    font-size: var(--font-size-base);
   }
 }
