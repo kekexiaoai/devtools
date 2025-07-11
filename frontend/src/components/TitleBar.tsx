@@ -30,10 +30,10 @@ export function TitleBar({ uiScale, onScaleChange }: TitleBarProps) {
       {/* 右侧区域：包含缩放控件和窗口控制按钮 */}
       <div
         style={{ '--wails-draggable': 'no-drag' } as React.CSSProperties}
-        className="flex items-center space-x-4"
+        className="flex items-center gap-4"
       >
         {/* 窗口控制按钮 */}
-        <div className="flex space-x-2">
+        <div className="flex gap-2">
           <button
             onClick={WindowMinimise}
             className="h-4 w-4 bg-yellow-400 rounded-full hover:bg-yellow-500"

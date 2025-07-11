@@ -65,26 +65,36 @@ export function Sidebar({ activeTool, onToolChange }: SidebarProps) {
 
       {/* 底部收起/展开按钮 */}
       <div className="mt-auto">
-        <Button
-          variant={'ghost'}
-          size={'lg'}
-          className={`w-full flex ${isCollapsed ? 'justify-center' : 'justify-start'}`}
-          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          onClick={() => setIsCollapsed(!isCollapsed)} // 点击时调用 setter 函数来更新状态
-        >
-          {/* 我们可以用三元运算符来动态选择要渲染的图标 */}
-          {/* 使用 lucide-react 的图标 */}
-          {isCollapsed ? (
+        {/* ↓↓↓ 核心修复方案 ↓↓↓
+          我们不再尝试用一个按钮来处理两种状态，而是直接用 v-if/v-else 的等效写法
+          来渲染两个不同的按钮。这能保证每个按钮的布局都是简单且静态的，从而避免渲染bug。
+        */}
+        {isCollapsed ? (
+          // --- 收起状态下的按钮 ---
+          <Button
+            variant="ghost"
+            size="icon" // 使用专门的图标按钮尺寸
+            className="w-full h-12" // 给一个固定的高度
+            onClick={() => setIsCollapsed(false)}
+            title="Expand sidebar"
+          >
             <ChevronsRight className="h-6 w-6" />
-          ) : (
-            <ChevronLeft className="h-6 w-6" />
-          )}
-          {!isCollapsed && (
-            <span className="ml-4 font-semibold text-sm whitespace-nowrap">
+          </Button>
+        ) : (
+          // --- 展开状态下的按钮 ---
+          <Button
+            variant="ghost"
+            size="lg"
+            className="w-full my-1 flex items-center justify-start gap-3"
+            onClick={() => setIsCollapsed(true)}
+            title="Collapse sidebar"
+          >
+            <ChevronLeft className="h-full" />
+            <span className="font-semibold text-sm whitespace-nowrap">
               Collapse
             </span>
-          )}
-        </Button>
+          </Button>
+        )}
       </div>
     </aside>
   )
