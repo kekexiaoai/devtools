@@ -1,6 +1,10 @@
 #!/bin/sh
 set -e
 
-echo "🔍 [pre-commit] 正在运行 frontend 的 lint-staged..."
+echo "🔍 [pre-commit] 自动格式化并检查代码..."
 cd frontend || exit 1
-pnpm exec lint-staged
+
+# 执行前端项目中定义的 lint-staged 脚本
+pnpm run lint-staged
+
+echo "✅ 代码检查通过，准备提交..."

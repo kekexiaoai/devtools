@@ -14,7 +14,8 @@
     "format-check": "prettier --check --log-level error --ignore-unknown 'src/**/*.{ts,tsx,js,jsx}' vite.config.ts eslint.config.js tsconfig*.json",
     "lint-and-format": "pnpm run lint && pnpm run format",
     "typecheck": "tsc --noEmit",
-    "lint-all": "pnpm run typecheck && pnpm run lint-and-format"
+    "lint-all": "pnpm run typecheck && pnpm run lint-and-format",
+    "lint-staged": "pnpm exec lint-staged"
   },
   "keywords": [],
   "author": "",
@@ -25,6 +26,7 @@
     "@codemirror/state": "^6.5.2",
     "@codemirror/theme-one-dark": "^6.1.3",
     "@codemirror/view": "^6.38.0",
+    "@radix-ui/react-select": "^2.2.5",
     "@radix-ui/react-slot": "^1.2.3",
     "@uiw/react-codemirror": "^4.24.0",
     "class-variance-authority": "^0.7.1",

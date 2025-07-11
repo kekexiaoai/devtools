@@ -41,14 +41,8 @@ help-all:  ## 📜 显示所有可用命令
 
 # --------- Git Hooks 相关 -----------
 
-hooks: $(PRE_COMMIT_HOOK)  ## 🔧 初始化 Git hooks
-	@echo "🔧 设置 Git hooks 路径为 $(GITHOOKS_DIR) ..."
-	@git config core.hooksPath $(GITHOOKS_DIR)
-	@chmod +x $(PRE_COMMIT_HOOK)
-	@echo "✅ Git hooks 初始化完成。"
-	@$(MAKE) show-hooks
-
-$(PRE_COMMIT_HOOK):
+hooks:  ## 🔧 初始化 Git hooks
+	@rm -f $(PRE_COMMIT_HOOK)  # 强制删除 pre-commit 文件
 	@echo "📎 生成 pre-commit hook 脚本 ..."
 	@mkdir -p $(GITHOOKS_DIR)
 	@echo '#!/bin/sh' > $(PRE_COMMIT_HOOK)
@@ -57,10 +51,16 @@ $(PRE_COMMIT_HOOK):
 	@echo 'echo "🔍 [pre-commit] 自动格式化并检查代码..."' >> $(PRE_COMMIT_HOOK)
 	@echo 'cd $(FRONTEND_DIR) || exit 1' >> $(PRE_COMMIT_HOOK)
 	@echo '' >> $(PRE_COMMIT_HOOK)
-	@echo '# 执行前端项目中定义的 lint 和 format 脚本' >> $(PRE_COMMIT_HOOK)
-	@echo 'pnpm run lint-all' >> $(PRE_COMMIT_HOOK)
+	@echo '# 执行前端项目中定义的 lint-staged 脚本' >> $(PRE_COMMIT_HOOK)
+	@echo 'pnpm run lint-staged' >> $(PRE_COMMIT_HOOK)
 	@echo '' >> $(PRE_COMMIT_HOOK)
 	@echo 'echo "✅ 代码检查通过，准备提交..."' >> $(PRE_COMMIT_HOOK)
+	@echo "🔧 设置 Git hooks 路径为 $(GITHOOKS_DIR) ..."
+	@git config core.hooksPath $(GITHOOKS_DIR)
+	@chmod +x $(PRE_COMMIT_HOOK)
+	@echo "✅ Git hooks 初始化完成。"
+	@$(MAKE) show-hooks
+
 
 clean-hooks:  ## 🧹 清理 Git hooks 配置和脚本
 	@echo "🧹 清理 .githooks/ ..."
