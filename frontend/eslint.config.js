@@ -8,7 +8,13 @@ import prettierConfig from 'eslint-config-prettier'
 export default tseslint.config(
   // 全局忽略配置
   {
-    ignores: ['dist/', 'wailsjs/', 'eslint.config.js'],
+    ignores: [
+      'dist/',
+      'wailsjs/',
+      'eslint.config.js',
+      'vite.config.ts',
+      'postcss.config.mjs',
+    ],
   },
 
   // 全局文件和语言选项
@@ -16,10 +22,10 @@ export default tseslint.config(
     files: ['**/*.{js,mjs,cjs,ts,jsx,tsx}'],
     languageOptions: {
       globals: globals.browser,
-      parser: tseslint.parser, // 明确指定使用TS解析器
+      parser: tseslint.parser, // 明确指定使用 TS 解析器
       parserOptions: {
         ecmaFeatures: { jsx: true },
-        // 这会告诉ESLint去查找当前目录下的 tsconfig.json
+        // 这会告诉 ESLint 去查找当前目录下的 tsconfig.json
         project: true,
         // 告诉解析器 tsconfig.json 文件的根目录在哪里
         tsconfigRootDir: import.meta.dirname,
@@ -28,7 +34,15 @@ export default tseslint.config(
   },
 
   // Typescript 推荐规则
-  ...tseslint.configs.recommendedTypeChecked, // <-- 使用包含类型检查的规则集
+  ...tseslint.configs.recommendedTypeChecked, // 使用包含类型检查的规则集
+
+  // 添加规则配置
+  {
+    rules: {
+      '@typescript-eslint/no-unsafe-return': 'error',
+      '@typescript-eslint/no-unsafe-member-access': 'error', // 新增规则
+    },
+  },
 
   // React 相关配置
   {
@@ -43,11 +57,6 @@ export default tseslint.config(
       react: {
         version: 'detect',
       },
-    },
-    // 告诉 ESLint 我们使用新的 JSX Transform
-    rules: {
-      'react/react-in-jsx-scope': 'off',
-      'react/jsx-uses-react': 'off',
     },
   },
 
