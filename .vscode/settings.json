@@ -19,10 +19,16 @@
     "[jsonc]": {
         "editor.defaultFormatter": "vscode.json-language-features"
     },
+    "[go]": {
+        "editor.defaultFormatter": "golang.go",
+        "editor.formatOnSave": true
+    },
+    "go.formatTool": "goimports",
     "gopls": {
         "buildFlags": [
             "-tags=debug"
         ],
+        "formatting.gofumpt": true
     },
     "[makefile]": {
         "editor.defaultFormatter": "eshojaei.mbake-makefile-formatter"
