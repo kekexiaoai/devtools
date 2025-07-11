@@ -67,7 +67,7 @@ export function JsonToolsView() {
 
   const formatAndValidate = () => {
     if (!input.trim()) {
-      setValidation({ isValid: false, message: '' })
+      setValidation({ isValid: null, message: '' })
       setOutputObject({})
       return
     }
