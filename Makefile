@@ -17,7 +17,11 @@ help:  ## 📜 显示所有可用命令（分类展示）
 	@echo " 🔧 Git Hooks 管理"
 	@grep -E '^(hooks|clean-hooks|show-hooks):.*?## ' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
-	
+
+	@echo "\n 📦 项目安装与初始化"  # 新增分类
+	@grep -E '^(install|install-frontend|install-wails):.*?## ' $(MAKEFILE_LIST) | \
+	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
 	@echo "\n ✨ 代码检查与格式化"
 	@grep -E '^(lint|format|format-check|lint-all):.*?## ' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -66,6 +70,29 @@ clean-hooks:  ## 🧹 清理 Git hooks 配置和脚本
 
 show-hooks:  ## 🔍 显示当前 Git hooks 配置路径
 	@echo "➡️ 当前 Git hooks 路径为：$$(git config core.hooksPath)"
+
+# --------- 项目安装与初始化 -----------
+
+install:  ## 📦 安装项目依赖并初始化环境
+	@echo "📦 开始安装项目依赖..."
+	@cd $(FRONTEND_DIR) && pnpm install
+	@echo "✅ 前端依赖安装完成"
+	@echo "🔧 检查并安装 Wails 工具链..."
+	@command -v wails >/dev/null 2>&1 || go install github.com/wailsapp/wails/v2/cmd/wails@latest
+	@echo "✅ Wails 工具链已安装/更新"
+	@$(MAKE) hooks  # 自动初始化 Git hooks
+	@echo "🎉 项目环境初始化完成！可以使用 make dev 启动开发环境"
+
+install-frontend:  ## 📦 仅安装前端依赖
+	@echo "📦 安装前端依赖..."
+	@cd $(FRONTEND_DIR) && pnpm install
+	@echo "✅ 前端依赖安装完成"
+
+install-wails:  ## 🛠 安装 Wails 工具链
+	@echo "🔧 检查并安装 Wails 工具链..."
+	@command -v wails >/dev/null 2>&1 || go install github.com/wailsapp/wails/v2/cmd/wails@latest
+	@echo "✅ Wails 工具链已安装/更新"
+
 
 # --------- 前端代码检查与格式化 -----------
 
