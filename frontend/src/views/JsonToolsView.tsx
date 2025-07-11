@@ -2,13 +2,21 @@ import { SetStateAction, useCallback, useMemo, useState } from 'react'
 
 // --- 导入 shadcn/ui 和图标 ---
 import { Button } from '@/components/ui/button'
-import { ClipboardIcon, TrashIcon, ChevronLeftIcon,ArrowDownTrayIcon,  } from 'lucide-react'
+import {
+  ArrowRightLeft,
+  Download,
+  ClipboardCopy,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react'
 
 // --- 导入编辑器和JSON视图 ---
-import CodeMirror from '@uiw/react-codemirror'
+import CodeMirror, { Extension } from '@uiw/react-codemirror'
 import { json } from '@codemirror/lang-json'
 import { oneDark } from '@codemirror/theme-one-dark'
 import ReactJson from 'react-json-view'
+import { EditorView } from '@codemirror/view'
 
 // --- 导入 Wails 原生对话框 ---
 import { ShowErrorDialog, ShowInfoDialog } from '../../wailsjs/go/main/App'
@@ -20,7 +28,10 @@ export function JsonToolsView() {
   const [input, setInput] = useState('') // 左侧输入框的文本内容
   const [outputObject, setOutputObject] = useState({}) // 右侧输出的JS对象
   const [isInputVisible, setIsInputVisible] = useState(true) // 左侧面板是否可见
-  const [validation, setValidation] = useState({ isValid: false, message: '' }) // 校验结果
+  const [validation, setValidation] = useState<{
+    isValid: boolean | null
+    message: string
+  }>({ isValid: null, message: '' }) // 校验结果
 
   // --- 教学：使用 useMemo Hook 进行性能优化 ---
   // useMemo 会缓存一个计算结果。只有当它的依赖项(这里是 isDarkMode)改变时，
@@ -33,7 +44,10 @@ export function JsonToolsView() {
   )
 
   const codemirrorExtensions = useMemo(() => {
-    const exts = [json(), CodeMirror.lineWrapping] // 开启JSON语言和自动换行
+    // 明确地为 exts 数组注解类型为 Extension[]
+    const exts: Extension[] = []
+    exts.push(json())
+    exts.push(EditorView.lineWrapping)
     if (isDarkMode) {
       exts.push(oneDark)
     }
@@ -58,25 +72,28 @@ export function JsonToolsView() {
       return
     }
     try {
-      const jsonObj = JSON.parse(input)
+      const jsonObj = JSON.parse(input) as Record<string, unknown>
       setOutputObject(jsonObj)
       setValidation({ isValid: true, message: 'Valid JSON' })
     } catch (error) {
       setOutputObject({})
       setValidation({
         isValid: false,
-        message: `Invalid JSON: ${error.message}`,
+        message: `Invalid JSON: ${String(error)}`,
       })
     }
   }
 
   const minifyAndCopy = async () => {
     try {
-      const jsonObj = JSON.parse(input)
+      const jsonObj = JSON.parse(input) as Record<string, unknown>
       await navigator.clipboard.writeText(JSON.stringify(jsonObj))
       await ShowInfoDialog('Success', 'Minified JSON copied to clipboard!')
     } catch (error) {
-      await ShowErrorDialog('Error', 'Invalid JSON, cannot minify.')
+      await ShowErrorDialog(
+        'Error',
+        'Invalid JSON, cannot minify. ' + String(error)
+      )
     }
   }
 
@@ -85,8 +102,11 @@ export function JsonToolsView() {
       const formattedText = JSON.stringify(outputObject, null, 2)
       await navigator.clipboard.writeText(formattedText)
       await ShowInfoDialog('Success', 'Formatted JSON copied to clipboard!')
-    } catch (err) {
-      await ShowErrorDialog('Error', `Failed to copy: ${err}`)
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+
+      await ShowErrorDialog('Error', `Failed to copy: ${errorMessage}`)
     }
   }
 
@@ -101,21 +121,22 @@ export function JsonToolsView() {
       {/* 顶部操作按钮栏 */}
       <div className="flex-shrink-0 flex items-center space-x-2">
         <Button onClick={formatAndValidate}>
-          <ArrowsRightLeftIcon className="mr-2 h-4 w-4" /> Format / Validate
+          <ArrowRightLeft className="mr-2 h-4 w-4" /> Format / Validate
         </Button>
-        <Button onClick={minifyAndCopy} variant="outline">
-          <ArrowDownTrayIcon className="mr-2 h-4 w-4" /> Minify & Copy
+        <Button onClick={() => void minifyAndCopy()} variant="outline">
+          <Download className="mr-2 h-4 w-4" /> Minify & Copy
         </Button>
         <div className="flex-grow" />
+        {/* 使用箭头函数包裹异步函数 */}
         <Button
-          onClick={copyOutput}
+          onClick={() => void copyOutput()}
           variant="secondary"
           disabled={Object.keys(outputObject).length === 0}
         >
-          <ClipboardIcon className="mr-2 h-4 w-4" /> Copy Output
+          <ClipboardCopy className="mr-2 h-4 w-4" /> Copy Output
         </Button>
         <Button onClick={clearAll} variant="destructive">
-          <TrashIcon className="mr-2 h-4 w-4" /> Clear All
+          <Trash2 className="mr-2 h-4 w-4" /> Clear All
         </Button>
       </div>
 
@@ -165,15 +186,17 @@ export function JsonToolsView() {
             size="icon"
             className="h-8 w-8"
           >
-            <ChevronLeftIcon
-              className={`h-4 w-4 transition-transform ${!isInputVisible && 'rotate-180'}`}
-            />
+            {isInputVisible ? (
+              <ChevronLeft className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
           </Button>
         </div>
 
         {/* 输出区 */}
         <div
-          className={`h-full flex flex-col transition-all duration-300 ${isInputVisible ? 'w-1/2' : 'w-full'}`}
+          className={`h-full flex flex-col transition-all duration-75 ${isInputVisible ? 'w-1/2' : 'w-full'}`}
         >
           <label className="mb-1 text-sm font-semibold text-foreground">
             Output

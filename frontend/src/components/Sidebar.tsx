@@ -3,7 +3,13 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 
 // 从 lucide-react 导入图标
-import { FolderDown, ChevronsRight, ChevronLeft } from 'lucide-react'
+import {
+  FolderDown,
+  ChevronsRight,
+  ChevronLeft,
+  FileJson2,
+  TerminalIcon,
+} from 'lucide-react'
 
 // 在 TypeScript 中，我们为组件的 props 定义一个接口(interface)，
 // 这类似于 Vue 的 defineProps，但类型更严格，IDE提示更友好。
@@ -18,7 +24,12 @@ interface SidebarProps {
 export function Sidebar({ activeTool, onToolChange }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
 
-  const tools = [{ id: 'FileSyncer', name: 'File Syncer', icon: FolderDown }]
+  const tools = [
+    { id: 'FileSyncer', name: 'File Syncer', icon: FolderDown },
+    { id: 'JsonTools', name: 'JSON Tools', icon: FileJson2 },
+    { id: 'Termianl', name: 'Terminal', icon: TerminalIcon },
+    // 这里可以添加更多工具
+  ]
   return (
     // `class` 在 JSX 中必须写成 `className`
     <aside
