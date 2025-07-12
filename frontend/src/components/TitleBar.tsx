@@ -12,7 +12,11 @@ export function TitleBar({ uiScale, onScaleChange }: TitleBarProps) {
     <div
       onDoubleClick={WindowToggleMaximise}
       style={{ '--wails-draggable': 'drag' } as React.CSSProperties}
-      className="h-10 w-full flex-shrink-0 select-none"
+      // 使用 h-[40px] 来设置一个固定的、绝对的像素高度
+      // flex items-center: 让所有子元素垂直居中。
+      // justify-end: 让所有内容靠右对齐。
+      // px-4: 左右两边留出16px的内边距。
+      className="h-[40px] w-full flex-shrink-0 select-none flex items-center justify-end px-4"
     >
       <div className="flex h-full items-center justify-between px-4 ml-25">
         <div></div>
