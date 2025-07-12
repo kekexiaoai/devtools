@@ -42,7 +42,7 @@ func main() {
 		Title:     appName,
 		Width:     1024,
 		Height:    768,
-		Frameless: false,
+		Frameless: true,
 		Menu:      appMenu,
 
 		EnableDefaultContextMenu: true,
@@ -50,7 +50,7 @@ func main() {
 			Assets: assets,
 		},
 
-		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
+		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 0},
 		OnStartup:        app.startup,
 		OnShutdown:       app.shutdown,
 		OnBeforeClose: func(ctx context.Context) (prevent bool) {
@@ -64,7 +64,6 @@ func main() {
 				DefaultButton: "Yes",
 				CancelButton:  "No",
 			})
-
 			if err != nil {
 				return false
 			}
@@ -76,10 +75,10 @@ func main() {
 		},
 		Mac: &mac.Options{
 			TitleBar: &mac.TitleBar{
-				TitlebarAppearsTransparent: false,
+				TitlebarAppearsTransparent: true,
 				HideTitle:                  true,
 				HideTitleBar:               false,
-				FullSizeContent:            false,
+				FullSizeContent:            true,
 				UseToolbar:                 true,
 				HideToolbarSeparator:       true,
 			},
@@ -89,16 +88,15 @@ func main() {
 				Message: "dev tools.\n\nCopyright © 2025",
 				Icon:    icon,
 			},
-			WebviewIsTransparent: false,
-			WindowIsTranslucent:  false,
+			WebviewIsTransparent: true,
+			WindowIsTranslucent:  true,
 		},
 		Windows: &windows.Options{
-			WebviewIsTransparent:              false,
-			WindowIsTranslucent:               false,
-			DisableFramelessWindowDecorations: false,
+			WebviewIsTransparent:              true,
+			WindowIsTranslucent:               true,
+			DisableFramelessWindowDecorations: true,
 		},
 	})
-
 	if err != nil {
 		println("Error:", err.Error())
 		log.Fatal(err)

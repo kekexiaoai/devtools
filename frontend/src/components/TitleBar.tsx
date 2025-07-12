@@ -26,6 +26,7 @@ export function TitleBar({ uiScale, onScaleChange }: TitleBarProps) {
     <div
       style={{ '--wails-draggable': 'drag' } as React.CSSProperties}
       className="w-full h-10 bg-background border-b flex justify-between items-center px-2 select-none"
+      onDoubleClick={WindowToggleMaximise}
     >
       {/* 右侧区域：包含缩放控件和窗口控制按钮 */}
       <div
@@ -35,16 +36,16 @@ export function TitleBar({ uiScale, onScaleChange }: TitleBarProps) {
         {/* 窗口控制按钮 */}
         <div className="flex gap-2">
           <button
+            onClick={Quit}
+            className="h-4 w-4 bg-red-500 rounded-full hover:bg-red-600"
+          ></button>
+          <button
             onClick={WindowMinimise}
             className="h-4 w-4 bg-yellow-400 rounded-full hover:bg-yellow-500"
           ></button>
           <button
             onClick={WindowToggleMaximise}
             className="h-4 w-4 bg-green-400 rounded-full hover:bg-green-500"
-          ></button>
-          <button
-            onClick={Quit}
-            className="h-4 w-4 bg-red-500 rounded-full hover:bg-red-600"
           ></button>
         </div>
 

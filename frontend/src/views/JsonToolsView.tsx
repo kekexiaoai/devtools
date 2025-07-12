@@ -119,7 +119,7 @@ export function JsonToolsView() {
   return (
     <div className="h-full flex flex-col p-4 space-y-4 bg-background">
       {/* 顶部操作按钮栏 */}
-      <div className="flex-shrink-0 flex items-center space-x-2">
+      <div className="flex-shrink-0 flex items-center gap-x-2">
         <Button onClick={formatAndValidate}>
           <ArrowRightLeft className="mr-2 h-4 w-4" /> Format / Validate
         </Button>
@@ -154,7 +154,7 @@ export function JsonToolsView() {
       )}
 
       {/* 输入/输出面板 */}
-      <div className="flex-grow flex items-stretch space-x-2 overflow-hidden">
+      <div className="flex-grow flex items-stretch gap-x-2 overflow-hidden">
         {/* 输入区 (可收起) */}
         {isInputVisible && (
           <div className="w-1/2 h-full flex flex-col transition-all duration-300">
