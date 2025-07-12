@@ -55,6 +55,27 @@ func main() {
 			runtime.Quit(app.ctx)
 		})
 	}
+	// 创建 "View" (视图) 子菜单来处理缩放
+	viewMenu := appMenu.AddSubmenu("View")
+
+	// 为 "Zoom Out" (缩小) 添加菜单项和快捷键
+	zoomOutAccelerator := keys.CmdOrCtrl("-")
+	viewMenu.AddText("Zoom Out", zoomOutAccelerator, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(app.ctx, "zoom_change", "small")
+	})
+
+	// 为 "Zoom In" (放大) 添加菜单项和快捷键
+	// 注意: '+' 键通常需要 Shift，所以我们绑定 '=' 键，并显示为 '+'
+	zoomInAccelerator := keys.CmdOrCtrl("+")
+	viewMenu.AddText("Zoom In", zoomInAccelerator, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(app.ctx, "zoom_change", "large")
+	})
+
+	// 为 "Actual Size" (重置) 添加菜单项和快捷键
+	resetZoomAccelerator := keys.CmdOrCtrl("0")
+	viewMenu.AddText("Actual Size", resetZoomAccelerator, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(app.ctx, "zoom_change", "default")
+	})
 
 	// 创建一个 Wails 应用
 	err := wails.Run(&options.App{

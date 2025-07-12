@@ -16,9 +16,9 @@ export function SettingsControl({
     icon: React.ElementType
     title: string
   }[] = [
-    { scale: 'small', icon: ZoomOut, title: 'Smaller UI' },
-    { scale: 'default', icon: Scale, title: 'Default UI' },
-    { scale: 'large', icon: ZoomIn, title: 'Larger UI' },
+    { scale: 'small', icon: ZoomOut, title: 'Smaller UI (⌘-)' },
+    { scale: 'default', icon: Scale, title: 'Default UI (⌘0)' },
+    { scale: 'large', icon: ZoomIn, title: 'Larger UI (⌘+)' },
   ]
   return (
     //为这个控件的容器设置 --wails-draggable: no-drag

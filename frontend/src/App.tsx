@@ -3,6 +3,7 @@ import { Sidebar } from './components/Sidebar'
 import { JsonToolsView } from './views/JsonToolsView'
 import { FileSyncerView } from './views/FileSyncerView'
 import { TitleBar } from './components/TitleBar'
+import { EventsOn } from '../wailsjs/runtime/runtime'
 
 export type UiScale = 'small' | 'default' | 'large'
 
@@ -32,6 +33,19 @@ function App() {
     }
     htmlEl.style.fontSize = fontSize
   }, [uiScale])
+
+  useEffect(() => {
+    const handler = (newScale: UiScale) => {
+      console.log('Zoom event received from Go:', newScale)
+      setUiScale(newScale)
+    }
+    EventsOn('zoom_change', handler)
+
+    return () => {
+      // 清理事件监听器
+      EventsOn('zoom_change', () => {}) // 取消订阅事件，传递一个空函数
+    }
+  }, [])
 
   return (
     <div id="App" className="w-screen h-screen bg-transparent">
