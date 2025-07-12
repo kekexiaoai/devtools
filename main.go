@@ -9,6 +9,7 @@ import (
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/menu"
+	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
@@ -26,18 +27,36 @@ var version = "0.0.0"
 const appName = "devtools"
 
 func main() {
-	// Create an instance of the app structure
+	// 创建一个 app 的实例
 	app := NewApp()
 
-	// menu
-	isMacOS := _runtime.GOOS == "darwin"
+	// 创建应用主菜单 (跨平台)
 	appMenu := menu.NewMenu()
+	isMacOS := _runtime.GOOS == "darwin"
+
+	// 如果是 macOS，添加标准的 "Edit" 菜单
+	// 这会自动包含剪切、复制、粘贴等所有原生文本编辑功能
 	if isMacOS {
 		appMenu.Append(menu.AppMenu())
 		appMenu.Append(menu.EditMenu())
 		appMenu.Append(menu.WindowMenu())
 	}
-	// Create application with options
+
+	fileMenu := appMenu.AddSubmenu("File")
+
+	if isMacOS {
+		// macOS 的标准退出选项
+		fileMenu.AddText("Quit DevTools", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
+			runtime.Quit(app.ctx)
+		})
+	} else {
+		// Windows/Linux 的标准退出选项
+		fileMenu.AddText("Exit", keys.OptionOrAlt("f4"), func(_ *menu.CallbackData) {
+			runtime.Quit(app.ctx)
+		})
+	}
+
+	// 创建一个 Wails 应用
 	err := wails.Run(&options.App{
 		Title:     appName,
 		Width:     1024,
@@ -70,7 +89,8 @@ func main() {
 
 			return selection != "Yes"
 		},
-		Bind: []interface{}{
+		HideWindowOnClose: isMacOS,
+		Bind: []any{
 			app,
 		},
 		Mac: &mac.Options{
