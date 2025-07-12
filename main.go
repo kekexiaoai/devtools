@@ -42,7 +42,7 @@ func main() {
 		Title:     appName,
 		Width:     1024,
 		Height:    768,
-		Frameless: true,
+		Frameless: false,
 		Menu:      appMenu,
 
 		EnableDefaultContextMenu: true,

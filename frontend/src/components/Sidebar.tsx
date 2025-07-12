@@ -11,6 +11,17 @@ import {
   TerminalIcon,
 } from 'lucide-react'
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+
+import { UiScale } from '@/App'
+import { Label } from '@/components/ui/label'
+
 // 在 TypeScript 中，我们为组件的 props 定义一个接口(interface)，
 // 这类似于 Vue 的 defineProps，但类型更严格，IDE提示更友好。
 interface SidebarProps {
@@ -18,10 +29,17 @@ interface SidebarProps {
   activeTool: string
   // 用于通知父组件工具已经变更
   onToolChange: (toolId: string) => void
+  uiScale: UiScale
+  onScaleChange: (scale: UiScale) => void
 }
 
 // React 组件是一个函数，它通过解构赋值接收 props
-export function Sidebar({ activeTool, onToolChange }: SidebarProps) {
+export function Sidebar({
+  activeTool,
+  onToolChange,
+  uiScale,
+  onScaleChange,
+}: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
 
   const tools = [
@@ -64,11 +82,24 @@ export function Sidebar({ activeTool, onToolChange }: SidebarProps) {
       </div>
 
       {/* 底部收起/展开按钮 */}
-      <div className="mt-auto">
-        {/* ↓↓↓ 核心修复方案 ↓↓↓
-          我们不再尝试用一个按钮来处理两种状态，而是直接用 v-if/v-else 的等效写法
-          来渲染两个不同的按钮。这能保证每个按钮的布局都是简单且静态的，从而避免渲染bug。
-        */}
+      <div className="mt-auto gap-y-2">
+        {/* UI 缩放下拉菜单 */}
+        <div className={isCollapsed ? 'hidden' : 'block'}>
+          <Label className="px-3 text-xs text-muted-foreground">UI Scale</Label>
+          <Select value={uiScale} onValueChange={onScaleChange}>
+            <SelectTrigger className="w-full h-9">
+              <SelectValue placeholder="UI Scale" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="small">Small</SelectItem>
+              <SelectItem value="default">Default</SelectItem>
+              <SelectItem value="large">Large</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* 收起/展开按钮 */}
+
         {isCollapsed ? (
           // --- 收起状态下的按钮 ---
           <Button
