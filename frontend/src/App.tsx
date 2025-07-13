@@ -3,7 +3,7 @@ import { Sidebar } from './components/Sidebar'
 import { JsonToolsView } from './views/JsonToolsView'
 import { FileSyncerView } from './views/FileSyncerView'
 import { TitleBar } from './components/TitleBar'
-import { EventsOn } from '../wailsjs/runtime/runtime'
+import { EventsOn, WindowIsFullscreen } from '../wailsjs/runtime/runtime'
 
 export type UiScale = 'small' | 'default' | 'large'
 
@@ -17,6 +17,8 @@ function App() {
   const [activeTool, setActiveTool] = useState('FileSyncer')
 
   const [uiScale, setUiScale] = useState<UiScale>('default')
+
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   useEffect(() => {
     const htmlEl = document.documentElement
@@ -47,11 +49,52 @@ function App() {
     }
   }, [])
 
+  // 使用轮询来检测全屏状态的 useEffect
+  useEffect(() => {
+    // 检查函数
+    const checkFullscreenState = async () => {
+      try {
+        const isCurrentlyFullscreen = await WindowIsFullscreen()
+        // 只有当状态发生变化时，才更新 state，避免不必要的重渲染
+        setIsFullscreen((prevState) => {
+          if (prevState !== isCurrentlyFullscreen) {
+            console.log(
+              `Polling: Fullscreen state changed to ${isCurrentlyFullscreen}`
+            )
+            return isCurrentlyFullscreen
+          }
+          return prevState
+        })
+      } catch (error) {
+        console.error('Polling: Failed to check fullscreen state:', error)
+      }
+    }
+
+    // 组件首次挂载时，立即检查一次初始状态
+    void checkFullscreenState()
+
+    // 启动一个定时器，每 500 毫秒检查一次窗口状态
+    const intervalId = window.setInterval(() => {
+      void checkFullscreenState()
+    }, 500)
+
+    // 在组件卸载时，返回一个清理函数，这非常重要！
+    // 它会清除定时器，防止内存泄漏。
+    return () => {
+      if (intervalId) {
+        window.clearInterval(intervalId)
+      }
+    }
+  }, []) // 空依赖数组 [] 意味着这个 effect 只在组件首次挂载时运行一次
+
   return (
     <div id="App" className="w-screen h-screen bg-transparent">
       <div className="w-full h-full flex flex-col rounded-lg overflow-hidden bg-background text-foreground">
-        {/* 将缩放状态和更新函数传递给 TitleBar */}
-        <TitleBar uiScale={uiScale} onScaleChange={setUiScale} />
+        {/* 当不处于全屏状态时，才显示我们的自定义标题栏 */}
+        {!isFullscreen && (
+          // 将缩放状态和更新函数传递给 TitleBar
+          <TitleBar uiScale={uiScale} onScaleChange={setUiScale} />
+        )}
         {/* 主内容区 */}
         <div className="flex flex-grow overflow-hidden">
           <Sidebar activeTool={activeTool} onToolChange={setActiveTool} />

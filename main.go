@@ -121,7 +121,7 @@ func main() {
 				HideTitleBar:               false,
 				FullSizeContent:            true,
 				UseToolbar:                 true,
-				HideToolbarSeparator:       true,
+				HideToolbarSeparator:       false,
 			},
 			// Appearance: mac.NSAppearanceNameDarkAqua,
 			About: &mac.AboutInfo{
