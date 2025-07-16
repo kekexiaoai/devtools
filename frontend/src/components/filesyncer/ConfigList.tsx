@@ -33,10 +33,10 @@ export function ConfigList({
           <li
             key={config.id}
             onClick={() => onSelect(config.id)}
-            className={`group p-3 rounded-md cursor-pointer flex justify-between items-center transition-colors ${
+            className={`group p-3 rounded-md cursor-pointer flex justify-between items-center transition-all duration-200 ${
               selectedId === config.id
-                ? 'bg-accent text-accent-foreground'
-                : 'hover:bg-accent hover:text-accent-foreground'
+                ? 'bg-accent/90 text-accent-foreground border-1 border-accent-foreground/30 shadow-lg shadow-accent/20'
+                : 'hover:bg-accent/10 hover:text-accent-foreground border border-transparent hover:border-accent/30 hover:shadow-sm'
             }`}
             onMouseEnter={() => {
               setHoveredId(config.id)
