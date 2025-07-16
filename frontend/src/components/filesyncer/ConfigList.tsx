@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { PencilIcon, TrashIcon } from 'lucide-react'
 import type { types } from '../../../wailsjs/go/models'
+import { useState } from 'react'
 
 interface ConfigListProps {
   configs: types.SSHConfig[]
@@ -19,6 +20,8 @@ export function ConfigList({
   onEdit,
   onDelete,
 }: ConfigListProps) {
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+
   return (
     <div className="p-4 h-full flex flex-col bg-muted/50">
       <Button onClick={onNew} className="w-full mb-4">
@@ -30,12 +33,19 @@ export function ConfigList({
           <li
             key={config.id}
             onClick={() => onSelect(config.id)}
-            className={`p-3 rounded-md cursor-pointer flex justify-between items-center transition-colors group ${
+            className={`group p-3 rounded-md cursor-pointer flex justify-between items-center transition-colors ${
               selectedId === config.id
                 ? 'bg-accent text-accent-foreground'
                 : 'hover:bg-accent hover:text-accent-foreground'
             }`}
-            onMouseEnter={() => console.log('Hover on:', config.id)} // 调试 hover
+            onMouseEnter={() => {
+              setHoveredId(config.id)
+              console.log('Hover on:', config.id)
+            }} // 调试 hover
+            onMouseLeave={() => {
+              setHoveredId(null)
+              console.log('Hover leave:', config.id)
+            }}
           >
             <div>
               <h3 className="font-semibold text-sm">{config.name}</h3>
@@ -44,8 +54,11 @@ export function ConfigList({
               </p>
             </div>
 
-            <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
-              {/* <div className="flex items-center opacity-100 transition-opacity"> */}
+            <div
+              className={`flex items-center opacity-0 group-hover:opacity-100 transition-opacity ${
+                hoveredId === config.id ? 'opacity-100' : 'opacity-0'
+              }`}
+            >
               <Button
                 variant="ghost"
                 size="icon"
