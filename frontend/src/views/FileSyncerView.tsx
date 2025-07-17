@@ -1,4 +1,5 @@
 import { ConfigList } from '../components/filesyncer/ConfigList'
+import { ConfigDetail } from '../components/filesyncer/ConfigDetail'
 
 import type { types } from '../../wailsjs/go/models'
 import {
@@ -9,6 +10,7 @@ import {
   ShowConfirmDialog,
   ShowErrorDialog,
   ShowInfoDialog,
+  SelectFile,
   // SelectFile,
 } from '../../wailsjs/go/main/App'
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
@@ -28,6 +30,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 // import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Button } from '@/components/ui/button'
+import { RadioGroup } from '@radix-ui/react-radio-group'
+import { RadioGroupItem } from '@/components/ui/radio-group'
 
 export function FileSyncerView() {
   const [configs, setConfigs] = useState<types.SSHConfig[]>([])
@@ -37,7 +41,18 @@ export function FileSyncerView() {
   // 模态框相关
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingConfigId, setEditingConfigId] = useState<string | null>(null)
-  const [form, setForm] = useState<types.SSHConfig>({} as types.SSHConfig)
+  const initialFormState: types.SSHConfig = {
+    id: '',
+    name: '',
+    host: '',
+    port: 22,
+    user: 'root',
+    authMethod: 'password',
+    password: '',
+    keyPath: '',
+    clipboardFilePath: '',
+  }
+  const [form, setForm] = useState<types.SSHConfig>(initialFormState)
   const [testResult, setTestResult] = useState({ status: '', message: '' })
 
   // 更新 selectedIdRef 每次 selectedId 变化
@@ -159,7 +174,7 @@ export function FileSyncerView() {
   }
 
   const handleOpenNewModal = () => {
-    setForm({} as types.SSHConfig) // 重置表单
+    setForm(initialFormState) // 重置表单
     setTestResult({ status: '', message: '' })
     setEditingConfigId(null)
     setIsModalOpen(true)
@@ -199,12 +214,12 @@ export function FileSyncerView() {
     }
   }
 
-  // const handleSelectKeyFile = async () => {
-  //   const filePath = await SelectFile('Select SSH Private Key')
-  //   if (filePath) {
-  //     setForm((prevForm) => ({ ...prevForm, keyPath: filePath }))
-  //   }
-  // }
+  const handleSelectKeyFile = async () => {
+    const filePath = await SelectFile('Select SSH Private Key')
+    if (filePath) {
+      setForm((prevForm) => ({ ...prevForm, keyPath: filePath }))
+    }
+  }
 
   const SelectedConfig = useMemo(() => {
     if (!selectedId) return null
@@ -229,13 +244,16 @@ export function FileSyncerView() {
       {/* 右侧 */}
       <div className="flex-1 p-6 overflow-y-auto">
         {SelectedConfig ? (
-          <div>
-            <h2>Details for: {SelectedConfig.name}</h2>
-            <p>Next step: Refactor ConfigDetail component here.</p>
-            <pre className="mt-4 p-2 bg-muted rounded-md text-xs">
-              {JSON.stringify(SelectedConfig, null, 2)}
-            </pre>
-          </div>
+          <ConfigDetail
+            key={SelectedConfig.id}
+            config={SelectedConfig}
+            onConfigUpdate={() => void fetchConfigs()}
+            isWatching={false}
+            onToggleWatcher={function (id: string, isActive: boolean): void {
+              console.log(id, isActive)
+              throw new Error('Function not implemented.')
+            }}
+          />
         ) : (
           <div className="flex items-center justify-center h-full text-muted-foreground">
             <p>Select or create a configuration.</p>
@@ -254,6 +272,12 @@ export function FileSyncerView() {
               Provide SSH connection details.
             </DialogDescription>
           </DialogHeader>
+          {/* --- 受控组件 (Controlled Components) ---
+            在 React 中，表单元素的值由 React 的 state (我们的 form 对象) 完全控制。
+            用户的每一次输入都会触发 onChange 事件，我们在这个事件中调用 setForm
+            来更新 state，然后 state 的更新再反过来导致输入框的 value 改变。
+            这个过程被称为“单向数据流”。
+          */}
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="name" className="text-right">
@@ -266,8 +290,104 @@ export function FileSyncerView() {
                   setForm({ ...form, name: e.target.value })
                 }
                 className="col-span-3"
-              ></Input>
+              />
             </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="host" className="text-right">
+                Host & Port
+              </Label>
+              <div className="col-span-3 grid grid-cols-3 gap-2">
+                <Input
+                  id="host"
+                  value={form.host}
+                  onChange={(e) => setForm({ ...form, host: e.target.value })}
+                  className="col-span-2"
+                  placeholder="192.168.1.1"
+                />
+                <Input
+                  type="number"
+                  value={form.port}
+                  onChange={(e) =>
+                    setForm({ ...form, port: Number(e.target.value) })
+                  }
+                  placeholder="22"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="user" className="text-right">
+                User
+              </Label>
+              <Input
+                id="user"
+                value={form.user}
+                onChange={(e) => setForm({ ...form, user: e.target.value })}
+                className="col-span-3"
+                placeholder="root"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Auth Method</Label>
+              <RadioGroup
+                value={form.authMethod}
+                onValueChange={(value) =>
+                  setForm({ ...form, authMethod: value })
+                }
+                className="col-span-3 flex items-center space-x-4"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="password" id="r-password" />
+                  <Label htmlFor="r-password">Password</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="key" id="r-key" />
+                  <Label htmlFor="r-key1">Key File</Label>
+                </div>
+              </RadioGroup>
+            </div>
+            {form.authMethod === 'password' && (
+              <div className="grid grid-cols-4 text-center">
+                <Label htmlFor="password" className="text-right">
+                  Password
+                </Label>
+                <Input
+                  id="password"
+                  value={form.password}
+                  onChange={(e) =>
+                    setForm({ ...form, password: e.target.value })
+                  }
+                  type="password"
+                  className="col-span-3"
+                />
+              </div>
+            )}
+            {form.authMethod === 'key' && (
+              <div className="grid grid-cols-4 text-center">
+                <Label htmlFor="key" className="text-right">
+                  Key Path
+                </Label>
+                <div className="col-span-3 flex text-center">
+                  <Input
+                    id="key"
+                    value={form.keyPath}
+                    readOnly
+                    placeholder="Click Broser..."
+                    onChange={(e) =>
+                      setForm({ ...form, keyPath: e.target.value })
+                    }
+                    className="col-span-3"
+                  />
+                  <Button
+                    onClick={() => void handleSelectKeyFile()}
+                    type="button"
+                    variant="outline"
+                    className="ml-2"
+                  >
+                    Browse
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <p
@@ -281,7 +401,6 @@ export function FileSyncerView() {
               variant={'outline'}
               onClick={() => void handleTestConnection()}
             >
-              {' '}
               Test
             </Button>
             <Button type="button" onClick={() => void handleSaveConfig()}>
