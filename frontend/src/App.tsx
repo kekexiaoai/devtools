@@ -50,40 +50,71 @@ function App() {
   }, [])
 
   // 使用轮询来检测全屏状态的 useEffect
+  // useEffect(() => {
+  //   // 检查函数
+  //   const checkFullscreenState = async () => {
+  //     try {
+  //       const isCurrentlyFullscreen = await WindowIsFullscreen()
+  //       // 只有当状态发生变化时，才更新 state，避免不必要的重渲染
+  //       setIsFullscreen((prevState) => {
+  //         if (prevState !== isCurrentlyFullscreen) {
+  //           console.log(
+  //             `Polling: Fullscreen state changed to ${isCurrentlyFullscreen}`
+  //           )
+  //           return isCurrentlyFullscreen
+  //         }
+  //         return prevState
+  //       })
+  //     } catch (error) {
+  //       console.error('Polling: Failed to check fullscreen state:', error)
+  //     }
+  //   }
+
+  //   // 组件首次挂载时，立即检查一次初始状态
+  //   void checkFullscreenState()
+
+  //   // 启动一个定时器，每 500 毫秒检查一次窗口状态
+  //   const intervalId = window.setInterval(() => {
+  //     void checkFullscreenState()
+  //   }, 500)
+
+  //   // 在组件卸载时，返回一个清理函数，这非常重要！
+  //   // 它会清除定时器，防止内存泄漏。
+  //   return () => {
+  //     if (intervalId) {
+  //       window.clearInterval(intervalId)
+  //     }
+  //   }
+  // }, []) // 空依赖数组 [] 意味着这个 effect 只在组件首次挂载时运行一次
+
+  // --- 3. 新增 useEffect 来监听窗口全屏事件 ---
   useEffect(() => {
-    // 检查函数
-    const checkFullscreenState = async () => {
-      try {
-        const isCurrentlyFullscreen = await WindowIsFullscreen()
-        // 只有当状态发生变化时，才更新 state，避免不必要的重渲染
-        setIsFullscreen((prevState) => {
-          if (prevState !== isCurrentlyFullscreen) {
-            console.log(
-              `Polling: Fullscreen state changed to ${isCurrentlyFullscreen}`
-            )
-            return isCurrentlyFullscreen
-          }
-          return prevState
-        })
-      } catch (error) {
-        console.error('Polling: Failed to check fullscreen state:', error)
-      }
-    }
+    // 检查初始状态
+    WindowIsFullscreen()
+      .then(setIsFullscreen)
+      .catch((error) => {
+        console.error('Failed to check initial fullscreen state:', error)
+      })
+      .finally(() => {
+        console.log('Checked initial fullscreen state')
+      })
 
-    // 组件首次挂载时，立即检查一次初始状态
-    void checkFullscreenState()
+    // Wails 会在窗口进入全屏时发出 "wails:fullscreen" 事件
+    EventsOn('wails:fullscreen', () => {
+      console.log('Entered fullscreen mode')
+      setIsFullscreen(true)
+    })
 
-    // 启动一个定时器，每 500 毫秒检查一次窗口状态
-    const intervalId = window.setInterval(() => {
-      void checkFullscreenState()
-    }, 500)
+    // Wails 会在窗口退出全屏时发出 "wails:unfullscreen" 事件
+    EventsOn('wails:unfullscreen', () => {
+      console.log('Left fullscreen mode')
+      setIsFullscreen(false)
+    })
 
-    // 在组件卸载时，返回一个清理函数，这非常重要！
-    // 它会清除定时器，防止内存泄漏。
     return () => {
-      if (intervalId) {
-        window.clearInterval(intervalId)
-      }
+      // 清理事件监听器
+      EventsOn('wails:fullscreen', () => {}) // 取消订阅事件，传递一个空函数
+      EventsOn('wails:unfullscreen', () => {}) // 取消订阅事件，传递一个空函数
     }
   }, []) // 空依赖数组 [] 意味着这个 effect 只在组件首次挂载时运行一次
 
