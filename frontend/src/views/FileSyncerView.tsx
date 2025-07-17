@@ -280,7 +280,7 @@ export function FileSyncerView() {
           */}
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
+              <Label htmlFor="name" className="justify-self-end">
                 Name
               </Label>
               <Input
@@ -293,7 +293,7 @@ export function FileSyncerView() {
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="host" className="text-right">
+              <Label htmlFor="host" className="justify-self-end">
                 Host & Port
               </Label>
               <div className="col-span-3 grid grid-cols-3 gap-2">
@@ -315,7 +315,7 @@ export function FileSyncerView() {
               </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="user" className="text-right">
+              <Label htmlFor="user" className="justify-self-end">
                 User
               </Label>
               <Input
@@ -327,7 +327,7 @@ export function FileSyncerView() {
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Auth Method</Label>
+              <Label className="justify-self-end">Auth Method</Label>
               <RadioGroup
                 value={form.authMethod}
                 onValueChange={(value) =>
@@ -346,8 +346,8 @@ export function FileSyncerView() {
               </RadioGroup>
             </div>
             {form.authMethod === 'password' && (
-              <div className="grid grid-cols-4 text-center">
-                <Label htmlFor="password" className="text-right">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="password" className="justify-self-end">
                   Password
                 </Label>
                 <Input
@@ -362,20 +362,16 @@ export function FileSyncerView() {
               </div>
             )}
             {form.authMethod === 'key' && (
-              <div className="grid grid-cols-4 text-center">
-                <Label htmlFor="key" className="text-right">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="key" className="justify-self-end">
                   Key Path
                 </Label>
-                <div className="col-span-3 flex text-center">
+                <div className="col-span-3 flex items-center">
                   <Input
                     id="key"
                     value={form.keyPath}
                     readOnly
-                    placeholder="Click Broser..."
-                    onChange={(e) =>
-                      setForm({ ...form, keyPath: e.target.value })
-                    }
-                    className="col-span-3"
+                    placeholder="Click Browse..."
                   />
                   <Button
                     onClick={() => void handleSelectKeyFile()}
