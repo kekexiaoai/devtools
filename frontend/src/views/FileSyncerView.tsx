@@ -28,6 +28,16 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 // import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -59,6 +69,11 @@ export function FileSyncerView() {
   const [activeWatchers, setActiveWatchers] = useState<Record<string, boolean>>(
     {}
   )
+
+  const [validationError, setValidationError] = useState<{
+    title: string
+    message: string
+  } | null>(null)
 
   const toggleWatcher = async (configId: string, isActive: boolean) => {
     try {
@@ -229,16 +244,44 @@ export function FileSyncerView() {
   }
 
   const handleSaveConfig = async () => {
+    // --- 校验逻辑 ---
+    if (!form.name || !form.name.trim()) {
+      setValidationError({
+        title: 'Validation Error',
+        message: 'Configuration Name cannot be empty.',
+      })
+      return
+    }
+    if (!form.host || !form.host.trim()) {
+      setValidationError({
+        title: 'Validation Error',
+        message: 'Host cannot be empty.',
+      })
+      return
+    }
+    if (!form.user || !form.user.trim()) {
+      setValidationError({
+        title: 'Validation Error',
+        message: 'User cannot be empty.',
+      })
+      return
+    }
+
     try {
       await SaveConfig(form)
       await ShowInfoDialog('Success', 'Configuration saved!')
       setIsModalOpen(false)
       await fetchConfigs() // 保存成功后刷新列表
     } catch (error) {
-      await ShowErrorDialog(
-        'Error',
-        `Failed to save configuration: ${String(error)}`
-      )
+      // await ShowErrorDialog(
+      //   'Error',
+      //   `Failed to save configuration: ${String(error)}`
+      // )
+      // 依然可以使用 AlertDialog 显示保存错误
+      setValidationError({
+        title: 'Save Error',
+        message: `Failed to save configuration: ${String(error)}`,
+      })
     }
   }
 
@@ -443,6 +486,24 @@ export function FileSyncerView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 校验错误提示框 */}
+      <AlertDialog
+        open={!!validationError}
+        onOpenChange={(isOpen) => !isOpen && setValidationError(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{validationError?.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {validationError?.message}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction>OK</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
