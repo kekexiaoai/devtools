@@ -1,0 +1,217 @@
+import { useEffect, useState, useCallback } from 'react'
+import {
+  GetSyncPairs,
+  SaveSyncPair,
+  DeleteSyncPair,
+  SelectDirectory,
+  ShowConfirmDialog,
+  ShowErrorDialog,
+} from '../../../wailsjs/go/main/App'
+import { types } from '../../../wailsjs/go/models'
+
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Trash2 } from 'lucide-react'
+
+interface SyncPairsManagerProps {
+  config: types.SSHConfig
+  isWatching: boolean
+  onToggleWatcher: (id: string, isActive: boolean) => void
+}
+
+export function SyncPairsManager({
+  config,
+  isWatching,
+  onToggleWatcher,
+}: SyncPairsManagerProps) {
+  const [syncPairs, setSyncPairs] = useState<types.SyncPair[]>([])
+  const [showAddForm, setShowAddForm] = useState<boolean>(false)
+  const [newPair, setNewPair] = useState({ localPath: '', remotePath: '' })
+
+  const fetchSyncPairs = useCallback(async () => {
+    if (!config.id) return
+    try {
+      const pairs = await GetSyncPairs(config.id)
+      setSyncPairs(pairs)
+    } catch (error) {
+      await ShowErrorDialog(
+        'Error',
+        `Failed to fetch sync pairs: ${String(error)}`
+      )
+    } finally {
+      console.log(`successed to fetch sync pairs for ${config.id}`)
+    }
+  }, [config.id])
+
+  // 这个 effect 会在组件首次挂载时，以及 props.config.id 发生变化时
+  // (即用户在左侧切换了配置) 自动重新获取同步对列表。
+  useEffect(() => {
+    void fetchSyncPairs()
+  }, [fetchSyncPairs])
+
+  const HandleBrowseLocal = async () => {
+    const dirPath = await SelectDirectory('Select Local Directory')
+    if (dirPath) {
+      // 使用函数式更新获取上一个状态
+      setNewPair((prev) => ({ ...prev, localPath: dirPath }))
+    }
+  }
+
+  const handleSaveNewPair = async () => {
+    if (!newPair.localPath || !newPair.remotePath) {
+      return await ShowErrorDialog(
+        'Error',
+        'Local and Remote paths cannot be empty.'
+      )
+    }
+    try {
+      await SaveSyncPair({
+        id: '',
+        configId: config.id,
+        localPath: newPair.localPath,
+        remotePath: newPair.remotePath,
+        syncDeletes: true, //默认开启删除同步
+      })
+      await fetchSyncPairs()
+      setNewPair({ localPath: '', remotePath: '' })
+      setShowAddForm(false)
+    } catch (error) {
+      await ShowErrorDialog(
+        'Error',
+        `Failed to save sync pair: ${String(error)}`
+      )
+    }
+  }
+
+  const handleDeletePair = async (pairId: string) => {
+    const choice = await ShowConfirmDialog('Confirm Deletion', 'Are you sure?')
+    if (choice !== 'Yes') return
+    try {
+      await DeleteSyncPair(pairId)
+      await fetchSyncPairs() // 删除后刷新列表
+    } catch (error) {
+      await ShowErrorDialog(
+        'Error',
+        `Failed to delete sync pair: ${String(error)}`
+      )
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div className="space-y-1.5">
+          <CardTitle>Sync Directories</CardTitle>
+        </div>
+
+        {/* 操作按钮组 */}
+        <div className="flex items-center space-x-4">
+          {/* 同步开关 */}
+          <div className="flex items-center space-x-2">
+            <Label
+              htmlFor="sync-switch"
+              className={`text-sm font-medium ${isWatching ? 'text-green-600' : 'text-muted-foreground'}`}
+            >
+              {isWatching ? 'Active' : 'Paused'}
+            </Label>
+            <Switch
+              id="sync-switch"
+              checked={isWatching}
+              onCheckedChange={(checked) =>
+                onToggleWatcher(config.id, checked)
+              }
+            />
+          </div>
+          <Button onClick={() => setShowAddForm(!showAddForm)} size="sm">
+            + Add Pair
+          </Button>
+        </div>
+      </CardHeader>
+
+      <CardContent>
+        {/* 添加新同步对的表单 (条件渲染) */}
+        {showAddForm && (
+          <div className="p-4 mb-4 bg-muted/50 rounded-lg space-y-4">
+            <div>
+              <Label className="text-xs">Local Path</Label>
+              <div className="flex items-center">
+                <Input
+                  value={newPair.localPath}
+                  readOnly
+                  placeholder="Click Browse to select"
+                />
+                <Button
+                  onClick={() => void HandleBrowseLocal()}
+                  variant="outline"
+                  className="ml-2"
+                >
+                  Browse
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs">Remote Path</Label>
+              <Input
+                value={newPair.remotePath}
+                onChange={(e) =>
+                  setNewPair((prev) => ({
+                    ...prev,
+                    remotePath: e.target.value,
+                  }))
+                }
+                placeholder="/var/www/my-project"
+              />
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button
+                onClick={() => setShowAddForm(false)}
+                variant="ghost"
+                size="sm"
+              >
+                Cancel
+              </Button>
+              <Button onClick={() => void handleSaveNewPair()} size="sm">
+                Save Pair
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* 已有同步对的列表 */}
+        <div className="space-y-2">
+          {syncPairs.length === 0 ? (
+            <div className="text-center text-muted-foreground py-4">
+              No sync pairs configured.
+            </div>
+          ) : (
+            syncPairs.map((pair) => (
+              <div
+                key={pair.id}
+                className="flex items-center justify-between p-3 bg-muted rounded-md"
+              >
+                <div className="font-mono text-sm">
+                  <p className="text-sky-600 dark:text-sky-400">
+                    {pair.localPath}
+                  </p>
+                  <p className="text-muted-foreground">➔ {pair.remotePath}</p>
+                </div>
+                <Button
+                  onClick={() => void handleDeletePair(pair.id)}
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
