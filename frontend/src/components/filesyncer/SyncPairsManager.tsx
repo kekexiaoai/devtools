@@ -120,9 +120,22 @@ export function SyncPairsManager({
             <Switch
               id="sync-switch"
               checked={isWatching}
-              onCheckedChange={(checked) =>
+              // 显式定义参数类型或使用类型守卫，可以在编译阶段就确保类型安全。
+              // 显式定义参数类型
+              onCheckedChange={(checked: boolean) =>
                 onToggleWatcher(config.id, checked)
               }
+              // 使用类型守卫
+              //   onCheckedChange={(checked: boolean) => {
+              //     if (typeof checked === 'boolean') {
+              //       onToggleWatcher(config.id, checked)
+              //     }
+              //   }}
+              // 使用默认值（如果 checked 可能为 undefined）
+              //   onCheckedChange={(checked) => {
+              //     const isChecked = Boolean(checked) // 确保转换为布尔值
+              //     onToggleWatcher(config.id, isChecked)
+              //   }}
             />
           </div>
           <Button onClick={() => setShowAddForm(!showAddForm)} size="sm">
