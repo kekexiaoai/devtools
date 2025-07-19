@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import { useDialog } from '../hooks/useDialog'
 
@@ -18,6 +19,7 @@ import {
   StopWatching,
 } from '../../wailsjs/go/main/App'
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime'
 
 import {
@@ -31,7 +33,6 @@ import {
 
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-// import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Button } from '@/components/ui/button'
 import { RadioGroup } from '@radix-ui/react-radio-group'
 import { RadioGroupItem } from '@/components/ui/radio-group'
@@ -39,7 +40,6 @@ import { RadioGroupItem } from '@/components/ui/radio-group'
 export function FileSyncerView() {
   const [configs, setConfigs] = useState<types.SSHConfig[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const selectedIdRef = useRef(selectedId)
 
   // 模态框相关
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -117,100 +117,188 @@ export function FileSyncerView() {
     }
   }
 
-  // 更新 selectedIdRef 每次 selectedId 变化
-  useEffect(() => {
-    selectedIdRef.current = selectedId
-  }, [selectedId])
+  // const selectedIdRef = useRef(selectedId)
+  // // 更新 selectedIdRef 每次 selectedId 变化
+  // useEffect(() => {
+  //   selectedIdRef.current = selectedId
+  // }, [selectedId])
 
   // 使用 useCallback 缓存函数， 防止不必要的重渲染
   // --- 数据获取 ---
   const fetchConfigs = useCallback(async () => {
     try {
       const fetchedConfigs = await GetConfigs()
+      showDialog({ title: 'configs', message: JSON.stringify(fetchedConfigs) })
+      console.log('fetched configs, fetchConfigs:', fetchConfigs)
+      console.log('fetched configs, fetchedConfigs:', fetchedConfigs)
       setConfigs(fetchedConfigs)
       return fetchedConfigs
     } catch (error) {
-      await ShowErrorDialog(
-        'Error',
-        `Failed to load configurations: ${String(error)}`
-      )
+      showDialog({
+        title: 'Error',
+        message: `Failed to load configurations: ${String(error)}`,
+      })
       return []
     }
-  }, []) // 无依赖，保持函数引用稳定
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // 无依赖, 保持函数引用稳定, 它的引用永远不会改变
 
+  // --方案2-----------------------------------------------------------------------------------
+  // 只在组件首次挂载时获取初始数据
   useEffect(() => {
-    void fetchConfigs().then((fetchedConfigs) => {
-      if (
-        fetchedConfigs.length > 0 &&
-        (!selectedId || !fetchedConfigs.find((c) => c.id === selectedId))
-      ) {
-        setSelectedId(fetchedConfigs[0].id) // 默认选中第一个配置
-      } else if (fetchedConfigs.length === 0) {
-        setSelectedId(null) // 如果没有配置，清空选中状态
-      }
-    })
-  }, [fetchConfigs, selectedId])
+    // fetchConfigs: 这是一个 async 函数。您可以把它看作一本**“异步菜谱”**，它描述了如何“去服务器取回配置数据”这道菜。
+    // fetchConfigs(): 当您调用这个函数时，您并不是立刻就拿到了“菜肴”（即 fetchedConfigs 数据）。
+    //      您只是把“菜谱”交给了“厨房”（JavaScript 运行环境），并说：“请开始做这道菜”。厨房给了您一张“取餐小票”，这个小票就是 Promise。它承诺“我将来会把菜给你”。
+    // void fetchConfigs(): void 是一个一元操作符，它的唯一作用就是执行它后面的表达式（即开始做菜），然后立即返回 undefined。
+    //      它就像是您把菜谱交给厨房后，直接把取餐小票撕掉了。
 
-  // const debounce = (func, wait) => {
-  //   let timeout
-  //   return (...args) => {
-  //     clearTimeout(timeout)
-  //     timeout = setTimeout(() => func(...args), wait)
-  //   }
-  // }
+    // void fetchConfigs()
 
-  // 定义防抖函数的类型
-  type DebouncedFunction<T extends (...args: unknown[]) => unknown> = {
-    (...args: Parameters<T>): void
-    cancel: () => void
-  }
+    // fetchConfigs() 返回一个 Promise
+    fetchConfigs()
+      .then((fetchedConfigs) => {
+        // 当 Promise 成功完成时，.then() 里的回调函数会被执行
+        // 这里的 fetchedConfigs 才是我们真正从后端拿到的数据！
+        console.log('configs from .then()', fetchedConfigs)
 
-  // 手动实现的防抖函数
-  const debounce = useCallback(
-    <T extends (...args: unknown[]) => unknown>(
-      func: T,
-      wait: number
-    ): DebouncedFunction<T> => {
-      let timeout: NodeJS.Timeout | undefined
-
-      const debounced = (...args: Parameters<T>): void => {
-        clearTimeout(timeout)
-        timeout = setTimeout(() => func(...args), wait)
-      }
-
-      debounced.cancel = () => {
-        clearTimeout(timeout)
-        timeout = undefined
-      }
-
-      return debounced
-    },
-    []
-  )
-
-  // --- 事件处理 ---
-  useEffect(() => {
-    const handleConfigUpdate = debounce(() => {
-      console.log('Configuration updated, refetching...')
-      void fetchConfigs().then((fetchedConfigs) => {
-        const currentSelectedId = selectedIdRef.current
-        if (
-          fetchedConfigs.length > 0 &&
-          (!currentSelectedId ||
-            !fetchedConfigs.find((c) => c.id === currentSelectedId))
-        ) {
-          setSelectedId(fetchedConfigs[0].id) // 默认选中第一个配置
-        } else if (fetchedConfigs.length === 0) {
-          setSelectedId(null) // 如果没有配置，清空选中状态
+        // 我们可以在这里继续执行依赖这些数据的逻辑
+        if (fetchedConfigs && fetchedConfigs.length > 0) {
+          // ...
         }
       })
-    }, 500)
+      .catch((error) => {
+        console.error('fetchConfigs promise was rejected:', error)
+      })
 
-    EventsOn('config_updated', handleConfigUpdate)
-    return () => {
-      EventsOff('config_updated')
+    // --IIFE-----------------------------------------------------------------------------------------------
+    // 下面是除了 .then() 的另一种写法。
+    // .then() 是处理 Promise 的经典方式，但现代 React 开发中，有一种更流行、代码可读性更高的替代方案：使用 async/await 语法的立即调用函数表达式 (IIFE)。
+
+    // 教学：什么是 IIFE (Immediately Invoked Function Expression)？
+    // 它就是一个定义完之后立即执行的匿名函数。
+
+    // 为什么需要它？
+    // useEffect 的主回调函数本身不能是 async 的，因为它可能会返回一个 Promise，而 useEffect 只期望它返回一个“清理函数”。为了在 useEffect 内部使用 async/await 这种更优雅的语法，我们就创建了一个 async 的 IIFE。
+
+    //
+    // // 1. 定义一个 async 箭头函数
+    // const fetchData = async () => {
+    //   try {
+    //     // 2. 在这个函数内部，我们就可以自由地使用 await
+    //     const fetchedConfigs = await GetConfigs()
+    //     console.log('configs from async/await', fetchedConfigs)
+
+    //     if (fetchedConfigs && fetchedConfigs.length > 0) {
+    //       // ...
+    //     }
+    //   } catch (error) {
+    //     console.error('fetchConfigs failed:', error)
+    //   }
+    // }
+
+    // // 3. 立即调用这个函数
+    // void fetchData()
+    // --IIFE-----------------------------------------------------------------------------------------------
+  }, [fetchConfigs]) // 因为 fetchConfigs 不会变，所以这个 effect 只运行一次
+
+  // 只在 configs 数组本身发生变化时运行，用于设置默认选中项
+  useEffect(() => {
+    // 如果 configs 成功加载且不为空
+    if (configs.length > 0) {
+      // 检查当前选中的ID是否还存在于新的列表中
+      const currentSelectionExists = configs.some((c) => c.id === selectedId)
+      if (!currentSelectionExists) {
+        setSelectedId(configs[0].id)
+      }
+    } else {
+      setSelectedId(null)
     }
-  }, [fetchConfigs, debounce]) // 依赖 fetchConfigs
+    // --- 禁用 ESLint 规则 ---
+    // 这里明确地告诉 ESLint，有意不将 selectedId 作为依赖项。
+    // 因为这个 effect 的意图是“当配置列表变化时设置默认选项”，
+    // 而不是“当选项变化时做某事”。
+    // 这样做可以避免在每次用户点击切换选项时都重新运行这个 effect。
+    // 这是一个安全的操作，因为我们只关心在 configs 变化的那一刻 selectedId 的状态。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configs]) // 故意只依赖 configs, 这个 effect 只在 configs 数组的内容更新后才运行
+  // --方案2-----------------------------------------------------------------------------------
+
+  // --方案1-----------------------------------------------------------------------------------
+  // useEffect(() => {
+  //   void fetchConfigs().then((fetchedConfigs) => {
+  //     if (
+  //       fetchedConfigs.length > 0 &&
+  //       (!selectedId || !fetchedConfigs.find((c) => c.id === selectedId))
+  //     ) {
+  //       setSelectedId(fetchedConfigs[0].id) // 默认选中第一个配置
+  //     } else if (fetchedConfigs.length === 0) {
+  //       setSelectedId(null) // 如果没有配置，清空选中状态
+  //     }
+  //   })
+  // // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, [fetchConfigs])
+
+  // // const debounce = (func, wait) => {
+  // //   let timeout
+  // //   return (...args) => {
+  // //     clearTimeout(timeout)
+  // //     timeout = setTimeout(() => func(...args), wait)
+  // //   }
+  // // }
+
+  // // 定义防抖函数的类型
+  // type DebouncedFunction<T extends (...args: unknown[]) => unknown> = {
+  //   (...args: Parameters<T>): void
+  //   cancel: () => void
+  // }
+
+  // // 手动实现的防抖函数
+  // const debounce = useCallback(
+  //   <T extends (...args: unknown[]) => unknown>(
+  //     func: T,
+  //     wait: number
+  //   ): DebouncedFunction<T> => {
+  //     let timeout: NodeJS.Timeout | undefined
+
+  //     const debounced = (...args: Parameters<T>): void => {
+  //       clearTimeout(timeout)
+  //       timeout = setTimeout(() => func(...args), wait)
+  //     }
+
+  //     debounced.cancel = () => {
+  //       clearTimeout(timeout)
+  //       timeout = undefined
+  //     }
+
+  //     return debounced
+  //   },
+  //   []
+  // )
+
+  // // --- 事件处理 ---
+  // useEffect(() => {
+  //   const handleConfigUpdate = debounce(() => {
+  //     console.log('Configuration updated, refetching...')
+  //     void fetchConfigs().then((fetchedConfigs) => {
+  //       const currentSelectedId = selectedIdRef.current
+  //       if (
+  //         fetchedConfigs.length > 0 &&
+  //         (!currentSelectedId ||
+  //           !fetchedConfigs.find((c) => c.id === currentSelectedId))
+  //       ) {
+  //         setSelectedId(fetchedConfigs[0].id) // 默认选中第一个配置
+  //       } else if (fetchedConfigs.length === 0) {
+  //         setSelectedId(null) // 如果没有配置，清空选中状态
+  //       }
+  //     })
+  //   }, 500)
+
+  //   EventsOn('config_updated', handleConfigUpdate)
+  //   return () => {
+  //     EventsOff('config_updated')
+  //   }
+  // }, [fetchConfigs, debounce]) // 依赖 fetchConfigs
+  // --方案1-----------------------------------------------------------------------------------
 
   const handleSelect = (id: string) => {
     setSelectedId(id)
