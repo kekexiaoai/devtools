@@ -407,7 +407,9 @@ export function FileSyncerView() {
   return (
     <div className="flex h-full">
       {/* 左侧 */}
-      <div className="w-1/3 max-w-xs flex-shrink-0 border-r">
+      {/* 移除了 border-r (右边框)，添加了 bg-muted/50，让这个区域有一个非常浅的、半透明的背景色 
+      这会使它与右侧的 p-6 主内容区在视觉上自然分离开来 */}
+      <div className="w-1/3 max-w-xs flex-shrink-0 bg-muted/50">
         <ConfigList
           configs={configs}
           selectedId={selectedId}
