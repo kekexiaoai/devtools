@@ -185,7 +185,7 @@ export function FileSyncerView() {
     // const fetchData = async () => {
     //   try {
     //     // 2. 在这个函数内部，我们就可以自由地使用 await
-    //     const fetchedConfigs = await GetConfigs()
+    //     const fetchedConfigs = await fetchConfigs()
     //     console.log('configs from async/await', fetchedConfigs)
 
     //     if (fetchedConfigs && fetchedConfigs.length > 0) {
