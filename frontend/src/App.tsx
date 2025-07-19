@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react'
+import { DialogProvider } from './components/providers/DialogProvider'
 import { Sidebar } from './components/Sidebar'
 import { JsonToolsView } from './views/JsonToolsView'
 import { FileSyncerView } from './views/FileSyncerView'
 import { TitleBar } from './components/TitleBar'
 import { EventsOn, WindowIsFullscreen } from '../wailsjs/runtime/runtime'
 
-export type UiScale = 'small' | 'default' | 'large'
+import type { UiScale } from './types'
 
 const toolComponents = [
   { id: 'FileSyncer', component: FileSyncerView },
@@ -119,30 +120,32 @@ function App() {
   }, []) // 空依赖数组 [] 意味着这个 effect 只在组件首次挂载时运行一次
 
   return (
-    <div id="App" className="w-screen h-screen bg-transparent">
-      <div className="w-full h-full flex flex-col rounded-lg overflow-hidden bg-background text-foreground">
-        {/* 当不处于全屏状态时，才显示我们的自定义标题栏 */}
-        {!isFullscreen && (
-          // 将缩放状态和更新函数传递给 TitleBar
-          <TitleBar uiScale={uiScale} onScaleChange={setUiScale} />
-        )}
-        {/* 主内容区 */}
-        <div className="flex flex-grow overflow-hidden">
-          <Sidebar activeTool={activeTool} onToolChange={setActiveTool} />
-          <main className="flex-1 flex flex-col overflow-hidden relative">
-            {toolComponents.map(({ id, component: ToolComponent }) => (
-              <div
-                key={id}
-                hidden={activeTool !== id}
-                className="absolute inset-0 h-full w-full"
-              >
-                <ToolComponent />
-              </div>
-            ))}
-          </main>
+    <DialogProvider>
+      <div id="App" className="w-screen h-screen bg-transparent">
+        <div className="w-full h-full flex flex-col rounded-lg overflow-hidden bg-background text-foreground">
+          {/* 当不处于全屏状态时，才显示我们的自定义标题栏 */}
+          {!isFullscreen && (
+            // 将缩放状态和更新函数传递给 TitleBar
+            <TitleBar uiScale={uiScale} onScaleChange={setUiScale} />
+          )}
+          {/* 主内容区 */}
+          <div className="flex flex-grow overflow-hidden">
+            <Sidebar activeTool={activeTool} onToolChange={setActiveTool} />
+            <main className="flex-1 flex flex-col overflow-hidden relative">
+              {toolComponents.map(({ id, component: ToolComponent }) => (
+                <div
+                  key={id}
+                  hidden={activeTool !== id}
+                  className="absolute inset-0 h-full w-full"
+                >
+                  <ToolComponent />
+                </div>
+              ))}
+            </main>
+          </div>
         </div>
       </div>
-    </div>
+    </DialogProvider>
   )
 }
 

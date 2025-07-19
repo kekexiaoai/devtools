@@ -1,4 +1,4 @@
-import { UiScale } from '@/App'
+import { UiScale } from '@/types'
 import { WindowToggleMaximise } from '../../wailsjs/runtime/runtime'
 import { SettingsControl } from './SettingsControl'
 

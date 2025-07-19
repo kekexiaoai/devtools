@@ -1,4 +1,4 @@
-import { UiScale } from '@/App'
+import { UiScale } from '@/types'
 import { Button } from '@/components/ui/button'
 import { ZoomIn, ZoomOut, Scale } from 'lucide-react'
 

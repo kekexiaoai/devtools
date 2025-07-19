@@ -1,3 +1,6 @@
+import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react'
+import { useDialog } from '../hooks/useDialog'
+
 import { ConfigList } from '../components/filesyncer/ConfigList'
 import { ConfigDetail } from '../components/filesyncer/ConfigDetail'
 
@@ -15,8 +18,7 @@ import {
   StopWatching,
   // SelectFile,
 } from '../../wailsjs/go/main/App'
-import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
-import React from 'react'
+
 import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime'
 
 import {
@@ -27,16 +29,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -70,10 +62,7 @@ export function FileSyncerView() {
     {}
   )
 
-  const [validationError, setValidationError] = useState<{
-    title: string
-    message: string
-  } | null>(null)
+  const showDialog = useDialog()
 
   const toggleWatcher = async (configId: string, isActive: boolean) => {
     try {
@@ -246,21 +235,21 @@ export function FileSyncerView() {
   const handleSaveConfig = async () => {
     // --- 校验逻辑 ---
     if (!form.name || !form.name.trim()) {
-      setValidationError({
+      showDialog({
         title: 'Validation Error',
         message: 'Configuration Name cannot be empty.',
       })
       return
     }
     if (!form.host || !form.host.trim()) {
-      setValidationError({
+      showDialog({
         title: 'Validation Error',
         message: 'Host cannot be empty.',
       })
       return
     }
     if (!form.user || !form.user.trim()) {
-      setValidationError({
+      showDialog({
         title: 'Validation Error',
         message: 'User cannot be empty.',
       })
@@ -278,7 +267,7 @@ export function FileSyncerView() {
       //   `Failed to save configuration: ${String(error)}`
       // )
       // 依然可以使用 AlertDialog 显示保存错误
-      setValidationError({
+      showDialog({
         title: 'Save Error',
         message: `Failed to save configuration: ${String(error)}`,
       })
@@ -486,24 +475,6 @@ export function FileSyncerView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* 校验错误提示框 */}
-      <AlertDialog
-        open={!!validationError}
-        onOpenChange={(isOpen) => !isOpen && setValidationError(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{validationError?.title}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {validationError?.message}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction>OK</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }
