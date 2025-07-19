@@ -119,24 +119,23 @@ useEffect(() => {
 
 **生命周期示例：**
 
-````tsx
+```tsx
 useEffect(() => {
-  console.log(`为 ID: ${props.id} 创建了订阅`);
+  console.log(`为 ID: ${props.id} 创建了订阅`)
 
   // 返回一个清理函数
   return () => {
-    console.log(`正在清理 ID: ${props.id} 的旧订阅`);
-  };
-}, [props.id]);
+    console.log(`正在清理 ID: ${props.id} 的旧订阅`)
+  }
+}, [props.id])
+```
 
-```text
 **执行流程**:
 
 1. **首次渲染 (`props.id` = 1)**:
-    - `useEffect` 执行，打印: `为 ID: 1 创建了订阅`。
+   - `useEffect` 执行，打印: `为 ID: 1 创建了订阅`。
 2. **`props.id` 变为 2，触发重渲染**:
-    - **清理旧 Effect**: 在执行新 effect **之前**，React 先执行上一次留下的清理函数。此时 `props.id` 还是旧的 `1`。打印: `正在清理 ID: 1 的旧订阅`。
-    - **执行新 Effect**: 组件用新 props (`id`=2) 完成重渲染。`useEffect` 发现 `props.id` 变化，再次执行。打印: `为 ID: 2 创建了订阅`。
+   - **清理旧 Effect**: 在执行新 effect **之前**，React 先执行上一次留下的清理函数。此时 `props.id` 还是旧的 `1`。打印: `正在清理 ID: 1 的旧订阅`。
+   - **执行新 Effect**: 组件用新 props (`id`=2) 完成重渲染。`useEffect` 发现 `props.id` 变化，再次执行。打印: `为 ID: 2 创建了订阅`。
 3. **组件被销毁 (unmount)**:
-    - 在组件即将从屏幕上消失**之前**，React 会执行**最后一次**的清理函数。此时 `props.id` 是 `2`。打印: `正在清理 ID: 2 的旧订阅`。
-````
+   - 在组件即将从屏幕上消失**之前**，React 会执行**最后一次**的清理函数。此时 `props.id` 是 `2`。打印: `正在清理 ID: 2 的旧订阅`。

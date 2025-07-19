@@ -1,4 +1,5 @@
 import type { types } from '../../../wailsjs/go/models'
+import ClipboardTool from './ClipboardTool'
 import { SyncPairsManager } from './SyncPairsManager'
 
 interface ConfigDetailProps {
@@ -12,7 +13,7 @@ export function ConfigDetail({
   config,
   isWatching,
   onToggleWatcher,
-  // onConfigUpdate,
+  onConfigUpdate,
 }: ConfigDetailProps) {
   return (
     <div className="space-y-8">
@@ -22,10 +23,7 @@ export function ConfigDetail({
         isWatching={isWatching}
         onToggleWatcher={onToggleWatcher}
       />
-      {/* 暂时用占位符 */}
-      <div className="p-6 bg-card rounded-lg shadow">
-        Clipboard Tool will be here.
-      </div>
+      <ClipboardTool config={config} onConfigUpdate={onConfigUpdate} />
     </div>
   )
 }

@@ -128,7 +128,7 @@ export function FileSyncerView() {
   const fetchConfigs = useCallback(async () => {
     try {
       const fetchedConfigs = await GetConfigs()
-      showDialog({ title: 'configs', message: JSON.stringify(fetchedConfigs) })
+      // showDialog({ title: 'configs', message: JSON.stringify(fetchedConfigs) })
       console.log('fetched configs, fetchConfigs:', fetchConfigs)
       console.log('fetched configs, fetchedConfigs:', fetchedConfigs)
       setConfigs(fetchedConfigs)
