@@ -29,7 +29,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
 
   return (
     // 将 showDialog 函数通过Context 提供给所以子组件
-    <DialogContext.Provider value={showDialog}>
+    <DialogContext.Provider value={{ showDialog, closeDialog }}>
       {children}
       {/* // 全局只渲染一次 AlertDialog */}
       <AlertDialog

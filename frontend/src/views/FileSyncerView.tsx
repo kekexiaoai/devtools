@@ -16,7 +16,6 @@ import {
   SelectFile,
   StartWatching,
   StopWatching,
-  // SelectFile,
 } from '../../wailsjs/go/main/App'
 
 import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime'
@@ -62,7 +61,28 @@ export function FileSyncerView() {
     {}
   )
 
-  const showDialog = useDialog()
+  // 解构赋值获取所需属性
+  const { showDialog } = useDialog()
+  // 下面的内容是用于测试 provider 提供多个属性时的使用方法
+  // 解构赋值获取所需属性
+  // const { showDialog, closeDialog } = useDialog()
+
+  // const handleClick = () => {
+  //   showDialog({
+  //     title: '提示',
+  //     message: '这是一个对话框消息',
+  //   })
+  // }
+
+  // const handleClose = () => {
+  //   closeDialog()
+  // }
+
+  // async function handleSomeAction() {
+  //   showDialog({ title: 'Processing...', message: 'Please wait.' })
+  //   await someLongRunningTask() // 等待一个长时间的任务
+  //   closeDialog() // 任务完成后，程序自动关闭对话框！
+  // }
 
   const toggleWatcher = async (configId: string, isActive: boolean) => {
     try {
@@ -461,6 +481,13 @@ export function FileSyncerView() {
             >
               {testResult.message}
             </p>
+            {/* <Button onClick={handleClick} type="button" variant="secondary">
+              open
+            </Button>
+
+            <Button onClick={handleClose} type="button" variant="ghost">
+              close
+            </Button> */}
 
             <Button
               type="button"
