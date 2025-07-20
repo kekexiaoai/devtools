@@ -141,10 +141,22 @@ func (a *App) TestConnection(config types.SSHConfig) (string, error) {
 func (a *App) UpdateRemoteFileFromClipboard(configID string, remotePath string, content string, asHTML bool) error {
 	cfg, found := a.configManager.GetSSHConfigByID(configID)
 	if !found {
-		return &config.ConfigNotFoundError{ConfigID: configID}
+		err := &config.ConfigNotFoundError{ConfigID: configID}
+		log.Printf("update remote file from clipboard failed: %s", err)
+
+		return err
 	}
 	// 将 asHTML 参数传递给底层的 syncer 函数
-	return syncer.UpdateRemoteFile(cfg, remotePath, content, asHTML)
+	err := syncer.UpdateRemoteFile(cfg, remotePath, content, asHTML)
+	if err != nil {
+		message := fmt.Sprintf("update remote file [%s] from clipboard failed: %s", remotePath, err)
+		a.emitLog("ERROR", message)
+		log.Print(message)
+		return err
+	}
+	message := fmt.Sprintf("update remote file [%s] from clipboard succeeded", remotePath)
+	a.emitLog("SUCCESS", message)
+	return nil
 }
 
 // --- 监控控制方法 ---
@@ -161,26 +173,16 @@ func (a *App) StartWatching(configID string) error {
 	// 为每个同步目录对，在后台启动一次“对账”任务
 	for _, pair := range pairs {
 		go func(p types.SyncPair, c types.SSHConfig) {
-			// 定义一个日志发送函数传递给对账函数
-			emitLog := func(level, message string) {
-				entry := types.LogEntry{
-					Timestamp: time.Now().Format("15:04:05"),
-					Level:     level,
-					Message:   message,
-				}
-				runtime.EventsEmit(a.ctx, "log_event", entry)
-			}
-
 			// 建立连接
 			client, err := syncer.NewSFTPClient(c)
 			if err != nil {
-				emitLog("ERROR", fmt.Sprintf("Initial sync failed for %s, could not connect: %v", p.LocalPath, err))
+				a.emitLog("ERROR", fmt.Sprintf("Initial sync failed for %s, could not connect: %v", p.LocalPath, err))
 				return
 			}
 			defer client.Close()
 
 			// 执行对账
-			syncer.ReconcileDirectory(client, p, emitLog)
+			syncer.ReconcileDirectory(client, p, a.emitLog)
 		}(pair, cfg)
 	}
 	// 开始监控配置的所有目录
@@ -271,4 +273,14 @@ func (a *App) LogFromFrontend(entry types.LogEntry) {
 
 	// 使用我们已经配置好的、会写入到文件的 log 包
 	log.Printf("[FRONTEND] [%s] [%s] %s", timestamp, entry.Level, entry.Message)
+}
+
+// 定义一个日志发送函数传递给对账函数
+func (a *App) emitLog(level, message string) {
+	entry := types.LogEntry{
+		Timestamp: time.Now().Format("15:04:05"),
+		Level:     level,
+		Message:   message,
+	}
+	runtime.EventsEmit(a.ctx, "log_event", entry)
 }
