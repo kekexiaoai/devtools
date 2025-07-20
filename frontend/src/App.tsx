@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { DialogProvider } from './components/providers/DialogProvider'
 import { Sidebar } from './components/Sidebar'
 import { JsonToolsView } from './views/JsonToolsView'
@@ -7,6 +7,8 @@ import { TitleBar } from './components/TitleBar'
 import { EventsOn, WindowIsFullscreen } from '../wailsjs/runtime/runtime'
 
 import type { UiScale } from './types'
+import { types } from '../wailsjs/go/models'
+import { LogPanel } from './components/logPanel'
 
 const toolComponents = [
   { id: 'FileSyncer', component: FileSyncerView },
@@ -20,6 +22,9 @@ function App() {
   const [uiScale, setUiScale] = useState<UiScale>('default')
 
   const [isFullscreen, setIsFullscreen] = useState(false)
+
+  const [logs, setLogs] = useState<types.LogEntry[]>([])
+  const [isLogPanelOpen, setIsLogPanelOpen] = useState(false)
 
   useEffect(() => {
     const htmlEl = document.documentElement
@@ -119,6 +124,51 @@ function App() {
     }
   }, []) // 空依赖数组 [] 意味着这个 effect 只在组件首次挂载时运行一次
 
+  // --- 4. 新增 useEffect 来监听日志事件 ---
+  const addLogEntry = useCallback((logEntry: types.LogEntry) => {
+    // 使用函数式更新，确保我们总是基于最新的状态进行修改
+    setLogs((prevLogs) => {
+      const newLogs = [...prevLogs, logEntry]
+      // 保持日志数组的最大长度
+      return newLogs.length > 200 ? newLogs.slice(1) : newLogs
+    })
+  }, [])
+
+  useEffect(() => {
+    // 组件挂载时，开始监听来自Go后端的日志事件
+    const cleanup = EventsOn('log_event', addLogEntry)
+
+    // 组件卸载时，返回一个清理函数来注销监听，防止内存泄漏
+    return cleanup
+  }, [addLogEntry])
+
+  const clearLogs = () => setLogs([])
+  const toggleLogPanel = () => setIsLogPanelOpen((prev) => !prev)
+
+  const latestLogStatus = useMemo(() => {
+    if (logs.length === 0) {
+      return { level: 'INFO', message: 'Ready' } as types.LogEntry
+    }
+    return logs[logs.length - 1]
+  }, [logs])
+
+  const statusColorClass = useMemo(() => {
+    switch (latestLogStatus.level) {
+      case 'DEBUG':
+        return 'text-blue-500 dark:text-blue-400'
+      case 'INFO':
+        return 'text-green-500 dark:text-green-400'
+      case 'WARN':
+        return 'text-yellow-500 dark:text-yellow-400'
+      case 'ERROR':
+        return 'text-red-600 dark:text-red-400 font-bold'
+      case 'SUCCESS':
+        return 'text-green-600 dark:text-green-400 font-bold'
+      default:
+        return 'text-gray-600 dark:text-gray-400'
+    }
+  }, [latestLogStatus])
+
   return (
     <DialogProvider>
       <div id="App" className="w-screen h-screen bg-transparent">
@@ -141,6 +191,35 @@ function App() {
                   <ToolComponent />
                 </div>
               ))}
+
+              {/* 日志面板和状态 */}
+              {activeTool === 'FileSyncer' && (
+                <div className=" absolute bottom-0 left-0 w-full flex flex-col">
+                  {isLogPanelOpen && (
+                    <div className="h-48 flex-shrink-0">
+                      <LogPanel logs={logs} onClear={clearLogs} />
+                    </div>
+                  )}
+
+                  {/* 状态栏 */}
+                  <div className="h-6 flex-shrink-0 bg-background border-t flex items-center justify-between px-2 text-xs select-none">
+                    <button
+                      onClick={toggleLogPanel}
+                      className="flex items-center space-x-1 text-muted-foreground hover:text-foreground"
+                    >
+                      <span>{isLogPanelOpen ? '▼' : '▲'}</span>
+                      <span>logs</span>
+                    </button>
+
+                    <div
+                      className={`flex-1 text-right truncate${statusColorClass}`}
+                      title={latestLogStatus.message}
+                    >
+                      <span>{latestLogStatus.message}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </main>
           </div>
         </div>

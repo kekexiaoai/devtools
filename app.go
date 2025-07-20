@@ -39,7 +39,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 	// --- 日志文件初始化 ---
 	logDir := filepath.Join(userConfigDir, "DevTools") // 日志和配置放同一个目录
-	if err := os.MkdirAll(logDir, 0750); err != nil {
+	if err := os.MkdirAll(logDir, 0o750); err != nil {
 		// 如果创建目录失败，也别让程序崩溃，只是打印出来
 		log.Printf("警告: 创建日志目录失败: %v", err)
 	} else {
@@ -47,7 +47,7 @@ func (a *App) startup(ctx context.Context) {
 		// O_CREATE: 如果文件不存在则创建
 		// O_WRONLY: 以只写模式打开
 		// O_APPEND: 在文件末尾追加内容
-		logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0660)
+		logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o660)
 		if err != nil {
 			log.Printf("警告: 打开日志文件失败: %v", err)
 		} else {
@@ -93,7 +93,6 @@ func (b *App) beforeClose(ctx context.Context) (prevent bool) {
 		DefaultButton: "Yes",
 		CancelButton:  "No",
 	})
-
 	if err != nil {
 		return false
 	}
@@ -260,4 +259,16 @@ func (a *App) ShowConfirmDialog(title string, message string) (string, error) {
 		DefaultButton: "No",
 		CancelButton:  "No",
 	})
+}
+
+// LogFromFrontend 接收一个结构化的 LogEntry 对象
+func (a *App) LogFromFrontend(entry types.LogEntry) {
+	// 我们可以从 entry 中获取时间戳，或者如果前端没有提供，我们自己生成一个
+	timestamp := entry.Timestamp
+	if timestamp == "" {
+		timestamp = time.Now().Format("15:04:05")
+	}
+
+	// 使用我们已经配置好的、会写入到文件的 log 包
+	log.Printf("[FRONTEND] [%s] [%s] %s", timestamp, entry.Level, entry.Message)
 }
