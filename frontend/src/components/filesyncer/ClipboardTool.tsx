@@ -124,7 +124,7 @@ function ClipboardTool({ config, onConfigUpdate }: ClipboardToolProps) {
       setClipboardContent(newContent)
 
       // 立即使用我们刚生成的新内容执行同步
-      await syncContent(newContent)
+      await syncContent(newContent, true)
     }
   }
 
@@ -288,10 +288,35 @@ function ClipboardTool({ config, onConfigUpdate }: ClipboardToolProps) {
           </div>
           <DialogFooter>
             <div className="flex items-center w-full justify-between gap-x-4">
+              {/* `flex-1` 和 `min-w-0` 是关键，它告诉这个容器可以伸缩，并且最小宽度可以是0 */}
               <div className="flex-1 min-w-0">
                 <TooltipProvider delayDuration={100}>
                   <Tooltip>
-                    <TooltipTrigger className="flex-1 min-w-0">
+                    {/* <TooltipTrigger className="flex-1 min-w-0"> */}
+                    {/* truncate 样式依赖父容器有合适的宽度限制，文本超出时才会截断。但由于 TooltipTrigger 渲染了额外的包裹元素，
+                    <p> 标签的父容器是这个包裹元素，而非具有 flex-1 min-w-0 样式的外层 <div>。
+                    这个包裹元素可能没有正确设置宽度限制，导致 truncate 样式无法正常生效。 */}
+                    {/*
+                    <div class="flex-1 min-w-0">
+                      <div> <!-- TooltipTrigger 渲染的包裹元素 -->
+                        <p class="text-sm font-medium truncate text-left text-green-500">
+                          Success!
+                        </p>
+                      </div>
+                    </div> 
+                    */}
+                    {/* 上面的不起作用，下面的asChild起作用 */}
+                    {/* 当使用 asChild prop 时，TooltipTrigger 不会渲染额外的包裹元素，而是直接将工具提示的触发逻辑附加到其子元素（即 <p> 标签）上。
+                    此时 DOM 结构如下： */}
+                    {/* 
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium truncate text-left text-green-500">
+                        Success!
+                      </p>
+                    </div> 
+                    */}
+                    <TooltipTrigger asChild>
+                      {/* `truncate` 会在父容器宽度受限时生效 */}
                       <p
                         className={`text-sm font-medium truncate text-left ${getStatusColorClass}`}
                       >
@@ -299,12 +324,17 @@ function ClipboardTool({ config, onConfigUpdate }: ClipboardToolProps) {
                       </p>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>{syncStatus}</p>
+                      {/* `break-words` 会强制长文本换行 */}
+                      <p className="max-w-md break-words whitespace-normal">
+                        {syncStatus}
+                      </p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               </div>
-              <div className="flex items-center space-x-3">
+              {/* 右侧区域：按钮组 */}
+              {/* `flex-shrink-0` 确保按钮组不会被压缩 */}
+              <div className="flex items-center space-x-3 flex-shrink-0">
                 <Button onClick={() => setIsModalOpen(false)} variant="outline">
                   Cancel
                 </Button>

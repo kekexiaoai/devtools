@@ -212,7 +212,7 @@ function App() {
                     </button>
 
                     <div
-                      className={`flex-1 text-right truncate${statusColorClass}`}
+                      className={`flex-1 pl-2 text-right truncate ${statusColorClass}`}
                       title={latestLogStatus.message}
                     >
                       <span>{latestLogStatus.message}</span>
