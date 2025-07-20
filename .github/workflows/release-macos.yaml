@@ -2,13 +2,16 @@ name: Release macOS App
 
 on:
   release:
-    types: [ published ]
+    types: [published]
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Version tag'
+        description: "Version tag"
         required: true
-        default: '1.0.0'
+        default: "1.0.0"
+  push:
+    tags:
+      - "v*" # 监听 v 开头的标签推送
 
 jobs:
   release:

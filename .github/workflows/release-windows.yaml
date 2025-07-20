@@ -2,13 +2,16 @@ name: Release Windows App
 
 on:
   release:
-    types: [ published ]
+    types: [published]
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Version tag'
+        description: "Version tag"
         required: true
-        default: '1.0.0'
+        default: "1.0.0"
+  push:
+    tags:
+      - "v*" # 监听 v 开头的标签推送
 
 jobs:
   release:
@@ -76,7 +79,7 @@ jobs:
         run: |
           jq --arg ver "${{ steps.normalise_version.outputs.version }}" '.info.productVersion = $ver' wails.json > tmp.json
           Move-Item -Force tmp.json wails.json
-          
+
           jq --arg ver "${{ steps.normalise_version.outputs.version }}" '.version = $ver' frontend/package.json > tmp.json
           Move-Item -Force tmp.json frontend/package.json
 
