@@ -11,16 +11,18 @@ import { ForceQuit } from '../wailsjs/go/main/App'
 import { logToServer } from './lib/utils'
 import {
   AlertDialog,
-  AlertDialogContent,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogCancel,
   AlertDialogAction,
-} from './components/ui/alert-dialog'
-import {
-  AlertDialogHeader,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
   AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from './components/ui/alert-dialog'
+
+import { Button } from '@/components/ui/button' // AlertDialogAction 本质上是一个 Button
+
+import { AlertTriangle } from 'lucide-react'
 
 const toolComponents = [
   { id: 'FileSyncer', component: FileSyncerView },
@@ -183,15 +185,28 @@ function App() {
       <AlertDialog open={isQuitConfirmOpen} onOpenChange={setIsQuitConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to quit?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Any running synchronization tasks will be terminated.
+            <div className="flex items-center space-x-2">
+              <AlertTriangle className="h-6 w-6 text-destructive" />
+              <AlertDialogTitle>
+                Are you sure you want to quit?
+              </AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="pt-2">
+              Any running synchronization tasks will be terminated. This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void handleConfirmQuit()}>
-              Yes, Quit
+            <AlertDialogCancel asChild>
+              <Button variant="outline">Cancel</Button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                variant="destructive"
+                onClick={() => void handleConfirmQuit()}
+              >
+                Yes, Quit
+              </Button>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
