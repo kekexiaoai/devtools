@@ -69,7 +69,7 @@ function ClipboardTool({ config, onConfigUpdate }: ClipboardToolProps) {
   // --事件处理函数---------------------
   const handleSaveChanges = async () => {
     if (!remotePath.trim()) {
-      showDialog({
+      await showDialog({
         title: 'Validation Error',
         message: 'Remote File Path connot be empty.',
       })
@@ -83,7 +83,7 @@ function ClipboardTool({ config, onConfigUpdate }: ClipboardToolProps) {
       onConfigUpdate() // 通知父组件数据已更新
       setIsEditingPath(false) // 保存成功后，切换回非编辑状态
     } catch (error) {
-      showDialog({
+      await showDialog({
         title: 'Save Error',
         message: `Failed to save path: ${String(error)}`,
       })

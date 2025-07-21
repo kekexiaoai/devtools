@@ -4,8 +4,6 @@ import {
   SaveSyncPair,
   DeleteSyncPair,
   SelectDirectory,
-  ShowConfirmDialog,
-  ShowErrorDialog,
 } from '../../../wailsjs/go/main/App'
 import { types } from '../../../wailsjs/go/models'
 
@@ -15,6 +13,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Trash2 } from 'lucide-react'
+import { useDialog } from '@/hooks/useDialog'
 
 interface SyncPairsManagerProps {
   config: types.SSHConfig
@@ -31,19 +30,23 @@ export function SyncPairsManager({
   const [showAddForm, setShowAddForm] = useState<boolean>(false)
   const [newPair, setNewPair] = useState({ localPath: '', remotePath: '' })
 
+  const { showDialog } = useDialog()
+
   const fetchSyncPairs = useCallback(async () => {
     if (!config.id) return
     try {
       const pairs = await GetSyncPairs(config.id)
       setSyncPairs(pairs)
     } catch (error) {
-      await ShowErrorDialog(
-        'Error',
-        `Failed to fetch sync pairs: ${String(error)}`
-      )
+      await showDialog({
+        title: 'Error',
+        message: `Failed to fetch sync pairs: ${String(error)}`,
+        type: 'error',
+      })
     } finally {
       console.log(`successed to fetch sync pairs for ${config.id}`)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.id])
 
   // 这个 effect 会在组件首次挂载时，以及 props.config.id 发生变化时
@@ -62,10 +65,11 @@ export function SyncPairsManager({
 
   const handleSaveNewPair = async () => {
     if (!newPair.localPath || !newPair.remotePath) {
-      return await ShowErrorDialog(
-        'Error',
-        'Local and Remote paths cannot be empty.'
-      )
+      return await showDialog({
+        title: 'Error',
+        message: 'Local and Remote paths cannot be empty.',
+        type: 'error',
+      })
     }
     try {
       await SaveSyncPair({
@@ -79,24 +83,35 @@ export function SyncPairsManager({
       setNewPair({ localPath: '', remotePath: '' })
       setShowAddForm(false)
     } catch (error) {
-      await ShowErrorDialog(
-        'Error',
-        `Failed to save sync pair: ${String(error)}`
-      )
+      await showDialog({
+        title: 'Error',
+        message: `Failed to save sync pair: ${String(error)}`,
+        type: 'error',
+      })
     }
   }
 
   const handleDeletePair = async (pairId: string) => {
-    const choice = await ShowConfirmDialog('Confirm Deletion', 'Are you sure?')
-    if (choice !== 'Yes') return
+    const choice = await showDialog({
+      title: 'Confirm Deletion',
+      message: 'Are you sure?',
+      type: 'confirm',
+      buttons: [
+        { text: 'Cancel', variant: 'outline', value: 'cancel' },
+        { text: 'Yes, Delete', variant: 'destructive', value: 'yes' },
+      ],
+    })
+
+    if (choice !== 'yes') return
     try {
       await DeleteSyncPair(pairId)
       await fetchSyncPairs() // 删除后刷新列表
     } catch (error) {
-      await ShowErrorDialog(
-        'Error',
-        `Failed to delete sync pair: ${String(error)}`
-      )
+      await showDialog({
+        title: 'Error',
+        message: `Failed to delete sync pair: ${String(error)}`,
+        type: 'error',
+      })
     }
   }
 

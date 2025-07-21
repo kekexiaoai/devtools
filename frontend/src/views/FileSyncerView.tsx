@@ -12,9 +12,6 @@ import {
   GetConfigs,
   SaveConfig,
   TestConnection,
-  ShowConfirmDialog,
-  ShowErrorDialog,
-  ShowInfoDialog,
   SelectFile,
   StartWatching,
   StopWatching,
@@ -111,10 +108,11 @@ export function FileSyncerView() {
         })
       }
     } catch (error) {
-      await ShowErrorDialog(
-        'Error',
-        `Failed to ${isActive ? 'start' : 'stop'} watching: ${String(error)}`
-      )
+      await showDialog({
+        title: 'Error',
+        message: `Failed to ${isActive ? 'start' : 'stop'} watching: ${String(error)}`,
+        type: 'error',
+      })
     }
   }
 
@@ -135,7 +133,7 @@ export function FileSyncerView() {
       setConfigs(fetchedConfigs)
       return fetchedConfigs
     } catch (error) {
-      showDialog({
+      await showDialog({
         title: 'Error',
         message: `Failed to load configurations: ${String(error)}`,
       })
@@ -305,22 +303,49 @@ export function FileSyncerView() {
     setSelectedId(id)
   }
 
+  // const handleDelete = async (id: string) => {
+  //   console.log(`TODO: Delete configuration with ID: ${id}`)
+  //   const choice = await ShowConfirmDialog(
+  //     'Confirm Deletion',
+  //     'Are you sure? This will delete the configuration and all associated sysnc pairs.'
+  //   )
+  //   if (choice !== 'Yes') return
+  //   console.log(`Deleting configuration with ID: ${id}`)
+  //   try {
+  //     await DeleteConfig(id)
+  //     await fetchConfigs()
+  //   } catch (error) {
+  //     await ShowErrorDialog(
+  //       'Error',
+  //       `Failed to delete configuration: ${String(error)}`
+  //     )
+  //   }
+  // }
+
+  // 使用自己封装的 showDialog
+  // 它现在返回一个 Promise
   const handleDelete = async (id: string) => {
-    console.log(`TODO: Delete configuration with ID: ${id}`)
-    const choice = await ShowConfirmDialog(
-      'Confirm Deletion',
-      'Are you sure? This will delete the configuration and all associated sysnc pairs.'
-    )
-    if (choice !== 'Yes') return
-    console.log(`Deleting configuration with ID: ${id}`)
+    const choice = await showDialog({
+      title: 'Confirm Deletion',
+      message:
+        'Are you sure? This will delete the configuration and all associated sysnc pairs.',
+      type: 'confirm',
+      buttons: [
+        { text: 'Cancel', variant: 'outline', value: 'cancel' },
+        { text: 'Yes, Delete', variant: 'destructive', value: 'yes' },
+      ],
+    })
+
+    if (choice !== 'yes') return
+
     try {
       await DeleteConfig(id)
       await fetchConfigs()
     } catch (error) {
-      await ShowErrorDialog(
-        'Error',
-        `Failed to delete configuration: ${String(error)}`
-      )
+      await showDialog({
+        title: 'Error',
+        message: `Failed to delete configuration: ${String(error)}`,
+      })
     }
   }
 
@@ -344,21 +369,21 @@ export function FileSyncerView() {
   const handleSaveConfig = async () => {
     // --- 校验逻辑 ---
     if (!form.name || !form.name.trim()) {
-      showDialog({
+      await showDialog({
         title: 'Validation Error',
         message: 'Configuration Name cannot be empty.',
       })
       return
     }
     if (!form.host || !form.host.trim()) {
-      showDialog({
+      await showDialog({
         title: 'Validation Error',
         message: 'Host cannot be empty.',
       })
       return
     }
     if (!form.user || !form.user.trim()) {
-      showDialog({
+      await showDialog({
         title: 'Validation Error',
         message: 'User cannot be empty.',
       })
@@ -367,7 +392,10 @@ export function FileSyncerView() {
 
     try {
       await SaveConfig(form)
-      await ShowInfoDialog('Success', 'Configuration saved!')
+      await showDialog({
+        title: 'Success',
+        message: 'Configuration saved!',
+      })
       setIsModalOpen(false)
       await fetchConfigs() // 保存成功后刷新列表
     } catch (error) {
@@ -376,7 +404,7 @@ export function FileSyncerView() {
       //   `Failed to save configuration: ${String(error)}`
       // )
       // 依然可以使用 AlertDialog 显示保存错误
-      showDialog({
+      await showDialog({
         title: 'Save Error',
         message: `Failed to save configuration: ${String(error)}`,
       })

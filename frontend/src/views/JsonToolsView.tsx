@@ -19,7 +19,8 @@ import ReactJson from 'react-json-view'
 import { EditorView } from '@codemirror/view'
 
 // --- 导入 Wails 原生对话框 ---
-import { ShowErrorDialog, ShowInfoDialog } from '../../wailsjs/go/main/App'
+// import { ShowErrorDialog, ShowInfoDialog } from '../../wailsjs/go/main/App'
+import { useDialog } from '@/hooks/useDialog'
 
 // React 组件就是一个函数
 export function JsonToolsView() {
@@ -32,6 +33,8 @@ export function JsonToolsView() {
     isValid: boolean | null
     message: string
   }>({ isValid: null, message: '' }) // 校验结果
+
+  const { showDialog } = useDialog()
 
   // --- 教学：使用 useMemo Hook 进行性能优化 ---
   // useMemo 会缓存一个计算结果。只有当它的依赖项(这里是 isDarkMode)改变时，
@@ -88,12 +91,16 @@ export function JsonToolsView() {
     try {
       const jsonObj = JSON.parse(input) as Record<string, unknown>
       await navigator.clipboard.writeText(JSON.stringify(jsonObj))
-      await ShowInfoDialog('Success', 'Minified JSON copied to clipboard!')
+      await showDialog({
+        title: 'Success',
+        message: 'Minified JSON copied to clipboard!',
+        type: 'info',
+      })
     } catch (error) {
-      await ShowErrorDialog(
-        'Error',
-        'Invalid JSON, cannot minify. ' + String(error)
-      )
+      await showDialog({
+        title: 'Error',
+        message: 'Invalid JSON, cannot minify. ' + String(error),
+      })
     }
   }
 
@@ -101,12 +108,22 @@ export function JsonToolsView() {
     try {
       const formattedText = JSON.stringify(outputObject, null, 2)
       await navigator.clipboard.writeText(formattedText)
-      await ShowInfoDialog('Success', 'Formatted JSON copied to clipboard!')
+      // await ShowInfoDialog('Success', 'Formatted JSON copied to clipboard!')
+      await showDialog({
+        title: 'Success',
+        message: 'Formatted JSON copied to clipboard!',
+        type: 'info',
+      })
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)
 
-      await ShowErrorDialog('Error', `Failed to copy: ${errorMessage}`)
+      // await ShowErrorDialog('Error', `Failed to copy: ${errorMessage}`)
+      await showDialog({
+        title: 'Error',
+        message: `Failed to copy: ${errorMessage}`,
+        type: 'error',
+      })
     }
   }
 

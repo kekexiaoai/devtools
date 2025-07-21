@@ -1,7 +1,6 @@
-import React, { useState, ReactNode } from 'react'
+import React, { useState, ReactNode, useCallback } from 'react'
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -14,17 +13,28 @@ import {
   type DialogOptions,
   type ShowDialogFunction,
 } from '@/hooks/useDialog'
+import { Button } from '../ui/button'
 
 // 创建一个 Provider 组件
 export function DialogProvider({ children }: { children: ReactNode }) {
-  const [dialogConfig, setDialogConfig] = useState<DialogOptions | null>(null)
+  const [dialogConfig, setDialogConfig] = useState<{
+    options: DialogOptions
+    resolve: (value: string | null) => void
+  } | null>(null)
 
-  const showDialog: ShowDialogFunction = ({ title, message }) => {
-    setDialogConfig({ title, message })
-  }
+  const showDialog: ShowDialogFunction = useCallback((options) => {
+    return new Promise((resolve) => {
+      setDialogConfig({ options, resolve })
+    })
+  }, [])
 
   const closeDialog = () => {
     setDialogConfig(null)
+  }
+
+  const handleClose = (value: string | null) => {
+    dialogConfig?.resolve(value)
+    closeDialog()
   }
 
   return (
@@ -41,7 +51,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
         <AlertDialogContent className="flex flex-col max-h-[80vh]">
           {/* 头部：不允许收缩 */}
           <AlertDialogHeader className="flex-shrink-0">
-            <AlertDialogTitle>{dialogConfig?.title}</AlertDialogTitle>
+            <AlertDialogTitle>{dialogConfig?.options.title}</AlertDialogTitle>
           </AlertDialogHeader>
 
           {/* 内容区：
@@ -51,13 +61,29 @@ export function DialogProvider({ children }: { children: ReactNode }) {
           */}
           <div className="flex-grow my-4 overflow-y-auto">
             <AlertDialogDescription className="whitespace-pre-wrap break-words">
-              {dialogConfig?.message}
+              {dialogConfig?.options.message}
             </AlertDialogDescription>
           </div>
 
           {/* 脚部：不允许收缩 */}
           <AlertDialogFooter className="flex-shrink-0">
-            <AlertDialogAction onClick={closeDialog}>OK</AlertDialogAction>
+            {/* 动态渲染按钮 */}
+            {dialogConfig?.options.buttons ? (
+              dialogConfig.options.buttons.map((button) => (
+                <Button
+                  key={button.text}
+                  variant={button.variant}
+                  onClick={() => handleClose(button.value)}
+                >
+                  {button.text}
+                </Button>
+              ))
+            ) : (
+              // 如果没有定义按钮，则渲染一个默认的 "OK" 按钮
+              <Button onClick={() => handleClose('ok')}>OK</Button>
+            )}
+
+            {/* <AlertDialogAction onClick={closeDialog}>OK</AlertDialogAction> */}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -3,9 +3,24 @@ import { createContext, useContext } from 'react'
 export type DialogOptions = {
   title: string
   message: string
+  type?: 'info' | 'error' | 'confirm'
+  // 允许自定义按钮
+  buttons?: {
+    text: string
+    variant:
+      | 'default'
+      | 'destructive'
+      | 'outline'
+      | 'secondary'
+      | 'ghost'
+      | 'link'
+    value: string // 点击 Promise resolve 的值
+  }[]
 }
 
-export type ShowDialogFunction = (options: DialogOptions) => void
+export type ShowDialogFunction = (
+  options: DialogOptions
+) => Promise<string | null>
 
 // 定义 Context 值的类型
 export type DialogContextValue = {
