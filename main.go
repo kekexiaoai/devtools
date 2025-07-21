@@ -90,7 +90,7 @@ func main() {
 			Assets: assets,
 		},
 
-		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 0},
+		BackgroundColour: &options.RGBA{R: 37, G: 37, B: 37, A: 255},
 		OnStartup:        app.startup,
 		OnShutdown:       app.shutdown,
 		OnBeforeClose: func(ctx context.Context) (prevent bool) {
@@ -128,8 +128,9 @@ func main() {
 				Message: "dev tools.\n\nCopyright © 2025",
 				Icon:    icon,
 			},
-			WebviewIsTransparent: true,
+			WebviewIsTransparent: false,
 			WindowIsTranslucent:  true,
+			Appearance: mac.NSAppearanceNameDarkAqua,
 		},
 		Windows: &windows.Options{
 			WebviewIsTransparent:              true,

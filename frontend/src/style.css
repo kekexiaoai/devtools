@@ -77,30 +77,44 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
+  /* 将背景色从一个非常深的灰色 (0.145) 提升到一个中等灰色 (0.27)。
+    这个颜色更接近 macOS 窗口动画时闪烁的背景色。
+  */
+  --background: oklch(0.27 0 0);
+  --foreground: oklch(0.985 0 0); /* 亮色文字保持不变 */
+
+  /* 相应地调整其他UI元素的颜色，以保持视觉和谐 */
+  --card: oklch(0.31 0 0); /* 卡片背景比主背景稍亮一点 */
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
+
+  --popover: oklch(0.31 0 0);
   --popover-foreground: oklch(0.985 0 0);
+
+  /* 主操作色可以保持不变，或根据喜好调整 */
   --primary: oklch(0.922 0 0);
   --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
+
+  --secondary: oklch(0.36 0 0); /* 次要元素背景 */
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
+
+  --muted: oklch(0.36 0 0); /* 静默元素背景 */
+  --muted-foreground: oklch(0.708 0 0); /* 静默文字颜色调亮一些 */
+
+  --accent: oklch(0.36 0 0);
   --accent-foreground: oklch(0.985 0 0);
+
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
+  --destructive-foreground: oklch(0.985 0 0);
+
+  --border: oklch(1 0 0 / 15%); /* 边框颜色也调亮 */
+  --input: oklch(1 0 0 / 20%); /* 输入框背景 */
   --ring: oklch(0.556 0 0);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
+  --sidebar: oklch(0.22 0 0); /* 侧边栏可以比主背景稍暗 */
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.985 0 0);
@@ -126,5 +140,39 @@
   /* 我们将通过改变 :root 的 font-size 来影响所有 rem 单位的计算 */
   html {
     font-size: var(--font-size-base);
+  }
+
+  body {
+    /*
+      使用 @apply bg-background; 来将 body 的背景色设置为我们主题中定义的颜色。
+    */
+    @apply bg-background text-foreground font-sans select-none;
+  }
+
+  /* 为可输入元素重新启用文本选中 */
+  input,
+  textarea,
+  .cm-content {
+    /* CodeMirror */
+    @apply select-text;
+  }
+
+  /* 自定义文本选中颜色 */
+  ::selection {
+    @apply bg-primary text-primary-foreground;
+  }
+
+  /* 自定义滚动条 */
+  ::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-lg;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-accent-foreground/50;
   }
 }
