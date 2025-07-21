@@ -6,6 +6,8 @@ export function DeleteConfig(arg1: string): Promise<void>
 
 export function DeleteSyncPair(arg1: string): Promise<void>
 
+export function ForceQuit(): Promise<void>
+
 export function GetConfigs(): Promise<Array<types.SSHConfig>>
 
 export function GetSyncPairs(arg1: string): Promise<Array<types.SyncPair>>

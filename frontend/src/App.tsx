@@ -7,6 +7,20 @@ import { TitleBar } from './components/TitleBar'
 import { EventsOn, WindowIsFullscreen } from '../wailsjs/runtime/runtime'
 
 import type { UiScale } from './types'
+import { ForceQuit } from '../wailsjs/go/main/App'
+import { logToServer } from './lib/utils'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from './components/ui/alert-dialog'
+import {
+  AlertDialogHeader,
+  AlertDialogFooter,
+} from './components/ui/alert-dialog'
 
 const toolComponents = [
   { id: 'FileSyncer', component: FileSyncerView },
@@ -119,6 +133,26 @@ function App() {
     }
   }, []) // 空依赖数组 [] 意味着这个 effect 只在组件首次挂载时运行一次
 
+  // 新增一个 state 来控制“退出确认”对话框的显示
+  const [isQuitConfirmOpen, setIsQuitConfirmOpen] = useState(false)
+
+  // 新增一个 useEffect 来监听来自 Go 后端的退出请求
+  useEffect(() => {
+    const cleanup = EventsOn('app:request-quit', () => {
+      logToServer(
+        'INFO',
+        'Received quit request from backend, showing confirmation dialog.'
+      )
+      setIsQuitConfirmOpen(true) // 显示我们的确认对话框
+    })
+    return cleanup
+  }, []) // 空依赖数组，确保只监听一次
+
+  // --- 事件处理函数 ---
+  const handleConfirmQuit = async () => {
+    await ForceQuit() // 调用后端函数，真正退出
+  }
+
   return (
     <DialogProvider>
       <div id="App" className="w-screen h-screen bg-transparent">
@@ -145,6 +179,23 @@ function App() {
           </div>
         </div>
       </div>
+      {/* 5. 在这里渲染我们的“退出确认”对话框 */}
+      <AlertDialog open={isQuitConfirmOpen} onOpenChange={setIsQuitConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to quit?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Any running synchronization tasks will be terminated.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleConfirmQuit()}>
+              Yes, Quit
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DialogProvider>
   )
 }

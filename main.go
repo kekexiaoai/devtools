@@ -95,20 +95,19 @@ func main() {
 		OnShutdown:       app.shutdown,
 		OnBeforeClose: func(ctx context.Context) (prevent bool) {
 			if !isMacOS {
+				// 在 Windows 和 Linux 上，允许直接退出
 				return false
 			}
-			selection, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
-				Title:         "Quit?",
-				Message:       "Are you sure you want to quit?",
-				Buttons:       []string{"Yes", "No"},
-				DefaultButton: "Yes",
-				CancelButton:  "No",
-			})
-			if err != nil {
+			// 这个逻辑只在 macOS 上生效
+			// 检查通行令牌
+			if app.isQuitting {
+				// 如果是 ForceQuit 发起的，直接允许退出
 				return false
 			}
 
-			return selection != "Yes"
+			// 否则，是用户点击 'X'，发送事件并阻止退出
+			runtime.EventsEmit(ctx, "app:request-quit")
+			return true
 		},
 		HideWindowOnClose: isMacOS,
 		Bind: []any{

@@ -1,6 +1,7 @@
 import React, { useState, ReactNode, useCallback } from 'react'
 import {
   AlertDialog,
+  AlertDialogAction,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -45,7 +46,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
       <AlertDialog
         // !! 是一个简洁的技巧，用来将任何“真值”（truthy）或“假值”（falsy）的变量，强制转换为一个纯粹的布尔值 true 或 false。
         open={!!dialogConfig}
-        onOpenChange={(isOpen) => !isOpen && closeDialog()}
+        onOpenChange={(isOpen) => !isOpen && handleClose(null)}
       >
         {/*让 AlertDialogContent 成为一个垂直的、固定高度的 Flexbox 容器*/}
         <AlertDialogContent className="flex flex-col max-h-[80vh]">
@@ -80,10 +81,12 @@ export function DialogProvider({ children }: { children: ReactNode }) {
               ))
             ) : (
               // 如果没有定义按钮，则渲染一个默认的 "OK" 按钮
-              <Button onClick={() => handleClose('ok')}>OK</Button>
+              // 对于没有自定义按钮的简单提示，我们使用语义化的 AlertDialogAction
+              <AlertDialogAction onClick={() => handleClose('ok')}>
+                OK
+              </AlertDialogAction>
+              // <Button onClick={() => handleClose('ok')}>OK</Button>
             )}
-
-            {/* <AlertDialogAction onClick={closeDialog}>OK</AlertDialogAction> */}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

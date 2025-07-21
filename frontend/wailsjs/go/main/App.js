@@ -10,6 +10,10 @@ export function DeleteSyncPair(arg1) {
   return window['go']['main']['App']['DeleteSyncPair'](arg1)
 }
 
+export function ForceQuit() {
+  return window['go']['main']['App']['ForceQuit']()
+}
+
 export function GetConfigs() {
   return window['go']['main']['App']['GetConfigs']()
 }

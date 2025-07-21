@@ -21,6 +21,7 @@ type App struct {
 	ctx           context.Context
 	configManager *config.ConfigManager
 	watcherSvc    *syncer.WatcherService
+	isQuitting    bool // 内部状态标志
 }
 
 // NewApp creates a new App application struct
@@ -31,6 +32,7 @@ func NewApp() *App {
 // startup is called when the app starts.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	a.isQuitting = false // 初始化状态
 
 	// 初始化配置管理器
 	userConfigDir, err := os.UserConfigDir()
@@ -85,7 +87,7 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 }
 
-func (b *App) beforeClose(ctx context.Context) (prevent bool) {
+func (b *App) beforeClose(_ context.Context) (prevent bool) {
 	selection, err := runtime.MessageDialog(b.ctx, runtime.MessageDialogOptions{
 		Title:         "Quit?",
 		Message:       "Are you sure you want to quit?",
@@ -283,4 +285,12 @@ func (a *App) emitLog(level, message string) {
 		Message:   message,
 	}
 	runtime.EventsEmit(a.ctx, "log_event", entry)
+}
+
+// ForceQuit 强制退出应用程序
+func (a *App) ForceQuit() {
+	log.Println("ForceQuit called from frontend. Setting quit flag and exiting.")
+	// 在调用 Quit 之前，先设置状态标志
+	a.isQuitting = true
+	runtime.Quit(a.ctx)
 }
