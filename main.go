@@ -130,7 +130,6 @@ func main() {
 			},
 			WebviewIsTransparent: false,
 			WindowIsTranslucent:  true,
-			Appearance: mac.NSAppearanceNameDarkAqua,
 		},
 		Windows: &windows.Options{
 			WebviewIsTransparent:              true,
