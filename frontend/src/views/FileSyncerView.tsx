@@ -4,6 +4,7 @@ import { useDialog } from '../hooks/useDialog'
 
 import { ConfigList } from '../components/filesyncer/ConfigList'
 import { ConfigDetail } from '../components/filesyncer/ConfigDetail'
+import { LogPanel } from '@/components/logPanel'
 
 import type { types } from '../../wailsjs/go/models'
 import {
@@ -404,8 +405,59 @@ export function FileSyncerView() {
     return configs.find((c) => c.id === selectedId) || null
   }, [selectedId, configs]) // 当selectedId 或者 configs变化时，重新计算
 
+  // --- 日志相关 ---
+  const [logs, setLogs] = useState<types.LogEntry[]>([])
+  const [isLogPanelOpen, setIsLogPanelOpen] = useState(false) // 初始关闭
+  // useEffect 来监听日志事件
+  const addLogEntry = useCallback((logEntry: types.LogEntry) => {
+    // 使用函数式更新，确保我们总是基于最新的状态进行修改
+    setLogs((prevLogs) => {
+      const newLogs = [...prevLogs, logEntry]
+      // 保持日志数组的最大长度
+      return newLogs.length > 200 ? newLogs.slice(1) : newLogs
+    })
+  }, [])
+
+  useEffect(() => {
+    // 组件挂载时，开始监听来自Go后端的日志事件
+    const cleanup = EventsOn('log_event', addLogEntry)
+
+    // 组件卸载时，返回一个清理函数来注销监听，防止内存泄漏
+    return cleanup
+  }, [addLogEntry])
+
+  const clearLogs = () => setLogs([])
+  const toggleLogPanel = () => setIsLogPanelOpen((prev) => !prev)
+
+  const latestLogStatus = useMemo(() => {
+    if (logs.length === 0) {
+      return { level: 'INFO', message: 'Ready' } as types.LogEntry
+    }
+    return logs[logs.length - 1]
+  }, [logs])
+
+  const statusColorClass = useMemo(() => {
+    switch (latestLogStatus.level) {
+      case 'DEBUG':
+        return 'text-blue-500 dark:text-blue-400'
+      case 'INFO':
+        return 'text-green-500 dark:text-green-400'
+      case 'WARN':
+        return 'text-yellow-500 dark:text-yellow-400'
+      case 'ERROR':
+        return 'text-red-600 dark:text-red-400 font-bold'
+      case 'SUCCESS':
+        return 'text-green-600 dark:text-green-400 font-bold'
+      default:
+        return 'text-gray-600 dark:text-gray-400'
+    }
+  }, [latestLogStatus])
+
   return (
-    <div className="flex h-full">
+    // relative & h-full
+    // 我们给这个根 div 添加 `relative`，是为了让内部的日志面板可以使用 `absolute` 进行定位。
+    // `h-full` 确保这个视图能撑满父容器（<main>）的全部高度。
+    <div className="flex h-full relative">
       {/* 左侧 */}
       {/* 移除了 border-r (右边框)，添加了 bg-muted/50，让这个区域有一个非常浅的、半透明的背景色 
       这会使它与右侧的 p-6 主内容区在视觉上自然分离开来 */}
@@ -439,6 +491,39 @@ export function FileSyncerView() {
             <p>Select or create a configuration.</p>
           </div>
         )}
+      </div>
+      {/* 日志面板和状态 */}
+      {/* absolute & bottom-0
+        - `absolute`: 让这个容器脱离正常的文档流，浮动起来。
+        - `bottom-0`: 将它“钉”在父容器（带有 `relative` 的那个）的底部。
+        - `w-full`: 让它宽度占满父容器。
+        这样，日志面板就不会挤占主内容区的空间，而是优雅地从底部滑出。
+      */}
+      <div className=" absolute bottom-0 left-0 w-full flex flex-col">
+        {isLogPanelOpen && (
+          // flex-shrink-0: 防止这个 div 在空间不足时被压缩
+          <div className="h-48 flex-shrink-0">
+            <LogPanel logs={logs} onClear={clearLogs} />
+          </div>
+        )}
+
+        {/* 状态栏 */}
+        <div className="h-6 flex-shrink-0 bg-background border-t flex items-center justify-between px-2 text-xs select-none">
+          <button
+            onClick={toggleLogPanel}
+            className="flex items-center space-x-1 text-muted-foreground hover:text-foreground"
+          >
+            <span>{isLogPanelOpen ? '▼' : '▲'}</span>
+            <span>logs</span>
+          </button>
+
+          <div
+            className={`flex-1 pl-2 text-right truncate ${statusColorClass}`}
+            title={latestLogStatus.message}
+          >
+            <span>{latestLogStatus.message}</span>
+          </div>
+        </div>
       </div>
 
       {/* 新建，编辑配置的模态框 */}
