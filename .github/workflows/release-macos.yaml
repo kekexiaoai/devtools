@@ -38,13 +38,14 @@ jobs:
         id: normalise_version
         shell: bash
         run: |
-          if [ "${{ github.event.release.tag_name }}" == "" ]; then
-            version=$(echo ${{ github.event.inputs.tag }} | sed -e 's/v//g')
-            echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ -n "${{ github.event.release.tag_name }}" ]; then
+            version=$(echo "${{ github.event.release.tag_name }}" | sed -e 's/^v//')
+          elif [ -n "${{ github.event.inputs.tag }}" ]; then
+            version=$(echo "${{ github.event.inputs.tag }}" | sed -e 's/^v//')
           else
-            version=$(echo ${{ github.event.release.tag_name }} | sed -e 's/v//g')
-            echo "version=$version" >> "$GITHUB_OUTPUT"
+            version=$(echo "${GITHUB_REF##*/}" | sed -e 's/^v//')
           fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Setup Go
         uses: actions/setup-go@v4
