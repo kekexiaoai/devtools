@@ -52,6 +52,7 @@ jobs:
             version=$(echo "${GITHUB_REF##*/}" | sed -e 's/^v//')
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Generated version: $version"
 
       - name: Setup Go
         uses: actions/setup-go@v4
