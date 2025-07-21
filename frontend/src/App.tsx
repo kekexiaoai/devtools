@@ -23,6 +23,7 @@ import {
 import { Button } from '@/components/ui/button' // AlertDialogAction 本质上是一个 Button
 
 import { AlertTriangle } from 'lucide-react'
+import { useThemeDetector } from './hooks/useThemeDetector'
 
 const toolComponents = [
   { id: 'FileSyncer', component: FileSyncerView },
@@ -36,6 +37,23 @@ function App() {
   const [uiScale, setUiScale] = useState<UiScale>('default')
 
   const [isFullscreen, setIsFullscreen] = useState(false)
+
+  // 适配系统主题
+  // 调用 Hook 来获取实时的暗黑模式状态
+  const isDarkMode = useThemeDetector()
+
+  // 使用 useEffect 来根据 isDarkMode 的变化，更新 <html> 标签的 class
+  useEffect(() => {
+    const root = window.document.documentElement
+
+    root.classList.remove('light', 'dark') // 先移除旧的 class
+
+    if (isDarkMode) {
+      root.classList.add('dark')
+    } else {
+      root.classList.add('light')
+    }
+  }, [isDarkMode]) // 这个 effect 只在 isDarkMode 状态变化时运行
 
   useEffect(() => {
     const htmlEl = document.documentElement
