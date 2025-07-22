@@ -1,4 +1,4 @@
-import React, { useState, ReactNode, useCallback } from 'react'
+import React, { useState, ReactNode, useCallback, useMemo } from 'react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,6 +16,8 @@ import {
 } from '@/hooks/useDialog'
 import { Button } from '../ui/button'
 
+import { Info, CheckCircle2, XCircle, HelpCircle } from 'lucide-react'
+
 // 创建一个 Provider 组件
 export function DialogProvider({ children }: { children: ReactNode }) {
   const [dialogConfig, setDialogConfig] = useState<{
@@ -25,9 +27,41 @@ export function DialogProvider({ children }: { children: ReactNode }) {
 
   const showDialog: ShowDialogFunction = useCallback((options) => {
     return new Promise((resolve) => {
-      setDialogConfig({ options, resolve })
+      // 默认类型为 'info'
+      const optsWithDefaults: DialogOptions = { type: 'info', ...options }
+      setDialogConfig({ options: optsWithDefaults, resolve })
     })
   }, [])
+
+  const dialVisuals = useMemo(() => {
+    if (!dialogConfig) return null
+
+    const type = (dialogConfig?.options?.type as string) || 'info'
+
+    switch (type) {
+      case 'success':
+        return {
+          Icon: CheckCircle2,
+          colorClass: 'text-green-500',
+        }
+      case 'error':
+        return {
+          Icon: XCircle,
+          colorClass: 'text-destructive',
+        }
+      case 'confirm':
+        return {
+          Icon: HelpCircle,
+          colorClass: 'text-amber-500',
+        }
+      case 'info':
+      default:
+        return {
+          Icon: Info,
+          colorClass: 'text-primary',
+        }
+    }
+  }, [dialogConfig])
 
   const closeDialog = () => {
     setDialogConfig(null)
@@ -52,6 +86,12 @@ export function DialogProvider({ children }: { children: ReactNode }) {
         <AlertDialogContent className="flex flex-col max-h-[80vh]">
           {/* 头部：不允许收缩 */}
           <AlertDialogHeader className="flex-shrink-0">
+            {/* 在标题旁边渲染动态的图标和颜色 */}
+            {dialVisuals && (
+              <dialVisuals.Icon
+                className={`h6 w-6 ${dialVisuals.colorClass}`}
+              />
+            )}
             <AlertDialogTitle>{dialogConfig?.options.title}</AlertDialogTitle>
           </AlertDialogHeader>
 
@@ -98,3 +138,23 @@ export function DialogProvider({ children }: { children: ReactNode }) {
 // break-words          /* 强制长单词或URL在任意位置换行 */
 // max-h-[60vh]         /* 设置一个最大高度,比如视口高度的60% */
 // overflow-y-auto      /* 当内容超出最大高度时，显示垂直滚动条 */
+
+// 用法示例
+// import { useDialog } from '../hooks/useDialog';
+
+// export function FileSyncerView() {
+//   const { showDialog } = useDialog();
+
+//   const handleSaveConfig = async () => {
+//     if (!form.name || !form.name.trim()) {
+//       // 调用 'error' 类型的对话框
+//       showDialog({
+//         title: 'Validation Error',
+//         message: 'Configuration Name cannot be empty.',
+//         type: 'error'
+//       });
+//       return;
+//     }
+//     // ...
+//   }
+// }
