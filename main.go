@@ -58,15 +58,26 @@ func main() {
 	// 创建 "View" (视图) 子菜单来处理缩放
 	viewMenu := appMenu.AddSubmenu("View")
 
+	var zoomInAccelerator *keys.Accelerator
+	var zoomOutAccelerator *keys.Accelerator
+
+	if isMacOS {
+		// 在 macOS 上，使用标准的 +/- 快捷键
+		// 注意: '+' 键通常需要 Shift，所以我们绑定 '=' 键，并显示为 '+'
+		zoomInAccelerator = keys.CmdOrCtrl("+")
+		zoomOutAccelerator = keys.CmdOrCtrl("-")
+	} else {
+		// 在 Windows/Linux 上，使用不会与浏览器冲突的 [ 和 ] 快捷键
+		zoomInAccelerator = keys.CmdOrCtrl("]")
+		zoomOutAccelerator = keys.CmdOrCtrl("[")
+	}
+
 	// 为 "Zoom Out" (缩小) 添加菜单项和快捷键
-	zoomOutAccelerator := keys.CmdOrCtrl("-")
 	viewMenu.AddText("Zoom Out", zoomOutAccelerator, func(_ *menu.CallbackData) {
 		runtime.EventsEmit(app.ctx, "zoom_change", "small")
 	})
 
 	// 为 "Zoom In" (放大) 添加菜单项和快捷键
-	// 注意: '+' 键通常需要 Shift，所以我们绑定 '=' 键，并显示为 '+'
-	zoomInAccelerator := keys.CmdOrCtrl("+")
 	viewMenu.AddText("Zoom In", zoomInAccelerator, func(_ *menu.CallbackData) {
 		runtime.EventsEmit(app.ctx, "zoom_change", "large")
 	})
