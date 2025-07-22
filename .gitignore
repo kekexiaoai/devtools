@@ -4,3 +4,4 @@ frontend/dist
 
 .DS_Store
 frontend/tsconfig.node.tsbuildinfo
+/frontend/package.json.md5
