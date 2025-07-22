@@ -132,9 +132,9 @@ func main() {
 			WindowIsTranslucent:  true,
 		},
 		Windows: &windows.Options{
-			WebviewIsTransparent:              true,
-			WindowIsTranslucent:               true,
-			DisableFramelessWindowDecorations: true,
+			WebviewIsTransparent:              false,
+			WindowIsTranslucent:               false,
+			DisableFramelessWindowDecorations: false,
 		},
 	})
 	if err != nil {
