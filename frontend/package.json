@@ -70,9 +70,11 @@
     "vite": "^7.0.2"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx}": [
+    "!wailsjs/**/*.{js,ts,jsx,tsx}": [
       "prettier --write",
       "eslint --fix"
-    ]
+    ],
+    "!wailsjs/**/*.{js,jsx,ts,tsx}": "git add",
+    "*.{json,md}": "prettier --write"
   }
 }
