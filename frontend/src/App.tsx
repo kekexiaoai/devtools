@@ -12,7 +12,7 @@ import {
 } from '../wailsjs/runtime/runtime'
 
 import type { UiScale } from './types'
-import { ForceQuit } from '../wailsjs/go/main/App'
+import { ForceQuit } from '../wailsjs/go/backend/App'
 import { logToServer } from './lib/utils'
 import {
   AlertDialog,

@@ -1,4 +1,4 @@
-package main
+package backend
 
 import (
 	"context"
@@ -10,11 +10,13 @@ import (
 	"time"
 
 	"github.com/kevinburke/ssh_config"
+	"github.com/wailsapp/wails/v2/pkg/menu"
+	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"devtools/internal/config"
-	"devtools/internal/syncer"
-	"devtools/internal/types"
+	"devtools/backend/internal/config"
+	"devtools/backend/internal/syncer"
+	"devtools/backend/internal/types"
 )
 
 // App struct
@@ -23,15 +25,32 @@ type App struct {
 	configManager *config.ConfigManager
 	watcherSvc    *syncer.WatcherService
 	isQuitting    bool // 内部状态标志
+	isDebug       bool
+	isMacOS       bool
 }
 
 // NewApp creates a new App application struct
-func NewApp() *App {
-	return &App{}
+func NewApp(isDebug, isMacOS bool) *App {
+	return &App{
+		isDebug: isDebug,
+		isMacOS: isMacOS,
+	}
+}
+
+func (a *App) Ctx() context.Context {
+	return a.ctx
+}
+
+func (a *App) IsDebug() bool {
+	return a.isDebug
+}
+
+func (a *App) IsQuitting() bool {
+	return a.isQuitting
 }
 
 // startup is called when the app starts.
-func (a *App) startup(ctx context.Context) {
+func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 	a.isQuitting = false // 初始化状态
 
@@ -54,11 +73,11 @@ func (a *App) startup(ctx context.Context) {
 		if err != nil {
 			log.Printf("警告: 打开日志文件失败: %v", err)
 		} else {
-			fmt.Printf("运行模式: debug=%t, 日志文件路径: %s\n", IsDebug, logFilePath)
+			fmt.Printf("运行模式: debug=%t, 日志文件路径: %s\n", a.isDebug, logFilePath)
 			// 将日志输出重定向到文件
 			// 在开发模式下，我们希望日志同时输出到终端和文件
 			// 在生产模式下，只输出到文件
-			if IsDebug {
+			if a.isDebug {
 				// 同时写入文件和标准错误输出(即终端)
 				mw := io.MultiWriter(os.Stderr, logFile)
 				log.SetOutput(mw)
@@ -81,26 +100,77 @@ func (a *App) startup(ctx context.Context) {
 }
 
 // shutdown is called when the app terminates.
-func (a *App) shutdown(ctx context.Context) {
+func (a *App) Shutdown(ctx context.Context) {
+	log.Println("app shutdown")
 	// 优雅地关闭文件监控服务
 	if a.watcherSvc != nil {
 		a.watcherSvc.Stop()
 	}
 }
 
-func (b *App) beforeClose(_ context.Context) (prevent bool) {
-	selection, err := runtime.MessageDialog(b.ctx, runtime.MessageDialogOptions{
-		Title:         "Quit?",
-		Message:       "Are you sure you want to quit?",
-		Buttons:       []string{"Yes", "No"},
-		DefaultButton: "Yes",
-		CancelButton:  "No",
-	})
-	if err != nil {
+// OnBeforeClose is called when the user attempts to close the window.
+func (a *App) OnBeforeClose(ctx context.Context) (prevent bool) {
+	// 这个逻辑只在 macOS 上生效
+	if !a.isMacOS {
+		return false // 在 Windows/Linux 上，总是允许直接退出
+	}
+
+	// 检查通行令牌
+	if a.isQuitting {
+		// 如果是 ForceQuit 发起的，直接允许退出
 		return false
 	}
 
-	return selection != "Yes"
+	// 否则，是用户点击 'X'，发送事件并阻止退出
+	runtime.EventsEmit(ctx, "app:request-quit")
+	return true
+}
+
+func (a *App) Menu(appMenu *menu.Menu) {
+	fileMenu := appMenu.AddSubmenu("File")
+	if a.isMacOS {
+		// macOS 的标准退出选项
+		fileMenu.AddText("Quit DevTools", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
+			runtime.Quit(a.ctx)
+		})
+	} else {
+		// Windows/Linux 的标准退出选项
+		fileMenu.AddText("Exit", keys.OptionOrAlt("f4"), func(_ *menu.CallbackData) {
+			runtime.Quit(a.ctx)
+		})
+	}
+	// 创建 "View" (视图) 子菜单来处理缩放
+	viewMenu := appMenu.AddSubmenu("View")
+
+	var zoomInAccelerator *keys.Accelerator
+	var zoomOutAccelerator *keys.Accelerator
+
+	if a.isMacOS {
+		// 在 macOS 上，使用标准的 +/- 快捷键
+		// 注意: '+' 键通常需要 Shift，所以我们绑定 '=' 键，并显示为 '+'
+		zoomInAccelerator = keys.CmdOrCtrl("+")
+		zoomOutAccelerator = keys.CmdOrCtrl("-")
+	} else {
+		// 在 Windows/Linux 上，使用不会与浏览器冲突的 [ 和 ] 快捷键
+		zoomInAccelerator = keys.CmdOrCtrl("]")
+		zoomOutAccelerator = keys.CmdOrCtrl("[")
+	}
+
+	// 为 "Zoom Out" (缩小) 添加菜单项和快捷键
+	viewMenu.AddText("Zoom Out", zoomOutAccelerator, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(a.ctx, "zoom_change", "small")
+	})
+
+	// 为 "Zoom In" (放大) 添加菜单项和快捷键
+	viewMenu.AddText("Zoom In", zoomInAccelerator, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(a.ctx, "zoom_change", "large")
+	})
+
+	// 为 "Actual Size" (重置) 添加菜单项和快捷键
+	resetZoomAccelerator := keys.CmdOrCtrl("0")
+	viewMenu.AddText("Actual Size", resetZoomAccelerator, func(_ *menu.CallbackData) {
+		runtime.EventsEmit(a.ctx, "zoom_change", "default")
+	})
 }
 
 // --- 配置管理方法 ---

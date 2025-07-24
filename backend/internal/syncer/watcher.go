@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"devtools/internal/types"
+	"devtools/backend/internal/types"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/wailsapp/wails/v2/pkg/runtime"

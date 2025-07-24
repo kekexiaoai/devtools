@@ -4,7 +4,7 @@ import {
   SaveSyncPair,
   DeleteSyncPair,
   SelectDirectory,
-} from '../../../wailsjs/go/main/App'
+} from '../../../wailsjs/go/backend/App'
 import { types } from '../../../wailsjs/go/models'
 
 import { Button } from '@/components/ui/button'

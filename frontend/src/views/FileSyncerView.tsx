@@ -15,7 +15,7 @@ import {
   SelectFile,
   StartWatching,
   StopWatching,
-} from '../../wailsjs/go/main/App'
+} from '../../wailsjs/go/backend/App'
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime'

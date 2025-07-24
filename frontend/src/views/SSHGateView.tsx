@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { types } from '../../wailsjs/go/models'
 import { useDialog } from '@/hooks/useDialog'
-import { GetSSHHosts } from '../../wailsjs/go/main/App'
+import { GetSSHHosts } from '../../wailsjs/go/backend/App'
 
 export function SSHGateView() {
   const [hosts, setHosts] = useState<types.SSHHost[]>([])

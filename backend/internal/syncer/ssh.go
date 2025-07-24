@@ -16,7 +16,7 @@ import (
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 
-	"devtools/internal/types"
+	"devtools/backend/internal/types"
 )
 
 func getSSHAuthMethod(cfg types.SSHConfig) (ssh.AuthMethod, error) {

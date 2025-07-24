@@ -19,7 +19,7 @@ import ReactJson from 'react-json-view'
 import { EditorView } from '@codemirror/view'
 
 // --- 导入 Wails 原生对话框 ---
-// import { ShowErrorDialog, ShowInfoDialog } from '../../wailsjs/go/main/App'
+// import { ShowErrorDialog, ShowInfoDialog } from '../../wailsjs/go/backend/App'
 import { useDialog } from '@/hooks/useDialog'
 
 // React 组件就是一个函数

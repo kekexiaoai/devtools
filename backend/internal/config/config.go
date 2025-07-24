@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"devtools/internal/types"
+	"devtools/backend/internal/types"
 )
 
 type AppConfig struct {
