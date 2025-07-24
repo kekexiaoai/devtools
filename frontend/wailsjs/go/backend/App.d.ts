@@ -4,6 +4,8 @@ import {context} from '../models';
 import {types} from '../models';
 import {menu} from '../models';
 
+export function ConnectInTerminal(arg1:string):Promise<void>;
+
 export function Ctx():Promise<context.Context>;
 
 export function DeleteConfig(arg1:string):Promise<void>;

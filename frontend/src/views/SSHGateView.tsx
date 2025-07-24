@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 import { types } from '../../wailsjs/go/models'
 import { useDialog } from '@/hooks/useDialog'
-import { GetSSHHosts } from '../../wailsjs/go/backend/App'
+import { GetSSHHosts, ConnectInTerminal } from '../../wailsjs/go/backend/App'
+import { PlayCircle } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 
 export function SSHGateView() {
   const [hosts, setHosts] = useState<types.SSHHost[]>([])
@@ -27,6 +30,17 @@ export function SSHGateView() {
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const handleConnect = async (hostAlias: string) => {
+    try {
+      await ConnectInTerminal(hostAlias)
+    } catch (error) {
+      await showDialog({
+        title: 'Error',
+        message: `Failed to connect: ${String(error)}`,
+      })
+    }
+  }
   return (
     <div className="p-4 h-full">
       <h1 className="text-2xl font-bold mb-4">SSH Gate - Config Manager</h1>
@@ -39,17 +53,44 @@ export function SSHGateView() {
           ) : (
             <ul className="space-y-2">
               {hosts.map((host) => (
-                <li
-                  key={host.alias}
-                  className="p-4 bg-muted rounded-md flex justify-between items-center"
-                >
-                  <div>
-                    <p className="font-bold font-mono">{host.alias}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {host.user}@{host.hostName}
+                <Card key={host.alias} className="flex flex-col">
+                  <CardHeader>
+                    <CardTitle className="font-mono flex items-center justify-between">
+                      {host.alias}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        title={`Connect to ${host.alias}`}
+                        onClick={() => void handleConnect(host.alias)}
+                      >
+                        <PlayCircle className="h-5 w-5" />
+                      </Button>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-sm text-muted-foreground space-y-1 flex-grow">
+                    <p>
+                      <span className="font-semibold text-foreground">
+                        Host:
+                      </span>{' '}
+                      {host.hostName}
                     </p>
-                  </div>
-                </li>
+                    <p>
+                      <span className="font-semibold text-foreground">
+                        User:
+                      </span>{' '}
+                      {host.user}
+                    </p>
+                    {host.port && (
+                      <p>
+                        <span className="font-semibold text-foreground">
+                          Port:
+                        </span>{' '}
+                        {host.port}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
               ))}
             </ul>
           )}
