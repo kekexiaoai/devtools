@@ -18,6 +18,10 @@ export function GetConfigs() {
   return window['go']['main']['App']['GetConfigs']();
 }
 
+export function GetSSHHosts() {
+  return window['go']['main']['App']['GetSSHHosts']();
+}
+
 export function GetSyncPairs(arg1) {
   return window['go']['main']['App']['GetSyncPairs'](arg1);
 }

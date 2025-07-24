@@ -44,6 +44,26 @@ export namespace types {
 	        this.clipboardFilePath = source["clipboardFilePath"];
 	    }
 	}
+	export class SSHHost {
+	    alias: string;
+	    hostName: string;
+	    user: string;
+	    port: string;
+	    identityFile: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SSHHost(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.alias = source["alias"];
+	        this.hostName = source["hostName"];
+	        this.user = source["user"];
+	        this.port = source["port"];
+	        this.identityFile = source["identityFile"];
+	    }
+	}
 	export class SyncPair {
 	    id: string;
 	    configId: string;

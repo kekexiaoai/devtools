@@ -10,6 +10,8 @@ export function ForceQuit():Promise<void>;
 
 export function GetConfigs():Promise<Array<types.SSHConfig>>;
 
+export function GetSSHHosts():Promise<Array<types.SSHHost>>;
+
 export function GetSyncPairs(arg1:string):Promise<Array<types.SyncPair>>;
 
 export function LogFromFrontend(arg1:types.LogEntry):Promise<void>;

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/kevinburke/ssh_config"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"devtools/internal/config"
@@ -293,4 +294,62 @@ func (a *App) ForceQuit() {
 	// 在调用 Quit 之前，先设置状态标志
 	a.isQuitting = true
 	runtime.Quit(a.ctx)
+}
+
+// GetSSHHosts 解析用户的 ~/.ssh/config 文件并返回所有主机配置
+func (a *App) GetSSHHosts() ([]types.SSHHost, error) {
+	// 获取用户的主目录
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Printf("Error getting user home directory: %v", err)
+		return nil, fmt.Errorf("could not find user home directory")
+	}
+
+	// 构建 .ssh/config 文件的完整路径
+	sshConfigPath := filepath.Join(homeDir, ".ssh", "config")
+
+	// 打开文件
+	f, err := os.Open(sshConfigPath)
+	if err != nil {
+		// 如果文件不存在，这不是一个错误，只是说明用户没有配置。返回一个空列表。
+		if os.IsNotExist(err) {
+			log.Println("SSH config file does not exist, returning empty list.")
+			return []types.SSHHost{}, nil
+		}
+		log.Printf("Error opening ssh config file: %v", err)
+		return nil, fmt.Errorf("failed to open ssh config file: %w", err)
+	}
+	defer f.Close()
+
+	// 使用库来解析文件
+	cfg, err := ssh_config.Decode(f)
+	if err != nil {
+		log.Printf("Error decoding ssh config file: %v", err)
+		return nil, fmt.Errorf("failed to parse ssh config file: %w", err)
+	}
+
+	// 6. 将解析出的数据转换为我们自己的 SshHost 结构体
+	var hosts []types.SSHHost
+	for _, host := range cfg.Hosts {
+		// 我们只关心有明确别名（非通配符 '*'）的配置
+		if len(host.Patterns) > 0 && host.Patterns[0].String() != "*" {
+			// Handle cfg.Get return values
+			hostName, _ := cfg.Get(host.Patterns[0].String(), "HostName")
+			user, _ := cfg.Get(host.Patterns[0].String(), "User")
+			port, _ := cfg.Get(host.Patterns[0].String(), "Port")
+			identityFile, _ := cfg.Get(host.Patterns[0].String(), "IdentityFile")
+
+			newHost := types.SSHHost{
+				Alias:        host.Patterns[0].String(),
+				HostName:     hostName,
+				User:         user,
+				Port:         port,
+				IdentityFile: identityFile,
+			}
+			hosts = append(hosts, newHost)
+		}
+	}
+
+	log.Printf("Successfully parsed %d SSH hosts.", len(hosts))
+	return hosts, nil
 }

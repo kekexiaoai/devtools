@@ -3,6 +3,7 @@ import { DialogProvider } from './components/providers/DialogProvider'
 import { Sidebar } from './components/Sidebar'
 import { JsonToolsView } from './views/JsonToolsView'
 import { FileSyncerView } from './views/FileSyncerView'
+import { SSHGateView } from './views/SSHGateView'
 import { TitleBar } from './components/TitleBar'
 import {
   EventsOn,
@@ -31,8 +32,8 @@ import { useThemeDetector } from './hooks/useThemeDetector'
 
 const toolComponents = [
   { id: 'FileSyncer', component: FileSyncerView },
-
   { id: 'JsonTools', component: JsonToolsView },
+  { id: 'SshGate', component: SSHGateView },
 ]
 
 function App() {
