@@ -46,10 +46,6 @@ export function Menu(arg1) {
   return window['go']['backend']['App']['Menu'](arg1);
 }
 
-export function OnBeforeClose(arg1) {
-  return window['go']['backend']['App']['OnBeforeClose'](arg1);
-}
-
 export function SaveConfig(arg1) {
   return window['go']['backend']['App']['SaveConfig'](arg1);
 }

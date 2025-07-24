@@ -26,8 +26,6 @@ export function LogFromFrontend(arg1:types.LogEntry):Promise<void>;
 
 export function Menu(arg1:menu.Menu):Promise<void>;
 
-export function OnBeforeClose(arg1:context.Context):Promise<boolean>;
-
 export function SaveConfig(arg1:types.SSHConfig):Promise<void>;
 
 export function SaveSyncPair(arg1:types.SyncPair):Promise<void>;

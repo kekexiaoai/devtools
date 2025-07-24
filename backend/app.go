@@ -142,33 +142,41 @@ func (a *App) Menu(appMenu *menu.Menu) {
 	// 创建 "View" (视图) 子菜单来处理缩放
 	viewMenu := appMenu.AddSubmenu("View")
 
-	var zoomInAccelerator *keys.Accelerator
-	var zoomOutAccelerator *keys.Accelerator
+	var zoomInAccelerator, zoomOutAccelerator, resetZoomAccelerator *keys.Accelerator
+	var zoomInLabel, zoomOutLabel, resetZoomLabel string
 
 	if a.isMacOS {
-		// 在 macOS 上，使用标准的 +/- 快捷键
-		// 注意: '+' 键通常需要 Shift，所以我们绑定 '=' 键，并显示为 '+'
+		// 在 macOS 上，使用标准的 +/- 快捷键，标签会自动生成
 		zoomInAccelerator = keys.CmdOrCtrl("+")
 		zoomOutAccelerator = keys.CmdOrCtrl("-")
+		resetZoomAccelerator = keys.CmdOrCtrl("0")
+		zoomInLabel = "Zoom In"
+		zoomOutLabel = "Zoom Out"
+		resetZoomLabel = "Actual Size"
 	} else {
-		// 在 Windows/Linux 上，使用不会与浏览器冲突的 [ 和 ] 快捷键
+		// 在 Windows/Linux 上，使用不会冲突的 [ 和 ] 快捷键
 		zoomInAccelerator = keys.CmdOrCtrl("]")
 		zoomOutAccelerator = keys.CmdOrCtrl("[")
+		resetZoomAccelerator = keys.CmdOrCtrl("0")
+		// 并且我们手动在标签中加入快捷键提示
+		// \t 是一个制表符，它会自动将后面的文本推到右侧对齐
+		zoomInLabel = "Zoom In\tCtrl+]"
+		zoomOutLabel = "Zoom Out\tCtrl+["
+		resetZoomLabel = "Actual Size\tCtrl+0"
 	}
 
 	// 为 "Zoom Out" (缩小) 添加菜单项和快捷键
-	viewMenu.AddText("Zoom Out", zoomOutAccelerator, func(_ *menu.CallbackData) {
+	viewMenu.AddText(zoomOutLabel, zoomOutAccelerator, func(_ *menu.CallbackData) {
 		runtime.EventsEmit(a.ctx, "zoom_change", "small")
 	})
 
 	// 为 "Zoom In" (放大) 添加菜单项和快捷键
-	viewMenu.AddText("Zoom In", zoomInAccelerator, func(_ *menu.CallbackData) {
+	viewMenu.AddText(zoomInLabel, zoomInAccelerator, func(_ *menu.CallbackData) {
 		runtime.EventsEmit(a.ctx, "zoom_change", "large")
 	})
 
 	// 为 "Actual Size" (重置) 添加菜单项和快捷键
-	resetZoomAccelerator := keys.CmdOrCtrl("0")
-	viewMenu.AddText("Actual Size", resetZoomAccelerator, func(_ *menu.CallbackData) {
+	viewMenu.AddText(resetZoomLabel, resetZoomAccelerator, func(_ *menu.CallbackData) {
 		runtime.EventsEmit(a.ctx, "zoom_change", "default")
 	})
 }
