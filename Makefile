@@ -14,25 +14,25 @@ OUTPUT_DIR := build/bin # 建议将构建输出统一到 build/bin
 
 # --------- 帮助信息 -----------
 help:  ## 📜 显示所有可用命令（分类展示）
-	@echo "\n  使用 \033[36mmake <command>\033[0m 执行以下命令：\n"
+	@echo "  使用 \033[36mmake <command>\033[0m 执行以下命令：\n"
 	@echo " 🔧 Git Hooks 管理"
 	@grep -E '^(hooks|clean-hooks|show-hooks):.*?## ' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
-	@echo "\n 📦 项目安装与初始化"
+	@echo " 📦 项目安装与初始化"
 	@grep -E '^(install|install-frontend|install-wails):.*?## ' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
-	@echo "\n ✨ 代码检查与格式化"
+	@echo " ✨ 代码检查与格式化"
 	@grep -E '^(lint|format|format-check|lint-all):.*?## ' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
-	@echo "\n 🌐 前端独立命令"
+	@echo " 🌐 前端独立命令"
 	@grep -E '^(frontend-dev|frontend-build|frontend-preview):.*?## ' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
-	@echo "\n 🚀 Wails 集成命令"
+	@echo " 🚀 Wails 集成命令"
 	@grep -E '^(dev|build|preview):.*?## ' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 help-all:  ## 📜 显示所有可用命令
-	@echo "\n  使用 \033[36mmake <command>\033[0m 执行以下命令：\n\n"
+	@echo "  使用 \033[36mmake <command>\033[0m 执行以下命令："
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 

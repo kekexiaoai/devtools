@@ -16,19 +16,17 @@ export function SSHGateView() {
       try {
         const fetchedHosts = await GetSSHHosts()
         setHosts(fetchedHosts)
-        setIsLoading(false)
       } catch (error) {
         await showDialog({
           title: 'Error',
-          message: `Failed to load configurations: ${String(error)}`,
+          message: `Failed to load SSH hosts: ${String(error)}`,
         })
         setHosts([])
+      } finally {
         setIsLoading(false)
       }
     }
     void fetchHosts()
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleConnect = async (hostAlias: string) => {
@@ -41,15 +39,24 @@ export function SSHGateView() {
       })
     }
   }
+
   return (
-    <div className="p-4 h-full">
-      <h1 className="text-2xl font-bold mb-4">SSH Gate - Config Manager</h1>
+    <div className="p-4 h-full flex flex-col">
+      {/* 标题区域：flex-shrink-0 确保它不会被压缩 */}
+      <div className="flex-shrink-0">
+        <h1 className="text-2xl font-bold mb-2">SSH Gate</h1>
+        <p className="text-muted-foreground mb-4">
+          Manage hosts from `~/.ssh/config`
+        </p>
+      </div>
+
       {isLoading ? (
-        <p>Loading SSH hosts from ~/.ssh/config...</p>
+        <p>Loading SSH hosts...</p>
       ) : (
-        <div>
+        // 列表区域：flex-1 让它占据所有剩余空间，overflow-y-auto 使其可滚动
+        <div className="flex-1 overflow-y-auto pr-2">
           {hosts.length === 0 ? (
-            <p>No SSH hosts found in ~/.ssh/config.</p>
+            <p>No SSH hosts found.</p>
           ) : (
             <ul className="space-y-2">
               {hosts.map((host) => (

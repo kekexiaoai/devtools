@@ -6,7 +6,9 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
+	_runtime "runtime"
 	"time"
 
 	"github.com/kevinburke/ssh_config"
@@ -49,7 +51,7 @@ func (a *App) IsQuitting() bool {
 	return a.isQuitting
 }
 
-// startup is called when the app starts.
+// Startup is called when the app starts.
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 	a.isQuitting = false // 初始化状态
@@ -99,7 +101,7 @@ func (a *App) Startup(ctx context.Context) {
 	go a.watcherSvc.Start()
 }
 
-// shutdown is called when the app terminates.
+// Shutdown is called when the app terminates.
 func (a *App) Shutdown(ctx context.Context) {
 	log.Println("app shutdown")
 	// 优雅地关闭文件监控服务
@@ -277,7 +279,7 @@ func (a *App) StartWatching(configID string) error {
 	return nil
 }
 
-// 停止监控配置的所有目录
+// StopWatching 停止监控配置的所有目录
 func (a *App) StopWatching(configID string) error {
 	pairs := a.configManager.GetSyncPairsByConfigID(configID)
 	for _, pair := range pairs {
@@ -430,4 +432,30 @@ func (a *App) GetSSHHosts() ([]types.SSHHost, error) {
 
 	log.Printf("Successfully parsed %d SSH hosts.", len(hosts))
 	return hosts, nil
+}
+
+// ConnectInTerminal 在系统默认终端中打开一个 SSH 连接
+func (a *App) ConnectInTerminal(alias string) error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("could not get user home directory")
+	}
+	sshConfigPath := filepath.Join(homeDir, ".ssh", "config")
+
+	var cmd *exec.Cmd
+	if _runtime.GOOS == "darwin" {
+		// macOS 的命令
+		script := fmt.Sprintf(`tell app "Terminal" to do script "ssh %s"`, alias)
+		cmd = exec.Command("osascript", "-e", script)
+	} else if _runtime.GOOS == "windows" {
+		// Windows 的命令，使用 -F 参数指定配置文件
+		// wt.exe 是现代的 Windows Terminal, start cmd.exe 是备用方案
+		sshCmd := fmt.Sprintf("ssh -F %s %s", sshConfigPath, alias)
+		cmd = exec.Command("cmd.exe", "/c", "start", "wt.exe", "cmd.exe", "/k", sshCmd)
+	} else {
+		// Linux 的通用命令 (可能需要根据不同的发行版调整)
+		cmd = exec.Command("gnome-terminal", "--", "ssh", alias)
+	}
+
+	return cmd.Start()
 }
