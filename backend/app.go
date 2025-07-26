@@ -6,17 +6,15 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
-	_runtime "runtime"
 	"time"
 
-	"github.com/kevinburke/ssh_config"
 	"github.com/wailsapp/wails/v2/pkg/menu"
 	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"devtools/backend/internal/config"
+	"devtools/backend/internal/sshmanager"
 	"devtools/backend/internal/syncer"
 	"devtools/backend/internal/types"
 )
@@ -26,6 +24,7 @@ type App struct {
 	ctx           context.Context
 	configManager *config.ConfigManager
 	watcherSvc    *syncer.WatcherService
+	sshManager    *sshmanager.Manager
 	isQuitting    bool // 内部状态标志
 	isDebug       bool
 	isMacOS       bool
@@ -94,6 +93,11 @@ func (a *App) Startup(ctx context.Context) {
 	a.configManager = config.NewConfigManager(configPath)
 	if err := a.configManager.Load(); err != nil {
 		log.Printf("警告: 加载配置文件失败 (可能是首次运行): %v", err)
+	}
+
+	a.sshManager, err = sshmanager.NewManager("")
+	if err != nil {
+		log.Printf("警告: 初始化 SSH 配置管理器失败: %v", err)
 	}
 
 	// 初始化并启动文件监控服务
@@ -376,86 +380,27 @@ func (a *App) ForceQuit() {
 	runtime.Quit(a.ctx)
 }
 
-// GetSSHHosts 解析用户的 ~/.ssh/config 文件并返回所有主机配置
+// / GetSSHHosts 调用 internal/sshconfig 的实现
 func (a *App) GetSSHHosts() ([]types.SSHHost, error) {
-	// 获取用户的主目录
-	homeDir, err := os.UserHomeDir()
+	// 直接调用内部管理器的方法
+	hosts, err := a.sshManager.GetSSHHosts()
 	if err != nil {
-		log.Printf("Error getting user home directory: %v", err)
-		return nil, fmt.Errorf("could not find user home directory")
+		// 可以在这里添加应用层的日志记录
+		log.Printf("App: Error getting SSH hosts: %v", err)
+		return nil, err // 错误已经被内部封装过了
 	}
-
-	// 构建 .ssh/config 文件的完整路径
-	sshConfigPath := filepath.Join(homeDir, ".ssh", "config")
-
-	// 打开文件
-	f, err := os.Open(sshConfigPath)
-	if err != nil {
-		// 如果文件不存在，这不是一个错误，只是说明用户没有配置。返回一个空列表。
-		if os.IsNotExist(err) {
-			log.Println("SSH config file does not exist, returning empty list.")
-			return []types.SSHHost{}, nil
-		}
-		log.Printf("Error opening ssh config file: %v", err)
-		return nil, fmt.Errorf("failed to open ssh config file: %w", err)
-	}
-	defer f.Close()
-
-	// 使用库来解析文件
-	cfg, err := ssh_config.Decode(f)
-	if err != nil {
-		log.Printf("Error decoding ssh config file: %v", err)
-		return nil, fmt.Errorf("failed to parse ssh config file: %w", err)
-	}
-
-	// 6. 将解析出的数据转换为我们自己的 SshHost 结构体
-	var hosts []types.SSHHost
-	for _, host := range cfg.Hosts {
-		// 我们只关心有明确别名（非通配符 '*'）的配置
-		if len(host.Patterns) > 0 && host.Patterns[0].String() != "*" {
-			// Handle cfg.Get return values
-			hostName, _ := cfg.Get(host.Patterns[0].String(), "HostName")
-			user, _ := cfg.Get(host.Patterns[0].String(), "User")
-			port, _ := cfg.Get(host.Patterns[0].String(), "Port")
-			identityFile, _ := cfg.Get(host.Patterns[0].String(), "IdentityFile")
-
-			newHost := types.SSHHost{
-				Alias:        host.Patterns[0].String(),
-				HostName:     hostName,
-				User:         user,
-				Port:         port,
-				IdentityFile: identityFile,
-			}
-			hosts = append(hosts, newHost)
-		}
-	}
-
-	log.Printf("Successfully parsed %d SSH hosts.", len(hosts))
+	log.Printf("App: Successfully retrieved %d SSH hosts.", len(hosts))
 	return hosts, nil
 }
 
-// ConnectInTerminal 在系统默认终端中打开一个 SSH 连接
+// ConnectInTerminal 调用 internal/sshconfig 的实现
 func (a *App) ConnectInTerminal(alias string) error {
-	homeDir, err := os.UserHomeDir()
+	// 直接调用内部管理器的方法
+	err := a.sshManager.ConnectInTerminal(alias)
 	if err != nil {
-		return fmt.Errorf("could not get user home directory")
+		// 可以在这里添加应用层的日志记录
+		log.Printf("App: Error connecting to %s: %v", alias, err)
+		return err // 错误已经被内部封装过了
 	}
-	sshConfigPath := filepath.Join(homeDir, ".ssh", "config")
-
-	var cmd *exec.Cmd
-	if _runtime.GOOS == "darwin" {
-		// macOS 的命令
-		script := fmt.Sprintf(`tell app "Terminal" to do script "ssh %s"`, alias)
-		cmd = exec.Command("osascript", "-e", script)
-	} else if _runtime.GOOS == "windows" {
-		// Windows 的命令，使用 -F 参数指定配置文件
-		// wt.exe 是现代的 Windows Terminal, start cmd.exe 是备用方案
-		sshCmd := fmt.Sprintf("ssh -F %s %s", sshConfigPath, alias)
-		cmd = exec.Command("cmd.exe", "/c", "start", "wt.exe", "cmd.exe", "/k", sshCmd)
-	} else {
-		// Linux 的通用命令 (可能需要根据不同的发行版调整)
-		cmd = exec.Command("gnome-terminal", "--", "ssh", alias)
-	}
-
-	return cmd.Start()
+	return nil
 }

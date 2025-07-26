@@ -15,6 +15,7 @@ export function SSHGateView() {
     const fetchHosts = async () => {
       try {
         const fetchedHosts = await GetSSHHosts()
+        console.log('fetchedHosts', fetchedHosts)
         setHosts(fetchedHosts)
       } catch (error) {
         await showDialog({
@@ -27,6 +28,7 @@ export function SSHGateView() {
       }
     }
     void fetchHosts()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleConnect = async (hostAlias: string) => {
@@ -55,7 +57,7 @@ export function SSHGateView() {
       ) : (
         // 列表区域：flex-1 让它占据所有剩余空间，overflow-y-auto 使其可滚动
         <div className="flex-1 overflow-y-auto pr-2">
-          {hosts.length === 0 ? (
+          {hosts?.length === 0 ? (
             <p>No SSH hosts found.</p>
           ) : (
             <ul className="space-y-2">
