@@ -178,12 +178,13 @@ export function JsonToolsView() {
             <label className="mb-1 text-sm font-semibold text-foreground">
               Input
             </label>
-            <div className="flex-grow w-full border rounded-md overflow-hidden">
+            <div className="flex-grow w-full border rounded-md overflow-y-auto">
               <CodeMirror
                 value={input}
                 height="100%"
                 extensions={codemirrorExtensions}
                 onChange={handleInputChange}
+                theme={isDarkMode ? 'dark' : 'light'}
                 basicSetup={{
                   foldGutter: true,
                   dropCursor: true,

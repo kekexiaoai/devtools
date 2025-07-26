@@ -18,6 +18,8 @@ export function ForceQuit():Promise<void>;
 
 export function GetConfigs():Promise<Array<types.SSHConfig>>;
 
+export function GetSSHConfigFileContent():Promise<string>;
+
 export function GetSSHHosts():Promise<Array<types.SSHHost>>;
 
 export function GetSyncPairs(arg1:string):Promise<Array<types.SyncPair>>;
@@ -33,6 +35,8 @@ export function Menu(arg1:menu.Menu):Promise<void>;
 export function ReloadSSHHosts():Promise<void>;
 
 export function SaveConfig(arg1:types.SSHConfig):Promise<void>;
+
+export function SaveSSHConfigFileContent(arg1:string):Promise<void>;
 
 export function SaveSSHHost(arg1:types.SSHHost):Promise<void>;
 

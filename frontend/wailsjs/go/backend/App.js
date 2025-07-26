@@ -30,6 +30,10 @@ export function GetConfigs() {
   return window['go']['backend']['App']['GetConfigs']();
 }
 
+export function GetSSHConfigFileContent() {
+  return window['go']['backend']['App']['GetSSHConfigFileContent']();
+}
+
 export function GetSSHHosts() {
   return window['go']['backend']['App']['GetSSHHosts']();
 }
@@ -60,6 +64,10 @@ export function ReloadSSHHosts() {
 
 export function SaveConfig(arg1) {
   return window['go']['backend']['App']['SaveConfig'](arg1);
+}
+
+export function SaveSSHConfigFileContent(arg1) {
+  return window['go']['backend']['App']['SaveSSHConfigFileContent'](arg1);
 }
 
 export function SaveSSHHost(arg1) {

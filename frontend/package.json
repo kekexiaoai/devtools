@@ -46,6 +46,8 @@
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
+    "@codemirror/language": "^6.11.2",
+    "@codemirror/legacy-modes": "^6.5.1",
     "@tailwindcss/postcss": "^4.1.11",
     "@types/node": "^24.0.10",
     "@types/react": "^19.1.8",

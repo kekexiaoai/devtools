@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 
 	"devtools/backend/internal/types"
@@ -215,6 +216,52 @@ func (m *Manager) DeleteHost(hostname string) error {
 		return fmt.Errorf("failed to save config after deleting host: %w", err)
 	}
 
+	return nil
+}
+
+// GetRawContent 读取并返回配置文件的原始字符串内容
+func (m *Manager) GetRawContent() (string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	data, err := os.ReadFile(m.configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil // 文件不存在，返回空字符串是正常行为
+		}
+		return "", fmt.Errorf("failed to read ssh config content: %w", err)
+	}
+	return string(data), nil
+}
+
+// SaveRawContent 校验并保存完整的配置文件内容
+func (m *Manager) SaveRawContent(content string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// 在保存前，先进行一次基本的语法校验
+	validator := sshconfig.NewConfigValidator(strings.Split(content, "\n"))
+	if err := validator.Validate(); err != nil {
+		return fmt.Errorf("SSH config validation failed: %w", err)
+	}
+
+	// 覆写文件
+	if err := os.WriteFile(m.configPath, []byte(content), 0600); err != nil {
+		return fmt.Errorf("failed to write raw ssh config: %w", err)
+	}
+	log.Printf("SSH config file %s has been updated.", m.configPath)
+
+	// 写回成功后，必须重新加载内存中的 manager，以保证数据同步
+	return m.reload()
+}
+
+// reload 是一个内部方法，用于在不释放锁的情况下重新加载配置
+func (m *Manager) reload() error {
+	newManager, err := sshconfig.NewManager(m.configPath)
+	if err != nil {
+		return fmt.Errorf("failed to reload config from %s: %w", m.configPath, err)
+	}
+	m.manager = newManager
 	return nil
 }
 

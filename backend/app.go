@@ -436,3 +436,13 @@ func (a *App) DeleteSSHHost(alias string) error {
 func (a *App) ReloadSSHHosts() error {
 	return a.sshManager.Reload()
 }
+
+// GetSSHConfigFileContent 获取SSH配置文件的原始内容
+func (a *App) GetSSHConfigFileContent() (string, error) {
+	return a.sshManager.GetRawContent()
+}
+
+// SaveSSHConfigFileContent 保存SSH配置文件的原始内容
+func (a *App) SaveSSHConfigFileContent(content string) error {
+	return a.sshManager.SaveRawContent(content)
+}
