@@ -52,7 +52,7 @@ func NewManager(configPath string) (*Manager, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to get home dir: %w", err)
 		}
-	
+
 		configPath = filepath.Join(homeDir, ".ssh", "config")
 	}
 
@@ -183,6 +183,15 @@ func (m *Manager) AddHost(hostname string) error {
 		return fmt.Errorf("failed to save config after adding host: %w", err)
 	}
 
+	return nil
+}
+
+func (m *Manager) HasHost(hostname string) bool {
+	return m.manager.HasHost(hostname)
+}
+
+func (m *Manager) AddHostWithParams(req HostUpdateRequest) error {
+	
 	return nil
 }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import type { types } from '../../../wailsjs/go/models'
+import type { types } from '@wailsjs/go/models'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,7 +30,7 @@ import {
 import {
   SaveConfig,
   UpdateRemoteFileFromClipboard,
-} from '../../../wailsjs/go/backend/App'
+} from '@wailsjs/go/backend/App'
 import { useDialog } from '@/hooks/useDialog'
 import { DialogDescription } from '@radix-ui/react-dialog'
 

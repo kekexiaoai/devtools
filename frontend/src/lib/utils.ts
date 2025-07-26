@@ -6,8 +6,8 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // 从 Wails 自动生成的文件中导入 LogFromFrontend 和 LogEntry 类型
-import { LogFromFrontend } from '../../wailsjs/go/backend/App'
-import { types } from '../../wailsjs/go/models'
+import { LogFromFrontend } from '@wailsjs/go/backend/App'
+import { types } from '@wailsjs/go/models'
 
 type LogLevel = 'INFO' | 'WARN' | 'ERROR'
 

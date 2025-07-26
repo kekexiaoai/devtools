@@ -1,4 +1,4 @@
-import type { types } from '../../../wailsjs/go/models'
+import type { types } from '@wailsjs/go/models'
 import ClipboardTool from './ClipboardTool'
 import { SyncPairsManager } from './SyncPairsManager'
 

@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { PencilIcon, TrashIcon } from 'lucide-react'
-import type { types } from '../../../wailsjs/go/models'
+import type { types } from '@wailsjs/go/models'
 import { useState } from 'react'
 
 interface ConfigListProps {

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react'
-import { types } from '../../wailsjs/go/models'
+import { types } from '@wailsjs/go/models'
 import { Button } from './ui/button'
 
 interface logPanelProps {

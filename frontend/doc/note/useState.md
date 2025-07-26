@@ -13,7 +13,7 @@
 ```tsx
 // 在 App.tsx 中
 import { useState } from 'react'
-import type { types } from '../wailsjs/go/models'
+import type { types } from '@wailsjs/go/models'
 
 // ...
 const [logs, setLogs] = useState<types.LogEntry[]>([])

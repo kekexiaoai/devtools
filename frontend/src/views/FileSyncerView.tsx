@@ -2,11 +2,11 @@
 import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import { useDialog } from '../hooks/useDialog'
 
-import { ConfigList } from '../components/filesyncer/ConfigList'
-import { ConfigDetail } from '../components/filesyncer/ConfigDetail'
+import { ConfigList } from '@/components/filesyncer/ConfigList'
+import { ConfigDetail } from '@/components/filesyncer/ConfigDetail'
 import { LogPanel } from '@/components/logPanel'
 
-import type { types } from '../../wailsjs/go/models'
+import type { types } from '@wailsjs/go/models'
 import {
   DeleteConfig,
   GetConfigs,
@@ -15,10 +15,10 @@ import {
   SelectFile,
   StartWatching,
   StopWatching,
-} from '../../wailsjs/go/backend/App'
+} from '@wailsjs/go/backend/App'
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime'
+import { EventsOn, EventsOff } from '@wailsjs/runtime/runtime'
 
 import {
   Dialog,

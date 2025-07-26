@@ -4,16 +4,16 @@ import { Sidebar } from './components/Sidebar'
 import { JsonToolsView } from './views/JsonToolsView'
 import { FileSyncerView } from './views/FileSyncerView'
 import { SSHGateView } from './views/SSHGateView'
-import { TitleBar } from './components/TitleBar'
+import { TitleBar } from '@/components/TitleBar'
 import {
   EventsOn,
   WindowIsFullscreen,
   Environment,
-} from '../wailsjs/runtime/runtime'
+} from '@wailsjs/runtime/runtime'
 
 import type { UiScale } from './types'
-import { ForceQuit } from '../wailsjs/go/backend/App'
-import { logToServer } from './lib/utils'
+import { ForceQuit } from '@wailsjs/go/backend/App'
+import { logToServer } from '@/lib/utils'
 import {
   AlertDialog,
   AlertDialogAction,

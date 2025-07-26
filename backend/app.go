@@ -404,3 +404,35 @@ func (a *App) ConnectInTerminal(alias string) error {
 	}
 	return nil
 }
+
+// SaveSSHHost 保存（新增或更新）一个 SSH 主机配置
+func (a *App) SaveSSHHost(host types.SSHHost) error {
+	// 我们的 sshmanager 期望的是一个包含所有参数的 map
+	// 我们需要将 types.SSHHost 转换为它需要的格式
+	params := make(map[string]string)
+	params["HostName"] = host.HostName
+	params["User"] = host.User
+	params["Port"] = host.Port
+	params["IdentityFile"] = host.IdentityFile
+
+	updateReq := sshmanager.HostUpdateRequest{
+		Name:   host.Alias,
+		Params: params,
+	}
+
+	// 检查是新增还是更新
+	if a.sshManager.HasHost(host.Alias) {
+		return a.sshManager.UpdateHost(updateReq)
+	}
+	return a.sshManager.AddHostWithParams(updateReq) // 假设我们在 sshmanager 中增加一个更方便的方法
+}
+
+// DeleteSSHHost 删除一个 SSH 主机配置
+func (a *App) DeleteSSHHost(alias string) error {
+	return a.sshManager.DeleteHost(alias)
+}
+
+// ReloadSSHHosts 重新从文件加载所有 SSH 主机
+func (a *App) ReloadSSHHosts() error {
+	return a.sshManager.Reload()
+}

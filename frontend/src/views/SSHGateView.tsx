@@ -1,32 +1,39 @@
 import { useEffect, useState } from 'react'
-import { types } from '../../wailsjs/go/models'
+import { types } from '@wailsjs/go/models'
 import { useDialog } from '@/hooks/useDialog'
-import { GetSSHHosts, ConnectInTerminal } from '../../wailsjs/go/backend/App'
-import { PlayCircle } from 'lucide-react'
+import {
+  GetSSHHosts,
+  ConnectInTerminal,
+  DeleteSSHHost,
+} from '@wailsjs/go/backend/App'
+import { PlayCircle, Pencil, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { HostFormDialog } from '@/components/sshgate/HostFormDialog'
 
 export function SSHGateView() {
   const [hosts, setHosts] = useState<types.SSHHost[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const { showDialog } = useDialog()
 
-  useEffect(() => {
-    const fetchHosts = async () => {
-      try {
-        const fetchedHosts = await GetSSHHosts()
-        console.log('fetchedHosts', fetchedHosts)
-        setHosts(fetchedHosts)
-      } catch (error) {
-        await showDialog({
-          title: 'Error',
-          message: `Failed to load SSH hosts: ${String(error)}`,
-        })
-        setHosts([])
-      } finally {
-        setIsLoading(false)
-      }
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [editingHost, setEditingHost] = useState<types.SSHHost | null>(null)
+
+  const fetchHosts = async () => {
+    setIsLoading(true)
+    try {
+      const result = await GetSSHHosts()
+      setHosts(result)
+    } catch (error) {
+      await showDialog({
+        title: 'Error',
+        message: `Failed to load SSH hosts: ${String(error)}`,
+      })
+    } finally {
+      setIsLoading(false)
     }
+  }
+  useEffect(() => {
     void fetchHosts()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -41,6 +48,39 @@ export function SSHGateView() {
       })
     }
   }
+  const handleOpenNew = () => {
+    setEditingHost(null)
+    setIsFormOpen(true)
+  }
+
+  const handleOpenEdit = (host: types.SSHHost) => {
+    setEditingHost(host)
+    setIsFormOpen(true)
+  }
+
+  const handleDelete = async (alias: string) => {
+    const choice = await showDialog({
+      type: 'confirm',
+      title: 'Confirm Deletion',
+      message: `Are you sure you want to delete the host "${alias}"?`,
+      buttons: [
+        { text: 'Cancel', variant: 'outline', value: 'cancel' },
+        { text: 'Yes, Delete', variant: 'destructive', value: 'yes' },
+      ],
+    })
+    if (choice !== 'yes') return
+
+    try {
+      await DeleteSSHHost(alias)
+      await fetchHosts()
+    } catch (error) {
+      await showDialog({
+        type: 'error',
+        title: 'Error',
+        message: `Failed to delete host: ${String(error)}`,
+      })
+    }
+  }
 
   return (
     <div className="p-4 h-full flex flex-col">
@@ -51,6 +91,7 @@ export function SSHGateView() {
           Manage hosts from `~/.ssh/config`
         </p>
       </div>
+      <Button onClick={handleOpenNew}>+ Add Host</Button>
 
       {isLoading ? (
         <p>Loading SSH hosts...</p>
@@ -67,11 +108,26 @@ export function SSHGateView() {
                     <CardTitle className="font-mono flex items-center justify-between">
                       {host.alias}
                       <Button
+                        onClick={() => handleOpenEdit(host)}
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        title={`Connect to ${host.alias}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        onClick={() => void handleDelete(host.alias)}
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                      <Button
                         onClick={() => void handleConnect(host.alias)}
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
                       >
                         <PlayCircle className="h-5 w-5" />
                       </Button>
@@ -105,6 +161,12 @@ export function SSHGateView() {
           )}
         </div>
       )}
+      <HostFormDialog
+        host={editingHost}
+        isOpen={isFormOpen}
+        onOpenChange={setIsFormOpen}
+        onSave={() => void fetchHosts()}
+      />
     </div>
   )
 }

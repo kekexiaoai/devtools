@@ -10,6 +10,8 @@ export function Ctx():Promise<context.Context>;
 
 export function DeleteConfig(arg1:string):Promise<void>;
 
+export function DeleteSSHHost(arg1:string):Promise<void>;
+
 export function DeleteSyncPair(arg1:string):Promise<void>;
 
 export function ForceQuit():Promise<void>;
@@ -28,7 +30,11 @@ export function LogFromFrontend(arg1:types.LogEntry):Promise<void>;
 
 export function Menu(arg1:menu.Menu):Promise<void>;
 
+export function ReloadSSHHosts():Promise<void>;
+
 export function SaveConfig(arg1:types.SSHConfig):Promise<void>;
+
+export function SaveSSHHost(arg1:types.SSHHost):Promise<void>;
 
 export function SaveSyncPair(arg1:types.SyncPair):Promise<void>;
 

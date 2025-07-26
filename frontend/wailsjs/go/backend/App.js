@@ -14,6 +14,10 @@ export function DeleteConfig(arg1) {
   return window['go']['backend']['App']['DeleteConfig'](arg1);
 }
 
+export function DeleteSSHHost(arg1) {
+  return window['go']['backend']['App']['DeleteSSHHost'](arg1);
+}
+
 export function DeleteSyncPair(arg1) {
   return window['go']['backend']['App']['DeleteSyncPair'](arg1);
 }
@@ -50,8 +54,16 @@ export function Menu(arg1) {
   return window['go']['backend']['App']['Menu'](arg1);
 }
 
+export function ReloadSSHHosts() {
+  return window['go']['backend']['App']['ReloadSSHHosts']();
+}
+
 export function SaveConfig(arg1) {
   return window['go']['backend']['App']['SaveConfig'](arg1);
+}
+
+export function SaveSSHHost(arg1) {
+  return window['go']['backend']['App']['SaveSSHHost'](arg1);
 }
 
 export function SaveSyncPair(arg1) {

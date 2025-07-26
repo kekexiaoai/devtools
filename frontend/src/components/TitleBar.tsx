@@ -1,5 +1,5 @@
 import { UiScale } from '@/types'
-import { WindowToggleMaximise } from '../../wailsjs/runtime/runtime'
+import { WindowToggleMaximise } from '@wailsjs/runtime/runtime'
 import { SettingsControl } from './SettingsControl'
 
 interface TitleBarProps {
