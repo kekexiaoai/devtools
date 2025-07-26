@@ -271,17 +271,20 @@ function RawEditor({ onDataChange }: { onDataChange: () => void }) {
   return (
     //  容器设为 flex-1，让它在父级 Flex 容器中伸展
     //    relative 用于定位内部的“保存”按钮
-    <div className="flex-1 relative border rounded-md">
+    <div className="flex-1 relative">
       {/* CodeMirror 的 height="100%" 会让它填满这个容器，
            其内部的滚动条现在可以正常工作了
       */}
-      <CodeMirror
-        value={content}
-        onChange={onChange}
-        extensions={extensions}
-        height="100%"
-        theme={isDarkMode ? 'dark' : 'light'}
-      />
+      <div className="absolute inset-0 border rounded-md overflow-y-auto">
+        <CodeMirror
+          value={content}
+          onChange={onChange}
+          extensions={extensions}
+          height="100%"
+          theme={isDarkMode ? 'dark' : 'light'}
+        />
+      </div>
+
       {isDirty && (
         <Button
           size="sm"
