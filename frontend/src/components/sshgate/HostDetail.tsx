@@ -44,6 +44,14 @@ export function HostDetail({
             >
               <Trash2 className="h-4 w-4" />
             </Button>
+            <Button
+              onClick={() => onConnect(host.alias)}
+              variant="ghost"
+              size="icon"
+              title="Connect"
+            >
+              <PlayCircle className="h-5 w-5" />
+            </Button>
           </div>
         </div>
       </CardHeader>
@@ -68,11 +76,6 @@ export function HostDetail({
             <p className="font-mono truncate">{host.identityFile}</p>
           </div>
         )}
-        <div className="pt-4">
-          <Button onClick={() => onConnect(host.alias)} className="w-full">
-            <PlayCircle className="mr-2 h-5 w-5" /> Connect
-          </Button>
-        </div>
       </CardContent>
     </Card>
   )
