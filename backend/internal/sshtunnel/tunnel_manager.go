@@ -6,10 +6,14 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
 	"devtools/backend/internal/sshmanager"
+	"devtools/backend/internal/types"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
@@ -42,24 +46,29 @@ func NewManager(ctx context.Context, sshMgr *sshmanager.Manager) *Manager {
 	}
 }
 
-// --- 教学：核心功能实现 - 本地端口转发 (-L) ---
+// --- 核心功能实现 - 本地端口转发 (-L) ---
 
 // StartLocalForward 启动一个本地端口转发隧道
-func (m *Manager) StartLocalForward(alias string, localPort int, remoteHost string, remotePort int) (string, error) {
+func (m *Manager) StartLocalForward(alias string, localPort int, remoteHost string, remotePort int, password string) (string, error) {
 	// 获取主机的 SSH 配置
 	host, err := m.sshManager.GetSSHHost(alias)
 	if err != nil {
 		return "", fmt.Errorf("could not find host config for alias '%s': %w", alias, err)
 	}
 
-	// 建立 SSH 连接 (这里是简化的，我们稍后会融入密钥和密码逻辑)
+	// 使用新的辅助函数来获取认证方法
+	authMethods, err := m.getSSHAuthMethods(host, password)
+	if err != nil {
+		return "", err
+	}
+
 	sshConfig := &ssh.ClientConfig{
-		User: host.User,
-		// TODO: 在下一阶段，这里将集成 IdentityFile 和从钥匙串获取的密码
-		Auth:            []ssh.AuthMethod{ /* ... */ },
+		User:            host.User,
+		Auth:            authMethods,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         10 * time.Second,
 	}
+
 	serverAddr := fmt.Sprintf("%s:%s", host.HostName, host.Port)
 	sshClient, err := ssh.Dial("tcp", serverAddr, sshConfig)
 	if err != nil {
@@ -96,6 +105,46 @@ func (m *Manager) StartLocalForward(alias string, localPort int, remoteHost stri
 	go m.runTunnel(tunnel, ctx)
 
 	return tunnelID, nil
+}
+
+// getSSHAuthMethods 智能地构建认证方法列表
+func (m *Manager) getSSHAuthMethods(host *types.SSHHost, password string) ([]ssh.AuthMethod, error) {
+	var authMethods []ssh.AuthMethod
+
+	// 如果用户在本次操作中提供了密码，优先使用它
+	if password != "" {
+		authMethods = append(authMethods, ssh.Password(password))
+	}
+
+	// 尝试使用 IdentityFile (密钥文件)
+	if host.IdentityFile != "" {
+		// 展开路径中的 ~
+		identityFilePath := host.IdentityFile
+		if strings.HasPrefix(identityFilePath, "~") {
+			homeDir, err := os.UserHomeDir()
+			if err == nil {
+				identityFilePath = filepath.Join(homeDir, identityFilePath[1:])
+			}
+		}
+
+		key, err := os.ReadFile(identityFilePath)
+		if err == nil {
+			signer, err := ssh.ParsePrivateKey(key)
+			if err == nil {
+				authMethods = append(authMethods, ssh.PublicKeys(signer))
+			} else {
+				log.Printf("Warning: Failed to parse private key %s: %v", host.IdentityFile, err)
+			}
+		} else {
+			log.Printf("Warning: Failed to read private key file %s: %v", host.IdentityFile, err)
+		}
+	}
+
+	if len(authMethods) == 0 {
+		return nil, fmt.Errorf("no valid authentication method available (no password provided and key file is invalid or missing)")
+	}
+
+	return authMethods, nil
 }
 
 // runTunnel 是每个隧道的主循环，负责接受连接并转发数据

@@ -452,8 +452,8 @@ func (a *App) SaveSSHConfigFileContent(content string) error {
 }
 
 // StartLocalForward 启动一个本地端口转发
-func (a *App) StartLocalForward(alias string, localPort int, remoteHost string, remotePort int) (string, error) {
-	return a.tunnelManager.StartLocalForward(alias, localPort, remoteHost, remotePort)
+func (a *App) StartLocalForward(alias string, localPort int, remoteHost string, remotePort int, password string) (string, error) {
+	return a.tunnelManager.StartLocalForward(alias, localPort, remoteHost, remotePort, password)
 }
 
 // StopForward 停止一个正在运行的隧道

@@ -106,8 +106,8 @@ export function Shutdown(arg1) {
   return window['go']['backend']['App']['Shutdown'](arg1);
 }
 
-export function StartLocalForward(arg1, arg2, arg3, arg4) {
-  return window['go']['backend']['App']['StartLocalForward'](arg1, arg2, arg3, arg4);
+export function StartLocalForward(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['backend']['App']['StartLocalForward'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function StartWatching(arg1) {

@@ -15,6 +15,7 @@ import { TabsContent } from '@radix-ui/react-tabs'
 import { Label } from '../ui/label'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
+import { Loader2 } from 'lucide-react'
 
 interface TunnelDialProps {
   host: types.SSHHost
@@ -31,7 +32,10 @@ export function TunnelDial(props: TunnelDialProps) {
     localPort: '',
     remotePort: '',
     remoteHost: 'localhost',
+    password: '',
   })
+
+  const [isStartingTunnel, setIsStartingTunnel] = useState(false)
 
   const handleStartLocalForward = async () => {
     // input validate
@@ -49,12 +53,15 @@ export function TunnelDial(props: TunnelDialProps) {
       })
     }
 
+    setIsStartingTunnel(true) // 进入加载状态
+
     try {
       const tunnelId = await StartLocalForward(
         host.alias,
         localPortNum,
         localForwardForm.remoteHost,
-        remotePortNum
+        remotePortNum,
+        localForwardForm.password
       )
       await showDialog({
         type: 'success',
@@ -68,12 +75,14 @@ export function TunnelDial(props: TunnelDialProps) {
         title: 'Error',
         message: `Failed to start local forward tunnel: ${String(error)}`,
       })
+    } finally {
+      setIsStartingTunnel(false) // 结束加载状态
     }
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[625px]">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
             SSH Tunnels for{' '}
@@ -154,6 +163,24 @@ export function TunnelDial(props: TunnelDialProps) {
                   className="col-span-3"
                 />
               </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="password" className="justify-self-end">
+                  Password
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="(Optional) Enter if no key file"
+                  value={localForwardForm.password}
+                  onChange={(e) =>
+                    setLocalForwardForm({
+                      ...localForwardForm,
+                      password: e.target.value,
+                    })
+                  }
+                  className="col-span-3"
+                />
+              </div>
             </div>
           </TabsContent>
           {/* 其它的tab内容稍后添加 */}
@@ -162,8 +189,14 @@ export function TunnelDial(props: TunnelDialProps) {
           <Button variant={'outline'} onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={() => void handleStartLocalForward()}>
-            Start Tunnel
+          <Button
+            onClick={() => void handleStartLocalForward()}
+            disabled={isStartingTunnel}
+          >
+            {isStartingTunnel && (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            )}
+            {isStartingTunnel ? 'Starting...' : 'Start Tunnel'}
           </Button>
         </DialogFooter>
       </DialogContent>

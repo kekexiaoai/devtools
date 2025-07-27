@@ -56,7 +56,7 @@ export function ShowInfoDialog(arg1:string,arg2:string):Promise<void>;
 
 export function Shutdown(arg1:context.Context):Promise<void>;
 
-export function StartLocalForward(arg1:string,arg2:number,arg3:string,arg4:number):Promise<string>;
+export function StartLocalForward(arg1:string,arg2:number,arg3:string,arg4:number,arg5:string):Promise<string>;
 
 export function StartWatching(arg1:string):Promise<void>;
 
