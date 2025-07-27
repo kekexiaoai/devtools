@@ -84,7 +84,7 @@ export function HostFormDialog(props: HostFormDialogProps) {
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="alias" className="text-right">
+            <Label htmlFor="alias" className="justify-self-end">
               Alias
             </Label>
             <Input
@@ -100,7 +100,7 @@ export function HostFormDialog(props: HostFormDialogProps) {
             ></Input>
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="hostName" className="text-right">
+            <Label htmlFor="hostName" className="justify-self-end">
               HostName
             </Label>
             <Input
@@ -115,7 +115,7 @@ export function HostFormDialog(props: HostFormDialogProps) {
             ></Input>
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="user" className="text-right">
+            <Label htmlFor="user" className="justify-self-end">
               User
             </Label>
             <Input
@@ -130,7 +130,7 @@ export function HostFormDialog(props: HostFormDialogProps) {
             ></Input>
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="port" className="text-right">
+            <Label htmlFor="port" className="justify-self-end">
               Port
             </Label>
             <Input
@@ -145,7 +145,7 @@ export function HostFormDialog(props: HostFormDialogProps) {
             ></Input>
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="identityFile" className="text-right">
+            <Label htmlFor="identityFile" className="justify-self-end">
               IdentityFile
             </Label>
             <Input

@@ -16,6 +16,8 @@ export function DeleteSyncPair(arg1:string):Promise<void>;
 
 export function ForceQuit():Promise<void>;
 
+export function GetActiveTunnels():Promise<Array<string>>;
+
 export function GetConfigs():Promise<Array<types.SSHConfig>>;
 
 export function GetSSHConfigFileContent():Promise<string>;
@@ -54,9 +56,13 @@ export function ShowInfoDialog(arg1:string,arg2:string):Promise<void>;
 
 export function Shutdown(arg1:context.Context):Promise<void>;
 
+export function StartLocalForward(arg1:string,arg2:number,arg3:string,arg4:number):Promise<string>;
+
 export function StartWatching(arg1:string):Promise<void>;
 
 export function Startup(arg1:context.Context):Promise<void>;
+
+export function StopForward(arg1:string):Promise<void>;
 
 export function StopWatching(arg1:string):Promise<void>;
 

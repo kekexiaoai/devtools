@@ -3,7 +3,7 @@ import { createContext, useContext } from 'react'
 export type DialogOptions = {
   title: string
   message: string
-  type?: 'info' | 'error' | 'confirm'
+  type?: 'info' | 'success' | 'error' | 'confirm'
   // 允许自定义按钮
   buttons?: {
     text: string

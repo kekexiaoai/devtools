@@ -26,6 +26,10 @@ export function ForceQuit() {
   return window['go']['backend']['App']['ForceQuit']();
 }
 
+export function GetActiveTunnels() {
+  return window['go']['backend']['App']['GetActiveTunnels']();
+}
+
 export function GetConfigs() {
   return window['go']['backend']['App']['GetConfigs']();
 }
@@ -102,12 +106,20 @@ export function Shutdown(arg1) {
   return window['go']['backend']['App']['Shutdown'](arg1);
 }
 
+export function StartLocalForward(arg1, arg2, arg3, arg4) {
+  return window['go']['backend']['App']['StartLocalForward'](arg1, arg2, arg3, arg4);
+}
+
 export function StartWatching(arg1) {
   return window['go']['backend']['App']['StartWatching'](arg1);
 }
 
 export function Startup(arg1) {
   return window['go']['backend']['App']['Startup'](arg1);
+}
+
+export function StopForward(arg1) {
+  return window['go']['backend']['App']['StopForward'](arg1);
 }
 
 export function StopWatching(arg1) {
