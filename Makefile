@@ -110,7 +110,7 @@ frontend-preview:  ## 🌐 预览前端生产版本
 # --------- Wails 集成开发命令 -----------
 dev: ## 🚀 启动 Wails 开发环境（前后端联动）
 	@echo "🚀 启动 Wails 开发模式..."
-	@wails dev
+	@wails dev -tags debug -loglevel Debug
 
 build: ## 📦 构建 Wails 生产版本
 	@echo "📦 构建 Wails 应用..."
