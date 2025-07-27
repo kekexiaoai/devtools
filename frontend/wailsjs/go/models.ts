@@ -96,6 +96,31 @@ export namespace menu {
 
 }
 
+export namespace sshtunnel {
+	
+	export class ActiveTunnelInfo {
+	    id: string;
+	    alias: string;
+	    type: string;
+	    localAddr: string;
+	    remoteAddr: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ActiveTunnelInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.alias = source["alias"];
+	        this.type = source["type"];
+	        this.localAddr = source["localAddr"];
+	        this.remoteAddr = source["remoteAddr"];
+	    }
+	}
+
+}
+
 export namespace types {
 	
 	export class LogEntry {

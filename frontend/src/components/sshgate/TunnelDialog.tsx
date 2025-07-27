@@ -61,7 +61,8 @@ export function TunnelDial(props: TunnelDialProps) {
         localPortNum,
         localForwardForm.remoteHost,
         remotePortNum,
-        localForwardForm.password
+        localForwardForm.password,
+        true
       )
       await showDialog({
         type: 'success',

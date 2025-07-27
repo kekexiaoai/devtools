@@ -397,17 +397,17 @@ func (a *App) GetSSHHosts() ([]types.SSHHost, error) {
 	return hosts, nil
 }
 
-// ConnectInTerminal 调用 internal/sshconfig 的实现
-func (a *App) ConnectInTerminal(alias string) error {
-	// 直接调用内部管理器的方法
-	err := a.sshManager.ConnectInTerminal(alias)
-	if err != nil {
-		// 可以在这里添加应用层的日志记录
-		log.Printf("App: Error connecting to %s: %v", alias, err)
-		return err // 错误已经被内部封装过了
-	}
-	return nil
-}
+// // ConnectInTerminal 调用 internal/sshconfig 的实现
+// func (a *App) ConnectInTerminal(alias string) error {
+// 	// 直接调用内部管理器的方法
+// 	err := a.sshManager.ConnectInTerminal(alias)
+// 	if err != nil {
+// 		// 可以在这里添加应用层的日志记录
+// 		log.Printf("App: Error connecting to %s: %v", alias, err)
+// 		return err // 错误已经被内部封装过了
+// 	}
+// 	return nil
+// }
 
 // SaveSSHHost 保存（新增或更新）一个 SSH 主机配置
 func (a *App) SaveSSHHost(host types.SSHHost) error {
@@ -451,18 +451,71 @@ func (a *App) SaveSSHConfigFileContent(content string) error {
 	return a.sshManager.SaveRawContent(content)
 }
 
-// StartLocalForward 启动一个本地端口转发
-func (a *App) StartLocalForward(alias string, localPort int, remoteHost string, remotePort int, password string) (string, error) {
-	return a.tunnelManager.StartLocalForward(alias, localPort, remoteHost, remotePort, password)
-}
-
 // StopForward 停止一个正在运行的隧道
 func (a *App) StopForward(tunnelID string) error {
 	return a.tunnelManager.StopForward(tunnelID)
 }
 
-// GetActiveTunnels 获取当前活动的隧道列表 (我们稍后实现)
-func (a *App) GetActiveTunnels() ([]string, error) {
-	// TODO
-	return []string{}, nil
+// GetActiveTunnels 获取当前活动的隧道列表
+func (a *App) GetActiveTunnels() []sshtunnel.ActiveTunnelInfo {
+	return a.tunnelManager.GetActiveTunnels()
+}
+
+// SavePasswordForAlias 将主机的密码安全地存储到系统钥匙串中
+func (a *App) SavePasswordForAlias(alias string, password string) error {
+	return a.sshManager.SavePasswordForAlias(alias, password)
+}
+
+// DeletePasswordForAlias 当用户删除主机配置时，也从钥匙串中删除密码
+func (a *App) DeletePasswordForAlias(alias string) error {
+	return a.sshManager.DeletePasswordForAlias(alias)
+}
+
+// StartTunnelWithPassword 接收前端提供的密码来完成隧道创建
+// 注意：我们将原有的 StartLocalForward 函数签名进行扩展
+func (a *App) StartLocalForward(alias string, localPort int, remoteHost string, remotePort int, password string, savePassword bool) (string, error) {
+	// 如果用户选择保存密码，则先保存
+	if savePassword && password != "" {
+		if err := a.SavePasswordForAlias(alias, password); err != nil {
+			// 记录警告，但继续尝试连接
+			log.Printf("Warning: failed to save password to keychain for host %s: %v", alias, err)
+		}
+	}
+	return a.tunnelManager.StartLocalForward(alias, localPort, remoteHost, remotePort, password)
+}
+
+// ConnectInTerminal 尝试无密码连接
+func (a *App) ConnectInTerminal(alias string) error {
+	// 先尝试不带密码获取配置（即使用密钥或钥匙串）
+	authConfig, err := a.sshManager.GetConnectionConfig(alias, "")
+	if err != nil {
+		// 如果返回需要密码的错误，则将该错误原封不动地传递给前端
+		if _, ok := err.(*types.PasswordRequiredError); ok {
+			return err
+		}
+		// 其他错误则正常报告
+		return fmt.Errorf("failed to get connection config: %w", err)
+	}
+
+	// 如果成功获取配置，则调用执行函数
+	return a.sshManager.ConnectInTerminalWithConfig(alias, authConfig)
+}
+
+// ConnectInTerminalWithPassword 接收密码来完成连接
+func (a *App) ConnectInTerminalWithPassword(alias string, password string, savePassword bool) error {
+	// 如果用户选择保存密码，则先保存
+	if savePassword && password != "" {
+		if err := a.sshManager.SavePasswordForAlias(alias, password); err != nil {
+			log.Printf("Warning: failed to save password to keychain for host %s: %v", alias, err)
+		}
+	}
+
+	// 使用用户提供的密码来获取配置
+	authConfig, err := a.sshManager.GetConnectionConfig(alias, password)
+	if err != nil {
+		return fmt.Errorf("failed to get connection config even with password: %w", err)
+	}
+
+	// 调用执行函数
+	return a.sshManager.ConnectInTerminalWithConfig(alias, authConfig)
 }

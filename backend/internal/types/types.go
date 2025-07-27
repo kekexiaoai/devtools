@@ -1,5 +1,7 @@
 package types
 
+import "fmt"
+
 type LogEntry struct {
 	Timestamp string `json:"timestamp"`
 	Level     string `json:"level"` // e.g., "SUCCESS", "ERROR", "INFO"
@@ -34,4 +36,14 @@ type SSHHost struct {
 	User         string `json:"user"`         // User, e.g., "root"
 	Port         string `json:"port"`         // Port, e.g., "22"
 	IdentityFile string `json:"identityFile"` // IdentityFile, e.g., "~/.ssh/id_rsa"
+}
+
+// PasswordRequiredError 表示连接因为需要密码而失败
+type PasswordRequiredError struct {
+	Alias string
+}
+
+func (e *PasswordRequiredError) Error() string {
+	// 这个错误信息字符串，将是我们前端用来判断错误类型的“暗号”
+	return fmt.Sprintf("password is required for host %s", e.Alias)
 }

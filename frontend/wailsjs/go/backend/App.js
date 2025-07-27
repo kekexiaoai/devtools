@@ -6,12 +6,20 @@ export function ConnectInTerminal(arg1) {
   return window['go']['backend']['App']['ConnectInTerminal'](arg1);
 }
 
+export function ConnectInTerminalWithPassword(arg1, arg2, arg3) {
+  return window['go']['backend']['App']['ConnectInTerminalWithPassword'](arg1, arg2, arg3);
+}
+
 export function Ctx() {
   return window['go']['backend']['App']['Ctx']();
 }
 
 export function DeleteConfig(arg1) {
   return window['go']['backend']['App']['DeleteConfig'](arg1);
+}
+
+export function DeletePasswordForAlias(arg1) {
+  return window['go']['backend']['App']['DeletePasswordForAlias'](arg1);
 }
 
 export function DeleteSSHHost(arg1) {
@@ -70,6 +78,10 @@ export function SaveConfig(arg1) {
   return window['go']['backend']['App']['SaveConfig'](arg1);
 }
 
+export function SavePasswordForAlias(arg1, arg2) {
+  return window['go']['backend']['App']['SavePasswordForAlias'](arg1, arg2);
+}
+
 export function SaveSSHConfigFileContent(arg1) {
   return window['go']['backend']['App']['SaveSSHConfigFileContent'](arg1);
 }
@@ -106,8 +118,8 @@ export function Shutdown(arg1) {
   return window['go']['backend']['App']['Shutdown'](arg1);
 }
 
-export function StartLocalForward(arg1, arg2, arg3, arg4, arg5) {
-  return window['go']['backend']['App']['StartLocalForward'](arg1, arg2, arg3, arg4, arg5);
+export function StartLocalForward(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['backend']['App']['StartLocalForward'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
 export function StartWatching(arg1) {

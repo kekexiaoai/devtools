@@ -22,11 +22,22 @@ import (
 // Tunnel 代表一个活动的端口转发隧道
 type Tunnel struct {
 	ID         string
+	Alias      string
+	Type       string // local, remote, dynamic
 	LocalAddr  string
 	RemoteAddr string
 	sshClient  *ssh.Client
 	listener   net.Listener
 	cancelFunc context.CancelFunc // 用于优雅地关闭隧道
+}
+
+// ActiveTunnelInfo 是一个用于向前端展示的、简化的隧道信息结构
+type ActiveTunnelInfo struct {
+	ID         string `json:"id"`
+	Alias      string `json:"alias"`
+	Type       string `json:"type"`
+	LocalAddr  string `json:"localAddr"`
+	RemoteAddr string `json:"remoteAddr"`
 }
 
 // Manager 负责管理所有活动的隧道
@@ -156,7 +167,7 @@ func (m *Manager) runTunnel(tunnel *Tunnel, ctx context.Context) {
 		case <-ctx.Done(): // 如果隧道被取消，则退出
 			return
 		default:
-			// 6. 等待并接受来自本地的连接
+			// 等待并接受来自本地的连接
 			localConn, err := tunnel.listener.Accept()
 			if err != nil {
 				// 如果监听器被关闭，这是一个正常的退出信号
@@ -167,7 +178,7 @@ func (m *Manager) runTunnel(tunnel *Tunnel, ctx context.Context) {
 				return
 			}
 
-			// 7. 为每一个进来的连接，在新的 Goroutine 中处理数据转发
+			// 为每一个进来的连接，在新的 Goroutine 中处理数据转发
 			go m.forwardConnection(localConn, tunnel)
 		}
 	}
@@ -191,20 +202,18 @@ func (m *Manager) forwardConnection(localConn net.Conn, tunnel *Tunnel) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	go func() {
+	copier := func(dst io.Writer, src io.Reader) {
 		defer wg.Done()
-		_, err := io.Copy(remoteConn, localConn)
-		if err != nil && err != io.EOF {
-			log.Printf("Error copying from local to remote: %v", err)
+		if _, err := io.Copy(dst, src); err != nil {
+			// 正常关闭连接时也会触发 EOF 错误，我们不关心这个
+			if err != io.EOF {
+				log.Printf("io.Copy error: %v", err)
+			}
 		}
-	}()
-	go func() {
-		defer wg.Done()
-		_, err := io.Copy(localConn, remoteConn)
-		if err != nil && err != io.EOF {
-			log.Printf("Error copying from remote to local: %v", err)
-		}
-	}()
+	}
+
+	go copier(remoteConn, localConn)
+	go copier(localConn, remoteConn)
 
 	wg.Wait() // 等待两个方向的数据复制都完成
 }
@@ -235,4 +244,22 @@ func (m *Manager) cleanupTunnel(tunnelID string) {
 		delete(m.activeTunnels, tunnelID)
 		log.Printf("Cleaned up tunnel %s", tunnelID)
 	}
+}
+
+// GetActiveTunnels 返回所有活动隧道的简化信息
+func (m *Manager) GetActiveTunnels() []ActiveTunnelInfo {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	info := make([]ActiveTunnelInfo, 0, len(m.activeTunnels))
+	for _, tunnel := range m.activeTunnels {
+		info = append(info, ActiveTunnelInfo{
+			ID:         tunnel.ID,
+			Alias:      tunnel.Alias,
+			Type:       tunnel.Type,
+			LocalAddr:  tunnel.LocalAddr,
+			RemoteAddr: tunnel.RemoteAddr,
+		})
+	}
+	return info
 }

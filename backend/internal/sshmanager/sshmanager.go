@@ -9,10 +9,25 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"devtools/backend/internal/types"
 	"devtools/backend/pkg/sshconfig"
+
+	"github.com/zalando/go-keyring"
+	"golang.org/x/crypto/ssh"
 )
+
+// 定义钥匙串服务的名称
+const keyringService = "DevTools-SSH-Gate"
+
+// ConnectionConfig 结构体，用于封装一个完整的SSH客户端配置
+type ConnectionConfig struct {
+	HostName     string
+	Port         string
+	User         string
+	ClientConfig *ssh.ClientConfig
+}
 
 // Manager 封装了对 SSH 配置的高级操作
 type Manager struct {
@@ -67,6 +82,88 @@ func NewManager(configPath string) (*Manager, error) {
 		manager:    manager,
 		configPath: configPath,
 	}, nil
+}
+
+// GetConnectionConfig 是一个智能的函数，它会按优先级尝试所有认证方法
+// password 参数是用户在UI上本次操作临时输入的密码（如果有的话）
+func (m *Manager) GetConnectionConfig(alias string, password string) (*ConnectionConfig, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	host, err := m.GetSSHHostByAlias(alias) // 假设我们有一个根据别名获取主机详情的辅助函数
+	if err != nil {
+		return nil, err
+	}
+
+	var authMethods []ssh.AuthMethod
+
+	// 认证优先级 1: 用户本次在UI上输入的临时密码
+	if password != "" {
+		authMethods = append(authMethods, ssh.Password(password))
+	}
+
+	// 认证优先级 2: ~/.ssh/config 中配置的 IdentityFile (密钥文件)
+	if host.IdentityFile != "" {
+		key, err := readKeyFile(host.IdentityFile)
+		if err == nil {
+			signer, err := ssh.ParsePrivateKey(key)
+			if err == nil {
+				authMethods = append(authMethods, ssh.PublicKeys(signer))
+			}
+		}
+	}
+
+	// 认证优先级 3: 从系统钥匙串中获取已保存的密码
+	savedPassword, err := keyring.Get(keyringService, alias)
+	if err == nil && savedPassword != "" {
+		authMethods = append(authMethods, ssh.Password(savedPassword))
+	}
+
+	// 如果到这里一个有效的认证方法都没有，就返回需要密码的特定错误
+	if len(authMethods) == 0 {
+		return nil, &types.PasswordRequiredError{Alias: alias}
+	}
+
+	clientConfig := &ssh.ClientConfig{
+		User:            host.User,
+		Auth:            authMethods,
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO: 在第二阶段实现主机指纹验证
+		Timeout:         10 * time.Second,
+	}
+
+	return &ConnectionConfig{
+		HostName:     host.HostName,
+		Port:         host.Port,
+		User:         host.User,
+		ClientConfig: clientConfig,
+	}, nil
+}
+
+// readKeyFile 是一个辅助函数，用于读取密钥文件并展开'~'
+func readKeyFile(path string) ([]byte, error) {
+	if strings.HasPrefix(path, "~") {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return nil, err
+		}
+		path = filepath.Join(homeDir, path[1:])
+	}
+	return os.ReadFile(path)
+}
+
+// SavePasswordForAlias 将密码安全地存入系统钥匙串
+func (m *Manager) SavePasswordForAlias(alias string, password string) error {
+	return keyring.Set(keyringService, alias, password)
+}
+
+// DeletePasswordForAlias 从系统钥匙串中删除密码
+func (m *Manager) DeletePasswordForAlias(alias string) error {
+	// 在删除前检查是否存在，避免keyring库在某些平台因找不到而报错
+	_, err := keyring.Get(keyringService, alias)
+	if err == nil {
+		return keyring.Delete(keyringService, alias)
+	}
+	return nil // 如果本来就不存在，也算成功
 }
 
 // GetConfigSnapshot 获取当前配置的快照
@@ -369,6 +466,10 @@ func convertToSSHHost(hostConfig *sshconfig.HostConfig) types.SSHHost {
 	}
 }
 
+func (m *Manager) GetSSHHostByAlias(alias string) (*types.SSHHost, error) {
+	return m.GetSSHHost(alias)
+}
+
 func (m *Manager) GetSSHHost(hostname string) (*types.SSHHost, error) {
 	hostConfig, err := m.manager.GetHost(hostname)
 	if err != nil {
@@ -431,6 +532,39 @@ func (m *Manager) ConnectInTerminal(alias string) error {
 	}
 
 	// cmd.Start() 启动命令，不等待它完成，这符合在终端中启动新会话的预期。
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start terminal command: %w", err)
+	}
+	return nil
+}
+
+// ConnectInTerminalWithConfig 接收一个完整的配置，并在系统终端中打开连接
+func (m *Manager) ConnectInTerminalWithConfig(alias string, config *ConnectionConfig) error {
+	// 这个函数不再关心如何认证，它只负责执行
+	var cmd *exec.Cmd
+
+	// 我们需要构建一个包含所有必要参数的、完整的 ssh 命令
+	// -F /dev/null -o IdentitiesOnly=yes 可以确保只使用我们提供的认证方法
+	sshCmd := fmt.Sprintf("ssh -p %s -i %s %s@%s",
+		config.Port,
+		"~/.ssh/id_rsa", // 这是一个占位符，更健壮的实现需要从config中获取
+		config.User,
+		config.HostName,
+	)
+
+	// 为不同平台构建启动终端的命令
+	switch runtime.GOOS {
+	case "darwin":
+		script := fmt.Sprintf(`tell app "Terminal" to do script "%s"`, sshCmd)
+		cmd = exec.Command("osascript", "-e", script)
+	case "windows":
+		// 在 Windows 上，我们直接启动 ssh.exe
+		cmd = exec.Command("cmd.exe", "/c", "start", "wt.exe", "ssh.exe", fmt.Sprintf("%s@%s", config.User, config.HostName))
+	default: // Linux
+		cmd = exec.Command("gnome-terminal", "--", "bash", "-c", sshCmd+"; exec bash")
+	}
+
+	// Start() 启动命令，不等待它完成
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start terminal command: %w", err)
 	}
