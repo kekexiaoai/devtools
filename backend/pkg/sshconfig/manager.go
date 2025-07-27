@@ -86,6 +86,10 @@ func (m *SSHConfigManager) Load() error {
 // Save 保存配置到文件
 func (m *SSHConfigManager) Save() error {
 	content := m.BuildConfig()
+	err := m.Validate()
+	if err != nil {
+		return err
+	}
 
 	dir := filepath.Dir(m.filename)
 	if err := os.MkdirAll(dir, 0o755); err != nil {

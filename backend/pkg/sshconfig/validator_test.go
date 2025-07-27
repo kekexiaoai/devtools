@@ -1,6 +1,8 @@
 package sshconfig
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -710,46 +712,46 @@ func TestValidateMatchLine_InvalidCriterion(t *testing.T) {
 
 // TestValidateMatchLine_EmptyValue 测试Match条件值为空
 func TestValidateMatchLine_EmptyValue(t *testing.T) {
-    validator := NewConfigValidator([]string{})
-    
-    // 测试Match条件值为空 (引号包裹的空字符串)
-    // 这对应于SSH配置文件中的: Match User ""
-    err := validator.validateMatchLine("Match User \"\"", 1)
-    if err == nil {
-        t.Error("validateMatchLine should fail for empty criterion value (quoted empty string)")
-    } else {
-        if strings.Contains(err.Error(), "requires a value") {
-            t.Logf("Got expected error for quoted empty string: %v", err)
-        } else {
-            t.Errorf("Got error but not the expected type for quoted empty string: %v", err)
-        }
-    }
-    
-    // 测试Match条件值为空格 (引号包裹的空格)
-    // 这对应于SSH配置文件中的: Match User " " 
-    err2 := validator.validateMatchLine("Match User \"  \"", 1)
-    if err2 == nil {
-        t.Error("validateMatchLine should fail for whitespace-only criterion value (quoted spaces)")
-    } else {
-        if strings.Contains(err2.Error(), "requires a value") {
-            t.Logf("Got expected error for quoted spaces: %v", err2)
-        } else {
-            t.Errorf("Got error but not the expected type for quoted spaces: %v", err2)
-        }
-    }
-    
-    // 测试Match条件值完全缺失
-    // 这对应于SSH配置文件中的: Match User (行尾没有值)
-    err3 := validator.validateMatchLine("Match User", 1)
-    if err3 == nil {
-        t.Error("validateMatchLine should fail for missing criterion value")
-    } else {
-        if strings.Contains(err3.Error(), "incomplete") {
-            t.Logf("Got expected error for missing value: %v", err3)
-        } else {
-            t.Errorf("Got error but not the expected type for missing value: %v", err3)
-        }
-    }
+	validator := NewConfigValidator([]string{})
+
+	// 测试Match条件值为空 (引号包裹的空字符串)
+	// 这对应于SSH配置文件中的: Match User ""
+	err := validator.validateMatchLine("Match User \"\"", 1)
+	if err == nil {
+		t.Error("validateMatchLine should fail for empty criterion value (quoted empty string)")
+	} else {
+		if strings.Contains(err.Error(), "requires a value") {
+			t.Logf("Got expected error for quoted empty string: %v", err)
+		} else {
+			t.Errorf("Got error but not the expected type for quoted empty string: %v", err)
+		}
+	}
+
+	// 测试Match条件值为空格 (引号包裹的空格)
+	// 这对应于SSH配置文件中的: Match User " "
+	err2 := validator.validateMatchLine("Match User \"  \"", 1)
+	if err2 == nil {
+		t.Error("validateMatchLine should fail for whitespace-only criterion value (quoted spaces)")
+	} else {
+		if strings.Contains(err2.Error(), "requires a value") {
+			t.Logf("Got expected error for quoted spaces: %v", err2)
+		} else {
+			t.Errorf("Got error but not the expected type for quoted spaces: %v", err2)
+		}
+	}
+
+	// 测试Match条件值完全缺失
+	// 这对应于SSH配置文件中的: Match User (行尾没有值)
+	err3 := validator.validateMatchLine("Match User", 1)
+	if err3 == nil {
+		t.Error("validateMatchLine should fail for missing criterion value")
+	} else {
+		if strings.Contains(err3.Error(), "incomplete") {
+			t.Logf("Got expected error for missing value: %v", err3)
+		} else {
+			t.Errorf("Got error but not the expected type for missing value: %v", err3)
+		}
+	}
 }
 
 // TestValidateParamValue_NumericError 测试数值参数的错误值
@@ -775,4 +777,122 @@ func TestValidateHostname_TooLong(t *testing.T) {
 		t.Error("validateHostname should fail for hostname that's too long")
 	}
 	t.Logf("validateHostname error (expected): %v", err)
+}
+
+// TestValidateParamValue_RequiredValueEmpty 测试必需参数但值为空的情况
+func TestValidateParamValue_RequiredValueEmpty(t *testing.T) {
+	validator := NewConfigValidator([]string{})
+
+	// 定义需要非空值的参数列表
+	requiredParams := []string{"IdentityFile", "HostName", "User", "ProxyCommand"}
+
+	for _, param := range requiredParams {
+		// 测试完全空值 ""
+		err := validator.validateParamValue(param, "", 10) // 假设在第10行
+		if err == nil {
+			t.Errorf("validateParamValue for '%s' with empty value should fail", param)
+		} else {
+			// 检查错误信息是否包含预期内容
+			expectedMsgPart := fmt.Sprintf("line 10: %s requires a value", param)
+			if !strings.Contains(err.Error(), expectedMsgPart) {
+				t.Errorf("validateParamValue for '%s' error message expected to contain '%s', got '%s'", param, expectedMsgPart, err.Error())
+			}
+			// 检查错误类型
+			var configErr *ConfigError
+			if !errors.As(err, &configErr) {
+				t.Errorf("validateParamValue for '%s' should return *ConfigError, got %T", param, err)
+			} else if configErr.Op != "validate" {
+				t.Errorf("validateParamValue for '%s' ConfigError.Op should be 'validate', got '%s'", param, configErr.Op)
+			}
+		}
+
+		// 测试只有空白字符的值 "   "
+		err2 := validator.validateParamValue(param, "   ", 15) // 假设在第15行
+		if err2 == nil {
+			t.Errorf("validateParamValue for '%s' with whitespace-only value should fail", param)
+		} else {
+			expectedMsgPart := fmt.Sprintf("line 15: %s requires a value", param)
+			if !strings.Contains(err2.Error(), expectedMsgPart) {
+				t.Errorf("validateParamValue for '%s' (whitespace) error message expected to contain '%s', got '%s'", param, expectedMsgPart, err2.Error())
+			}
+		}
+	}
+}
+
+// TestValidateParamValue_RequiredValueValid 测试必需参数有有效值的情况
+func TestValidateParamValue_RequiredValueValid(t *testing.T) {
+	validator := NewConfigValidator([]string{})
+
+	// 定义需要非空值的参数列表和它们的有效值示例
+	tests := []struct {
+		param string
+		value string
+	}{
+		{"IdentityFile", "~/.ssh/id_rsa"},
+		{"IdentityFile", "/path/to/key"},
+		{"HostName", "example.com"},
+		{"HostName", "192.168.1.1"},
+		{"User", "myuser"},
+		{"User", "admin"},
+		{"ProxyCommand", "nc %h %p"},
+		{"ProxyCommand", "ssh proxyhost -W %h:%p"},
+		// 测试大小写不敏感
+		{"identityfile", "~/.ssh/id_ed25519"},
+		{"HOSTNAME", "test.example.com"},
+	}
+
+	for _, tt := range tests {
+		err := validator.validateParamValue(tt.param, tt.value, 5) // 假设在第5行
+		// 对于这些必需参数，只要值非空，validateParamValue本身不应该因为"requires a value"而失败
+		// (虽然其他检查如HostName格式可能失败，但这里只测试"requires a value"逻辑)
+		// 在这个特定的测试中，我们只检查值非空的情况，不触发"requires a value"错误
+		// 注意：如果将来为HostName添加了格式检查，这个测试可能需要调整
+		if err != nil && strings.Contains(err.Error(), "requires a value") {
+			t.Errorf("validateParamValue for '%s' with valid value '%s' should not fail with 'requires a value', got: %v", tt.param, tt.value, err)
+		}
+		// 如果有其他错误（如Port不是数字），那是另一个测试场景的范畴
+	}
+}
+
+// TestValidateParamValue_RequiredValueEmptyButNotTrimmed 测试边界情况：值在TrimSpace后才变空
+func TestValidateParamValue_RequiredValueEmptyButNotTrimmed(t *testing.T) {
+	validator := NewConfigValidator([]string{})
+
+	// 这个测试确保我们的检查是基于 TrimSpace 的
+	param := "IdentityFile"
+	value := "  \t \n  " // 只包含空白字符
+	err := validator.validateParamValue(param, value, 20)
+	if err == nil {
+		t.Errorf("validateParamValue for '%s' with only whitespace value should fail after TrimSpace", param)
+	} else {
+		expectedMsgPart := fmt.Sprintf("line 20: %s requires a value", param)
+		if !strings.Contains(err.Error(), expectedMsgPart) {
+			t.Errorf("validateParamValue for '%s' (only whitespace) error message expected to contain '%s', got '%s'", param, expectedMsgPart, err.Error())
+		}
+	}
+}
+
+// TestValidateParamValue_NonRequiredParamEmpty 测试非必需参数可以为空
+func TestValidateParamValue_NonRequiredParamEmpty(t *testing.T) {
+	validator := NewConfigValidator([]string{})
+
+	// 选择一些不是必需的参数
+	nonRequiredParams := []string{"Compression", "TCPKeepAlive"} // 这些有自己的yes/no检查，但空值应该被允许
+
+	for _, param := range nonRequiredParams {
+		err := validator.validateParamValue(param, "", 25) // 空值
+		// 对于非必需参数，空值不应该触发 "requires a value" 错误
+		// 但它可能会触发其他检查（如Compression的yes/no），这没关系，只要不是"requires a value"
+		if err != nil && strings.Contains(err.Error(), "requires a value") {
+			t.Errorf("validateParamValue for non-required param '%s' with empty value should not fail with 'requires a value', got: %v", param, err)
+		}
+		// 特别地，对于 Compression，空值应该通过（使用默认值），不会报错
+		// 但 validateParamValue 本身不处理默认值，它只检查格式。空的 Compression 不会触发 isNumeric 或 isValidYesNo。
+		// 所以 Compression "" 应该返回 nil。
+		err2 := validator.validateParamValue("Compression", "", 26)
+		if err2 != nil && strings.Contains(err2.Error(), "requires a value") {
+			t.Errorf("validateParamValue for 'Compression' with empty value should not fail with 'requires a value', got: %v", err2)
+		}
+		// 注意：validateParamValue 对于空的 Compression 值不会触发 yes/no 检查，因为 `value != ""` 条件不满足。
+	}
 }

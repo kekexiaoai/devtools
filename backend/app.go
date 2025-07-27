@@ -424,7 +424,7 @@ func (a *App) SaveSSHHost(host types.SSHHost) error {
 	if a.sshManager.HasHost(host.Alias) {
 		return a.sshManager.UpdateHost(updateReq)
 	}
-	return a.sshManager.AddHostWithParams(updateReq) // 假设我们在 sshmanager 中增加一个更方便的方法
+	return a.sshManager.AddHostWithParams(updateReq)
 }
 
 // DeleteSSHHost 删除一个 SSH 主机配置

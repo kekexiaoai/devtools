@@ -207,6 +207,9 @@ func (m *Manager) AddHostWithParams(req HostUpdateRequest) error {
 	// 设置参数
 	for key, value := range req.Params {
 		// 直接使用 value，因为 req.Params 是 map[string]string
+		if value == "" {
+			continue
+		}
 		err := m.manager.SetParam(req.Name, key, value)
 		if err != nil {
 			return fmt.Errorf("failed to set param %s for host %s: %w", key, req.Name, err)

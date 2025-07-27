@@ -55,9 +55,9 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">devtools/backend/internal/sshconfig/manager.go (89.6%)</option>
+				<option value="file0">devtools/backend/pkg/sshconfig/manager.go (95.8%)</option>
 				
-				<option value="file1">devtools/backend/internal/sshconfig/validator.go (91.0%)</option>
+				<option value="file1">devtools/backend/pkg/sshconfig/validator.go (96.2%)</option>
 				
 				</select>
 			</div>
@@ -123,7 +123,7 @@ func NewManager(filename string) (*SSHConfigManager, error) <span class="cov8" t
         }
 
         err := manager.Load()
-        if err != nil &amp;&amp; !os.IsNotExist(err) </span><span class="cov0" title="0">{
+        if err != nil &amp;&amp; !os.IsNotExist(err) </span><span class="cov8" title="1">{
                 return nil, &amp;ConfigError{"load", err}
         }</span>
 
@@ -148,7 +148,7 @@ func (m *SSHConfigManager) Load() error <span class="cov8" title="1">{
                 lines = append(lines, scanner.Text())
         }</span>
 
-        <span class="cov8" title="1">if err := scanner.Err(); err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if err := scanner.Err(); err != nil </span><span class="cov8" title="1">{
                 return err
         }</span>
 
@@ -161,11 +161,11 @@ func (m *SSHConfigManager) Save() error <span class="cov8" title="1">{
         content := m.BuildConfig()
 
         dir := filepath.Dir(m.filename)
-        if err := os.MkdirAll(dir, 0o755); err != nil </span><span class="cov0" title="0">{
+        if err := os.MkdirAll(dir, 0o755); err != nil </span><span class="cov8" title="1">{
                 return &amp;ConfigError{"mkdir", err}
         }</span>
 
-        <span class="cov8" title="1">if err := os.WriteFile(m.filename, []byte(content), 0o600); err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if err := os.WriteFile(m.filename, []byte(content), 0o600); err != nil </span><span class="cov8" title="1">{
                 return &amp;ConfigError{"write", err}
         }</span>
 
@@ -269,7 +269,7 @@ func (m *SSHConfigManager) GetAllHosts() ([]*HostConfig, error) <span class="cov
 // GetGlobalConfig 获取全局配置 (Host *)
 func (m *SSHConfigManager) GetGlobalConfig() (*HostConfig, error) <span class="cov8" title="1">{
         hostStart, hostEnd, found := m.getGlobalHost()
-        if !found </span><span class="cov0" title="0">{
+        if !found </span><span class="cov8" title="1">{
                 return nil, fmt.Errorf("global config (Host *) not found")
         }</span>
 
@@ -349,7 +349,7 @@ func (m *SSHConfigManager) SetParam(hostname, key, value string) error <span cla
                 m.rawLines[paramLine] = fmt.Sprintf("%s%s %s", indent, key, value)
         }</span> else<span class="cov8" title="1"> {
                 // 添加新参数（在Host行之后）
-                newLine := fmt.Sprintf("    %s %s", key, value)
+                newLine := fmt.Sprintf("  %s %s", key, value)
                 insertPos := hostStart + 1
                 if insertPos &gt;= len(m.rawLines) </span><span class="cov8" title="1">{
                         m.rawLines = append(m.rawLines, newLine)
@@ -401,7 +401,7 @@ func (m *SSHConfigManager) RemoveHost(hostname string) error <span class="cov8" 
         end := hostEnd
 
         // 包含前面的空行
-        for start &gt; 0 &amp;&amp; isBlankLine(m.rawLines[start-1]) </span><span class="cov0" title="0">{
+        for start &gt; 0 &amp;&amp; isBlankLine(m.rawLines[start-1]) </span><span class="cov8" title="1">{
                 start--
         }</span>
 
@@ -488,8 +488,8 @@ func (m *SSHConfigManager) AddComment(hostname, comment string) error <span clas
 // Validate 验证配置文件语法
 // Validate 验证配置文件语法
 func (m *SSHConfigManager) Validate() error <span class="cov8" title="1">{
-    validator := NewConfigValidator(m.rawLines)
-    return validator.Validate()
+        validator := NewConfigValidator(m.rawLines)
+        return validator.Validate()
 }</span>
 
 // Backup 创建配置文件备份
@@ -497,7 +497,7 @@ func (m *SSHConfigManager) Backup() (string, error) <span class="cov8" title="1"
         backupPath := m.filename + ".bak"
         content := m.BuildConfig()
 
-        if err := os.WriteFile(backupPath, []byte(content), 0o600); err != nil </span><span class="cov0" title="0">{
+        if err := os.WriteFile(backupPath, []byte(content), 0o600); err != nil </span><span class="cov8" title="1">{
                 return "", &amp;ConfigError{"backup", err}
         }</span>
 
@@ -564,11 +564,11 @@ func (m *SSHConfigManager) getGlobalHost() (start, end int, found bool) <span cl
                                         return start, end, true
                                 }</span>
                         }
-                        <span class="cov0" title="0">end = len(m.rawLines)
+                        <span class="cov8" title="1">end = len(m.rawLines)
                         return start, end, true</span>
                 }
         }
-        <span class="cov0" title="0">return -1, -1, false</span>
+        <span class="cov8" title="1">return -1, -1, false</span>
 }
 
 // Helper methods
@@ -608,17 +608,17 @@ func (m *SSHConfigManager) findHost(hostname string) (start, end int, found bool
                         hostNames := parseHostNames(hostLine)
                         for _, name := range hostNames </span><span class="cov8" title="1">{
                                 // 通配符匹配（除了单独的*）
-                                if name != "*" &amp;&amp; matchHostName(name, hostname) </span><span class="cov0" title="0">{
+                                if name != "*" &amp;&amp; matchHostName(name, hostname) </span><span class="cov8" title="1">{
                                         start = i
                                         // 查找结束位置（下一个Host或文件结尾）
-                                        for j := i + 1; j &lt; len(m.rawLines); j++ </span><span class="cov0" title="0">{
+                                        for j := i + 1; j &lt; len(m.rawLines); j++ </span><span class="cov8" title="1">{
                                                 nextLine := strings.TrimSpace(m.rawLines[j])
                                                 if strings.HasPrefix(nextLine, "Host ") </span><span class="cov0" title="0">{
                                                         end = j
                                                         return start, end, true
                                                 }</span>
                                         }
-                                        <span class="cov0" title="0">end = len(m.rawLines)
+                                        <span class="cov8" title="1">end = len(m.rawLines)
                                         return start, end, true</span>
                                 }
                         }
@@ -632,7 +632,7 @@ func (m *SSHConfigManager) findHost(hostname string) (start, end int, found bool
 
 // findParamInHost 在主机配置块中查找参数
 func (m *SSHConfigManager) findParamInHost(start, end int, key string) int <span class="cov8" title="1">{
-        if end == -1 || end &gt; len(m.rawLines) </span><span class="cov0" title="0">{
+        if end == -1 || end &gt; len(m.rawLines) </span><span class="cov8" title="1">{
                 end = len(m.rawLines)
         }</span>
 
@@ -744,7 +744,7 @@ func getLineIndent(line string) string <span class="cov8" title="1">{
                         return line[:i]
                 }</span>
         }
-        <span class="cov0" title="0">return line</span>
+        <span class="cov8" title="1">return line</span>
 }
 
 // isBlankLine 检查是否为空行
@@ -794,72 +794,72 @@ func (v *ConfigValidator) Validate() error <span class="cov8" title="1">{
 
 // validateConfigLine 验证单个配置行
 func (v *ConfigValidator) validateConfigLine(line string, lineNumber int) error <span class="cov8" title="1">{
-    // Host指令验证 - 检查原始行是否以"Host "开头
-    if strings.HasPrefix(line, "Host ") </span><span class="cov8" title="1">{
-        return v.validateHostLine(line, lineNumber)
-    }</span>
-    
-    // Include指令验证
-    <span class="cov8" title="1">if strings.HasPrefix(line, "Include ") </span><span class="cov8" title="1">{
-        return v.validateIncludeLine(line, lineNumber)
-    }</span>
-    
-    // Match指令验证（可选支持）
-    <span class="cov8" title="1">if strings.HasPrefix(line, "Match ") </span><span class="cov8" title="1">{
-        return v.validateMatchLine(line, lineNumber)
-    }</span>
-    
-    // 参数行验证
-    <span class="cov8" title="1">return v.validateParamLine(line, lineNumber)</span>
+        // Host指令验证 - 检查原始行是否以"Host "开头
+        if strings.HasPrefix(line, "Host ") </span><span class="cov8" title="1">{
+                return v.validateHostLine(line, lineNumber)
+        }</span>
+
+        // Include指令验证
+        <span class="cov8" title="1">if strings.HasPrefix(line, "Include ") </span><span class="cov8" title="1">{
+                return v.validateIncludeLine(line, lineNumber)
+        }</span>
+
+        // Match指令验证（可选支持）
+        <span class="cov8" title="1">if strings.HasPrefix(line, "Match ") </span><span class="cov8" title="1">{
+                return v.validateMatchLine(line, lineNumber)
+        }</span>
+
+        // 参数行验证
+        <span class="cov8" title="1">return v.validateParamLine(line, lineNumber)</span>
 }
 
 // validateHostLine 验证Host行
 func (v *ConfigValidator) validateHostLine(line string, lineNumber int) error <span class="cov8" title="1">{
-    if !strings.HasPrefix(line, "Host ") </span><span class="cov0" title="0">{
-        return &amp;ConfigError{"validate", fmt.Errorf("line %d: not a valid Host line", lineNumber)}
-    }</span>
-    
-    <span class="cov8" title="1">hostPart := strings.TrimPrefix(line, "Host ")
-    trimmedHostPart := strings.TrimSpace(hostPart)
-    
-    if trimmedHostPart == "" </span><span class="cov8" title="1">{
-        return &amp;ConfigError{"validate", fmt.Errorf("line %d: Host directive requires at least one hostname", lineNumber)}
-    }</span>
-
-    // 验证主机名格式
-    <span class="cov8" title="1">hostNames := parseHostNames(trimmedHostPart)
-    if len(hostNames) == 0 </span><span class="cov0" title="0">{
-        return &amp;ConfigError{"validate", fmt.Errorf("line %d: Host directive requires at least one hostname", lineNumber)}
-    }</span>
-
-    <span class="cov8" title="1">for _, hostname := range hostNames </span><span class="cov8" title="1">{
-        if err := v.validateHostname(hostname); err != nil </span><span class="cov0" title="0">{
-            return &amp;ConfigError{"validate", fmt.Errorf("line %d: invalid hostname '%s': %v", lineNumber, hostname, err)}
+        if !strings.HasPrefix(line, "Host ") </span><span class="cov0" title="0">{
+                return &amp;ConfigError{"validate", fmt.Errorf("line %d: not a valid Host line", lineNumber)}
         }</span>
-    }
 
-    <span class="cov8" title="1">return nil</span>
+        <span class="cov8" title="1">hostPart := strings.TrimPrefix(line, "Host ")
+        trimmedHostPart := strings.TrimSpace(hostPart)
+
+        if trimmedHostPart == "" </span><span class="cov8" title="1">{
+                return &amp;ConfigError{"validate", fmt.Errorf("line %d: Host directive requires at least one hostname", lineNumber)}
+        }</span>
+
+        // 验证主机名格式
+        <span class="cov8" title="1">hostNames := parseHostNames(trimmedHostPart)
+        if len(hostNames) == 0 </span><span class="cov8" title="1">{
+                return &amp;ConfigError{"validate", fmt.Errorf("line %d: Host directive requires at least one hostname", lineNumber)}
+        }</span>
+
+        <span class="cov8" title="1">for _, hostname := range hostNames </span><span class="cov8" title="1">{
+                if err := v.validateHostname(hostname); err != nil </span><span class="cov8" title="1">{
+                        return &amp;ConfigError{"validate", fmt.Errorf("line %d: invalid hostname '%s': %v", lineNumber, hostname, err)}
+                }</span>
+        }
+
+        <span class="cov8" title="1">return nil</span>
 }
 
 // validateIncludeLine 验证Include行
 func (v *ConfigValidator) validateIncludeLine(line string, lineNumber int) error <span class="cov8" title="1">{
-    if !strings.HasPrefix(line, "Include ") </span><span class="cov0" title="0">{
-        return &amp;ConfigError{"validate", fmt.Errorf("line %d: not a valid Include line", lineNumber)}
-    }</span>
-    
-    <span class="cov8" title="1">includePart := strings.TrimPrefix(line, "Include ")
-    trimmedIncludePart := strings.TrimSpace(includePart)
-    
-    if trimmedIncludePart == "" </span><span class="cov8" title="1">{
-        return &amp;ConfigError{"validate", fmt.Errorf("line %d: Include directive requires a path", lineNumber)}
-    }</span>
-    
-    // 基本路径格式验证
-    <span class="cov8" title="1">if strings.Contains(includePart, "\n") </span><span class="cov8" title="1">{
-        return &amp;ConfigError{"validate", fmt.Errorf("line %d: Include path cannot contain newlines", lineNumber)}
-    }</span>
-    
-    <span class="cov8" title="1">return nil</span>
+        if !strings.HasPrefix(line, "Include ") </span><span class="cov0" title="0">{
+                return &amp;ConfigError{"validate", fmt.Errorf("line %d: not a valid Include line", lineNumber)}
+        }</span>
+
+        <span class="cov8" title="1">includePart := strings.TrimPrefix(line, "Include ")
+        trimmedIncludePart := strings.TrimSpace(includePart)
+
+        if trimmedIncludePart == "" </span><span class="cov8" title="1">{
+                return &amp;ConfigError{"validate", fmt.Errorf("line %d: Include directive requires a path", lineNumber)}
+        }</span>
+
+        // 基本路径格式验证
+        <span class="cov8" title="1">if strings.Contains(includePart, "\n") </span><span class="cov8" title="1">{
+                return &amp;ConfigError{"validate", fmt.Errorf("line %d: Include path cannot contain newlines", lineNumber)}
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
 }
 
 // validateParamLine 验证参数行
@@ -886,24 +886,21 @@ func (v *ConfigValidator) validateParamLine(line string, lineNumber int) error <
 }
 
 // validateMatchLine 验证Match行
+// validateMatchLine 验证Match行
 func (v *ConfigValidator) validateMatchLine(line string, lineNumber int) error <span class="cov8" title="1">{
         matchPart := strings.TrimPrefix(strings.TrimSpace(line), "Match ")
         if strings.TrimSpace(matchPart) == "" </span><span class="cov0" title="0">{
                 return &amp;ConfigError{"validate", fmt.Errorf("line %d: Match directive requires criteria", lineNumber)}
         }</span>
-
         // 基本验证
         <span class="cov8" title="1">validCriteria := []string{"User", "Host", "Address", "LocalAddress", "LocalPort", "RDomain", "Canonical", "All"}
         criteria := strings.Fields(matchPart)
-
         for i := 0; i &lt; len(criteria); i += 2 </span><span class="cov8" title="1">{
                 if i+1 &gt;= len(criteria) </span><span class="cov8" title="1">{
                         return &amp;ConfigError{"validate", fmt.Errorf("line %d: Match criteria incomplete", lineNumber)}
                 }</span>
-
                 <span class="cov8" title="1">criterion := criteria[i]
                 value := criteria[i+1]
-
                 valid := false
                 for _, validCriterion := range validCriteria </span><span class="cov8" title="1">{
                         if strings.EqualFold(criterion, validCriterion) </span><span class="cov8" title="1">{
@@ -911,24 +908,32 @@ func (v *ConfigValidator) validateMatchLine(line string, lineNumber int) error <
                                 break</span>
                         }
                 }
-
                 <span class="cov8" title="1">if !valid </span><span class="cov8" title="1">{
                         return &amp;ConfigError{"validate", fmt.Errorf("line %d: invalid Match criterion '%s'", lineNumber, criterion)}
                 }</span>
-
                 // 验证值格式
-                <span class="cov8" title="1">if strings.TrimSpace(value) == "" </span><span class="cov0" title="0">{
+                // 去除首尾空格和引号后检查是否为空
+                <span class="cov8" title="1">finalValue := strings.Trim(strings.TrimSpace(value), "\"'")
+                if finalValue == "" </span><span class="cov8" title="1">{
                         return &amp;ConfigError{"validate", fmt.Errorf("line %d: Match criterion '%s' requires a value", lineNumber, criterion)}
                 }</span>
         }
-
         <span class="cov8" title="1">return nil</span>
 }
 
 // validateParamValue 验证参数值
 func (v *ConfigValidator) validateParamValue(key, value string, lineNumber int) error <span class="cov8" title="1">{
+        lowerKey := strings.ToLower(key)
+        // 检查必需提供值的参数
+        switch lowerKey </span>{
+        case "identityfile", "hostname", "user", "proxycommand":<span class="cov8" title="1"> // 添加其他必需参数
+                if strings.TrimSpace(value) == "" </span><span class="cov8" title="1">{
+                        return &amp;ConfigError{"validate", fmt.Errorf("line %d: %s requires a value", lineNumber, key)}
+                }</span>
+        }
+
         // 常见参数的值验证
-        switch strings.ToLower(key) </span>{
+        <span class="cov8" title="1">switch lowerKey </span>{
         case "port":<span class="cov8" title="1">
                 if value != "" </span><span class="cov8" title="1">{
                         if !v.isNumeric(value) </span><span class="cov8" title="1">{
@@ -940,7 +945,7 @@ func (v *ConfigValidator) validateParamValue(key, value string, lineNumber int) 
                         }</span>
                 }
         case "serveraliveinterval", "serveralivemaxcount", "connecttimeout":<span class="cov8" title="1">
-                if value != "" &amp;&amp; !v.isNumeric(value) </span><span class="cov0" title="0">{
+                if value != "" &amp;&amp; !v.isNumeric(value) </span><span class="cov8" title="1">{
                         return &amp;ConfigError{"validate", fmt.Errorf("line %d: %s must be numeric", lineNumber, key)}
                 }</span>
         case "compression", "tcpkeepalive", "usedns", "useprivilegedport", "stricthostkeychecking":<span class="cov8" title="1">
@@ -968,7 +973,7 @@ func (v *ConfigValidator) validateHostname(hostname string) error <span class="c
         }</span>
 
         // 基本格式检查
-        <span class="cov8" title="1">if len(hostname) &gt; 253 </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if len(hostname) &gt; 253 </span><span class="cov8" title="1">{
                 return fmt.Errorf("hostname too long")
         }</span>
 
