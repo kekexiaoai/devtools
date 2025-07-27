@@ -31,24 +31,36 @@ export function SSHGateView() {
   // 我们就增加 dataVersion 的值，这会强制两个 Tab 都重新获取数据
   const [dataVersion, setDataVersion] = useState(0)
   const refreshData = () => setDataVersion((v) => v + 1)
+  const [activeTab, setActiveTab] = useState('visual')
 
   return (
+    // 根容器
     <div className="p-4 h-full flex flex-col">
-      <div className="flex-shrink-0">
-        <h1 className="text-2xl font-bold mb-2">SSH Gate</h1>
-        <p className="text-muted-foreground mb-4">
-          Manage hosts from `~/.ssh/config`
-        </p>
-      </div>
-      {/* Tabs 组件作为主容器 */}
-      <Tabs defaultValue="visual" className="flex-1 flex flex-col min-h-0">
-        <TabsList className="flex-shrink-0">
-          <TabsTrigger value="visual">Visual Editor</TabsTrigger>
-          <TabsTrigger value="raw">Raw File Editor</TabsTrigger>
-        </TabsList>
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="flex-1 flex flex-col min-h-0"
+      >
+        {/* 集成式标题栏 */}
+        <div className="flex-shrink-0 flex justify-between items-center mb-4">
+          {/* 左侧标题区 */}
+          <div>
+            <h1 className="text-2xl font-bold">SSH Gate</h1>
+            <p className="text-muted-foreground">
+              Manage hosts from `~/.ssh/config`
+            </p>
+          </div>
+          {/* 右侧操作区 */}
+          <div className="flex items-center space-x-4">
+            <TabsList>
+              <TabsTrigger value="visual">Visual Editor</TabsTrigger>
+              <TabsTrigger value="raw">Raw File Editor</TabsTrigger>
+            </TabsList>
+          </div>
+        </div>
 
-        {/* 可视化编辑器 Tab (现在内部是主从布局) */}
-        <TabsContent value="visual" className="flex-1 min-h-0 mt-4">
+        {/* 可视化编辑器 Tab */}
+        <TabsContent value="visual" className="flex-1 min-h-0">
           <VisualEditor key={dataVersion} onDataChange={refreshData} />
         </TabsContent>
 
