@@ -191,6 +191,10 @@ func (m *Manager) HasHost(hostname string) bool {
 	return m.manager.HasHost(hostname)
 }
 
+func (m *Manager) GetHostNames() ([]string, error) {
+	return m.manager.GetHostNames()
+}
+
 // AddHostWithParams 添加一个带参数的新主机
 func (m *Manager) AddHostWithParams(req HostUpdateRequest) error {
 	m.mu.Lock()
@@ -274,7 +278,7 @@ func (m *Manager) SaveRawContent(content string) error {
 	}
 
 	// 覆写文件
-	if err := os.WriteFile(m.configPath, []byte(content), 0600); err != nil {
+	if err := os.WriteFile(m.configPath, []byte(content), 0o600); err != nil {
 		return fmt.Errorf("failed to write raw ssh config: %w", err)
 	}
 	log.Printf("SSH config file %s has been updated.", m.configPath)
@@ -344,6 +348,36 @@ func (m *Manager) UpdateGlobal(params map[string]string) error {
 	return m.UpdateHost(req)
 }
 
+// convertToSSHHost 将 HostConfig 转换为 types.SSHHost
+func convertToSSHHost(hostConfig *sshconfig.HostConfig) types.SSHHost {
+	// 从 Params 中提取信息
+	getParamValue := func(key string) string {
+		if params, ok := hostConfig.Params[key]; ok && len(params) > 0 {
+			// 如果有多个同名参数，通常取第一个
+			return params[0].Value
+		}
+		return "" // 或者返回默认值，如果库或 SSH 有默认值的话
+	}
+
+	return types.SSHHost{
+		Alias:        hostConfig.Name,
+		HostName:     getParamValue("HostName"),
+		User:         getParamValue("User"),
+		Port:         getParamValue("Port"),
+		IdentityFile: getParamValue("IdentityFile"),
+		// 可以根据需要添加更多字段
+	}
+}
+
+func (m *Manager) GetSSHHost(hostname string) (*types.SSHHost, error) {
+	hostConfig, err := m.manager.GetHost(hostname)
+	if err != nil {
+		return nil, err
+	}
+	newHost := convertToSSHHost(hostConfig)
+	return &newHost, nil
+}
+
 // GetSSHHosts 解析用户的 SSH 配置文件并返回所有主机配置
 func (m *Manager) GetSSHHosts() ([]types.SSHHost, error) {
 	// 使用内部的 GetAllHosts 方法获取所有主机配置
@@ -359,24 +393,7 @@ func (m *Manager) GetSSHHosts() ([]types.SSHHost, error) {
 		if hostConfig.Name == "*" || hostConfig.IsGlobal {
 			continue
 		}
-
-		// 从 Params 中提取信息
-		getParamValue := func(key string) string {
-			if params, ok := hostConfig.Params[key]; ok && len(params) > 0 {
-				// 如果有多个同名参数，通常取第一个
-				return params[0].Value
-			}
-			return "" // 或者返回默认值，如果库或 SSH 有默认值的话
-		}
-
-		newHost := types.SSHHost{
-			Alias:        hostConfig.Name,
-			HostName:     getParamValue("HostName"),
-			User:         getParamValue("User"),
-			Port:         getParamValue("Port"),
-			IdentityFile: getParamValue("IdentityFile"),
-			// 可以根据需要添加更多字段
-		}
+		newHost := convertToSSHHost(hostConfig)
 		hosts = append(hosts, newHost)
 	}
 

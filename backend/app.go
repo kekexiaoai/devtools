@@ -15,6 +15,7 @@ import (
 
 	"devtools/backend/internal/config"
 	"devtools/backend/internal/sshmanager"
+	"devtools/backend/internal/sshtunnel"
 	"devtools/backend/internal/syncer"
 	"devtools/backend/internal/types"
 )
@@ -25,6 +26,7 @@ type App struct {
 	configManager *config.ConfigManager
 	watcherSvc    *syncer.WatcherService
 	sshManager    *sshmanager.Manager
+	tunnelManager *sshtunnel.Manager
 	isQuitting    bool // 内部状态标志
 	isDebug       bool
 	isMacOS       bool
@@ -99,6 +101,8 @@ func (a *App) Startup(ctx context.Context) {
 	if err != nil {
 		log.Printf("警告: 初始化 SSH 配置管理器失败: %v", err)
 	}
+
+	a.tunnelManager = sshtunnel.NewManager(a.ctx, a.sshManager)
 
 	// 初始化并启动文件监控服务
 	a.watcherSvc = syncer.NewWatcherService(a.ctx)
@@ -445,4 +449,20 @@ func (a *App) GetSSHConfigFileContent() (string, error) {
 // SaveSSHConfigFileContent 保存SSH配置文件的原始内容
 func (a *App) SaveSSHConfigFileContent(content string) error {
 	return a.sshManager.SaveRawContent(content)
+}
+
+// StartLocalForward 启动一个本地端口转发
+func (a *App) StartLocalForward(alias string, localPort int, remoteHost string, remotePort int) (string, error) {
+	return a.tunnelManager.StartLocalForward(alias, localPort, remoteHost, remotePort)
+}
+
+// StopForward 停止一个正在运行的隧道
+func (a *App) StopForward(tunnelID string) error {
+	return a.tunnelManager.StopForward(tunnelID)
+}
+
+// GetActiveTunnels 获取当前活动的隧道列表 (我们稍后实现)
+func (a *App) GetActiveTunnels() ([]string, error) {
+	// TODO
+	return []string{}, nil
 }
