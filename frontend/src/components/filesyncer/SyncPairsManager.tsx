@@ -170,6 +170,9 @@ export function SyncPairsManager({
                   value={newPair.localPath}
                   readOnly
                   placeholder="Click Browse to select"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                 />
                 <Button
                   onClick={() => void HandleBrowseLocal()}

@@ -61,6 +61,11 @@ export function HostFormDialog(props: HostFormDialogProps) {
       await SaveSSHHost(formData)
       onSave()
       onOpenChange(false)
+      await showDialog({
+        type: 'info',
+        title: 'Success',
+        message: 'Host saved successfully.',
+      })
     } catch (error) {
       await showDialog({
         type: 'error',
@@ -87,7 +92,10 @@ export function HostFormDialog(props: HostFormDialogProps) {
               name="alias"
               value={formData.alias}
               onChange={handleInputChange}
-              className="col-span-3"
+              className="col-span-3 normal-case"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               disabled={!!host}
             ></Input>
           </div>
@@ -100,7 +108,10 @@ export function HostFormDialog(props: HostFormDialogProps) {
               name="hostName"
               value={formData.hostName}
               onChange={handleInputChange}
-              className="col-span-3"
+              className="col-span-3 normal-case"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
             ></Input>
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
@@ -112,7 +123,10 @@ export function HostFormDialog(props: HostFormDialogProps) {
               name="user"
               value={formData.user}
               onChange={handleInputChange}
-              className="col-span-3"
+              className="col-span-3 normal-case"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
             ></Input>
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
@@ -124,7 +138,10 @@ export function HostFormDialog(props: HostFormDialogProps) {
               name="port"
               value={formData.port}
               onChange={handleInputChange}
-              className="col-span-3"
+              className="col-span-3 normal-case"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
             ></Input>
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
@@ -136,7 +153,10 @@ export function HostFormDialog(props: HostFormDialogProps) {
               name="identityFile"
               value={formData.identityFile}
               onChange={handleInputChange}
-              className="col-span-3"
+              className="col-span-3 normal-case"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
             ></Input>
           </div>
         </div>

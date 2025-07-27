@@ -189,6 +189,9 @@ function ClipboardTool({ config, onConfigUpdate }: ClipboardToolProps) {
                   value={remotePath}
                   onChange={(e) => setRemotePath(e.target.value)}
                   placeholder="/home/user/notes.txt"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                 />
                 <Button onClick={cancelEdit} variant="ghost">
                   Cancel

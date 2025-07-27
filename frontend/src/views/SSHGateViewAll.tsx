@@ -11,24 +11,23 @@ import { useDialog } from '@/hooks/useDialog'
 
 // --- UI 组件导入 ---
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import CodeMirror from '@uiw/react-codemirror'
 import { oneDark } from '@codemirror/theme-one-dark'
+// 导入 legacy-modes 中的 shell 对象
 import { shell } from '@codemirror/legacy-modes/mode/shell'
+// 导入 StreamLanguage 转换器
 import { StreamLanguage } from '@codemirror/language'
 import { Extension } from '@codemirror/state'
+import { PlayCircle, Pencil, Trash2, Save } from 'lucide-react'
 import { HostFormDialog } from '@/components/sshgate/HostFormDialog'
-import { HostList } from '@/components/sshgate/HostList'
-import { HostDetail } from '@/components/sshgate/HostDetail'
-import { Save } from 'lucide-react'
 
 // #############################################################################
 // #  主视图组件 (Main View Component)
 // #############################################################################
 export function SSHGateView() {
   // 这个 state 用于在两个 Tab 之间同步数据刷新
-  // 当 RawEditor 保存了文件，或 VisualEditor 增删改了主机，
-  // 我们就增加 dataVersion 的值，这会强制两个 Tab 都重新获取数据
   const [dataVersion, setDataVersion] = useState(0)
   const refreshData = () => setDataVersion((v) => v + 1)
 
@@ -40,6 +39,7 @@ export function SSHGateView() {
           Manage hosts from `~/.ssh/config`
         </p>
       </div>
+
       {/* Tabs 组件作为主容器 */}
       <Tabs defaultValue="visual" className="flex-1 flex flex-col min-h-0">
         <TabsList className="flex-shrink-0">
@@ -47,13 +47,19 @@ export function SSHGateView() {
           <TabsTrigger value="raw">Raw File Editor</TabsTrigger>
         </TabsList>
 
-        {/* 可视化编辑器 Tab (现在内部是主从布局) */}
-        <TabsContent value="visual" className="flex-1 min-h-0 mt-4">
+        {/* 可视化编辑器 Tab */}
+        <TabsContent
+          value="visual"
+          className="flex-1 overflow-y-auto mt-4 min-h-0"
+        >
           <VisualEditor key={dataVersion} onDataChange={refreshData} />
         </TabsContent>
 
         {/* 原始文件编辑器 Tab */}
-        <TabsContent value="raw" className="flex-1 mt-2 flex flex-col min-h-0">
+        <TabsContent
+          value="raw"
+          className="flex-1 mt-2 flex flex-col overflow-y-auto min-h-0"
+        >
           <RawEditor key={dataVersion} onDataChange={refreshData} />
         </TabsContent>
       </Tabs>
@@ -67,27 +73,15 @@ export function SSHGateView() {
 function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
   const [hosts, setHosts] = useState<types.SSHHost[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [selectedAlias, setSelectedAlias] = useState<string | null>(null)
-
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingHost, setEditingHost] = useState<types.SSHHost | null>(null)
+
   const { showDialog } = useDialog()
 
   const fetchHosts = useCallback(async () => {
     setIsLoading(true)
     try {
-      const fetchedHosts = await GetSSHHosts()
-      setHosts(fetchedHosts)
-      if (fetchedHosts.length > 0) {
-        const currentSelectionExists = fetchedHosts.some(
-          (h) => h.alias === selectedAlias
-        )
-        if (!currentSelectionExists) {
-          setSelectedAlias(fetchedHosts[0].alias)
-        }
-      } else {
-        setSelectedAlias(null)
-      }
+      setHosts(await GetSSHHosts())
     } catch (error) {
       await showDialog({
         title: 'Error',
@@ -96,7 +90,8 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
     } finally {
       setIsLoading(false)
     }
-  }, [selectedAlias, showDialog])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     void fetchHosts()
@@ -143,50 +138,86 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
     }
   }
 
-  const selectedHost = useMemo(() => {
-    if (!selectedAlias) return null
-    return hosts.find((h) => h.alias === selectedAlias) || null
-  }, [selectedAlias, hosts])
-
-  if (isLoading) return <p>Loading SSH hosts...</p>
-
   return (
-    <div className="flex h-full">
-      {/* 左侧主机列表 */}
-      <div className="w-1/3 max-w-xs flex-shrink-0 bg-muted/50 rounded-md">
-        <HostList
-          hosts={hosts}
-          selectedAlias={selectedAlias}
-          onSelect={setSelectedAlias}
-          onNew={handleOpenNew}
-        />
+    <div>
+      <div className="flex justify-end mb-4">
+        <Button onClick={handleOpenNew}>+ Add Host</Button>
       </div>
-
-      {/* 右侧详情 */}
-      <div className="flex-1 p-6 overflow-y-auto">
-        {selectedHost ? (
-          <HostDetail
-            key={selectedHost.alias}
-            host={selectedHost}
-            onEdit={() => void handleOpenEdit(selectedHost)}
-            onDelete={() => void handleDelete(selectedHost.alias)}
-            onConnect={() => void handleConnect(selectedHost.alias)}
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
-            <p>Select a host to view details, or add a new one.</p>
-          </div>
-        )}
-      </div>
-
+      {isLoading ? (
+        <p>Loading...</p>
+      ) : (
+        <div className="overflow-y-auto pr-2">
+          {hosts.length === 0 ? (
+            <p>No hosts found.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {hosts.map((host) => (
+                <Card key={host.alias}>
+                  <CardHeader>
+                    <CardTitle className="font-mono flex items-center justify-between">
+                      {host.alias}
+                      <div className="flex items-center space-x-1">
+                        <Button
+                          onClick={() => handleOpenEdit(host)}
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          onClick={() => void handleDelete(host.alias)}
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          onClick={() => void handleConnect(host.alias)}
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                        >
+                          <PlayCircle className="h-5 w-5" />
+                        </Button>
+                      </div>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-sm text-muted-foreground space-y-1">
+                    <p>
+                      <span className="font-semibold text-foreground">
+                        Host:
+                      </span>{' '}
+                      {host.hostName}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-foreground">
+                        User:
+                      </span>{' '}
+                      {host.user}
+                    </p>
+                    {host.port && (
+                      <p>
+                        <span className="font-semibold text-foreground">
+                          Port:
+                        </span>{' '}
+                        {host.port}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <HostFormDialog
         host={editingHost}
         isOpen={isFormOpen}
         onOpenChange={setIsFormOpen}
-        onSave={() => {
-          void fetchHosts()
-          onDataChange()
-        }}
+        // Fixed: Call the fetchHosts function
+        onSave={() => void fetchHosts()}
       />
     </div>
   )

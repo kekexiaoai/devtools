@@ -191,8 +191,33 @@ func (m *Manager) HasHost(hostname string) bool {
 	return m.manager.HasHost(hostname)
 }
 
+// AddHostWithParams 添加一个带参数的新主机
 func (m *Manager) AddHostWithParams(req HostUpdateRequest) error {
-	
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// 检查主机是否已存在
+	if m.manager.HasHost(req.Name) {
+		return fmt.Errorf("host %s already exists", req.Name)
+	}
+
+	// 添加主机
+	m.manager.AddHost(req.Name)
+
+	// 设置参数
+	for key, value := range req.Params {
+		// 直接使用 value，因为 req.Params 是 map[string]string
+		err := m.manager.SetParam(req.Name, key, value)
+		if err != nil {
+			return fmt.Errorf("failed to set param %s for host %s: %w", key, req.Name, err)
+		}
+	}
+
+	// 保存到文件
+	if err := m.manager.Save(); err != nil {
+		return fmt.Errorf("failed to save config after adding host: %w", err)
+	}
+
 	return nil
 }
 

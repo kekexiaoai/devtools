@@ -583,6 +583,9 @@ export function FileSyncerView() {
                   setForm({ ...form, name: e.target.value })
                 }
                 className="col-span-3"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
@@ -596,6 +599,9 @@ export function FileSyncerView() {
                   onChange={(e) => setForm({ ...form, host: e.target.value })}
                   className="col-span-2"
                   placeholder="192.168.1.1"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                 />
                 <Input
                   type="number"
@@ -604,6 +610,9 @@ export function FileSyncerView() {
                     setForm({ ...form, port: Number(e.target.value) })
                   }
                   placeholder="22"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                 />
               </div>
             </div>
@@ -617,6 +626,9 @@ export function FileSyncerView() {
                 onChange={(e) => setForm({ ...form, user: e.target.value })}
                 className="col-span-3"
                 placeholder="root"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
@@ -651,6 +663,9 @@ export function FileSyncerView() {
                   }
                   type="password"
                   className="col-span-3"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                 />
               </div>
             )}
@@ -665,6 +680,9 @@ export function FileSyncerView() {
                     value={form.keyPath}
                     readOnly
                     placeholder="Click Browse..."
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                   />
                   <Button
                     onClick={() => void handleSelectKeyFile()}

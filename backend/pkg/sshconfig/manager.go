@@ -276,7 +276,7 @@ func (m *SSHConfigManager) SetParam(hostname, key, value string) error {
 		m.rawLines[paramLine] = fmt.Sprintf("%s%s %s", indent, key, value)
 	} else {
 		// 添加新参数（在Host行之后）
-		newLine := fmt.Sprintf("    %s %s", key, value)
+		newLine := fmt.Sprintf("  %s %s", key, value)
 		insertPos := hostStart + 1
 		if insertPos >= len(m.rawLines) {
 			m.rawLines = append(m.rawLines, newLine)
@@ -415,8 +415,8 @@ func (m *SSHConfigManager) AddComment(hostname, comment string) error {
 // Validate 验证配置文件语法
 // Validate 验证配置文件语法
 func (m *SSHConfigManager) Validate() error {
-    validator := NewConfigValidator(m.rawLines)
-    return validator.Validate()
+	validator := NewConfigValidator(m.rawLines)
+	return validator.Validate()
 }
 
 // Backup 创建配置文件备份
