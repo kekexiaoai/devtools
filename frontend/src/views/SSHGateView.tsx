@@ -76,31 +76,36 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
   const fetchHosts = useCallback(async () => {
     setIsLoading(true)
     try {
-      const fetchedHosts = await GetSSHHosts()
-      setHosts(fetchedHosts)
-      if (fetchedHosts.length > 0) {
-        const currentSelectionExists = fetchedHosts.some(
-          (h) => h.alias === selectedAlias
-        )
-        if (!currentSelectionExists) {
-          setSelectedAlias(fetchedHosts[0].alias)
-        }
-      } else {
-        setSelectedAlias(null)
-      }
+      setHosts(await GetSSHHosts())
     } catch (error) {
       await showDialog({
+        type: 'error',
         title: 'Error',
         message: `Failed to load SSH hosts: ${String(error)}`,
       })
     } finally {
       setIsLoading(false)
     }
-  }, [selectedAlias, showDialog])
+  }, [showDialog])
 
   useEffect(() => {
     void fetchHosts()
   }, [fetchHosts])
+
+  // 这个 effect 只负责在 hosts 列表变化后，处理默认选中
+  useEffect(() => {
+    if (hosts.length > 0) {
+      const currentSelectionExists = hosts.some(
+        (h) => h.alias === selectedAlias
+      )
+      if (!currentSelectionExists) {
+        setSelectedAlias(hosts[0].alias)
+      }
+    } else {
+      setSelectedAlias(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hosts]) // 只依赖 hosts
 
   const handleOpenNew = () => {
     setEditingHost(null)
