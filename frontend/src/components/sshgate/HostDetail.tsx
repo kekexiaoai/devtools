@@ -20,9 +20,11 @@ interface HostDetailProps {
 
 interface SSHStatusEventDetail {
   alias: string
-  status: 'connecting' | 'failed' | 'success'
+  status: 'testing' | 'connecting' | 'failed' | 'success'
   message: string
 }
+
+import { EventsOn, EventsOff } from '@wailsjs/runtime'
 
 export function HostDetail({
   host,
@@ -35,13 +37,17 @@ export function HostDetail({
   const [connecting, setConnecting] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
   useEffect(() => {
-    const onSSHStatus = (event: Event) => {
-      const customEvent = event as CustomEvent<SSHStatusEventDetail>
-      const { alias, status, message } = customEvent.detail
-      // 只处理当前主机的状态事件
+    // 事件处理函数直接接收后端传递的 detail 对象
+    const onSSHStatus = (detail: SSHStatusEventDetail) => {
+      const { alias, status, message } = detail
+      console.log('ssh:status event, onSSHStatus', detail)
       if (alias !== host.alias) return
 
       switch (status) {
+        case 'testing':
+          setConnecting(true)
+          setStatusMessage(message || 'Testing...')
+          break
         case 'connecting':
           setConnecting(true)
           setStatusMessage(message || 'Connecting...')
@@ -62,9 +68,12 @@ export function HostDetail({
       }
     }
 
-    window.addEventListener('ssh:status', onSSHStatus)
-    return () => window.removeEventListener('ssh:status', onSSHStatus)
-  }, [host.alias]) // 依赖主机别名，确保切换主机时重新监听
+    // 使用 Wails EventsOn 注册事件监听
+    EventsOn('ssh:status', onSSHStatus)
+
+    // 使用 Wails EventsOff 清理事件监听
+    return () => EventsOff('ssh:status')
+  }, [host.alias])
   // === 状态管理结束 ===
 
   return (

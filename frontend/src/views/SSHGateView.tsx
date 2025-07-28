@@ -181,7 +181,7 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
             { text: 'Connect', variant: 'default', value: 'connect' },
           ],
         })
-        // 根据用户的选择和输入，掉用带密码的连接方法
+        // 根据用户的选择和输入，调用带密码的连接方法
         if (result.buttonValue === 'connect' && result.inputValue) {
           const savePassword = result.checkedValues?.includes('save') || false
           try {
@@ -197,6 +197,15 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
               message: String(connectError),
             })
           }
+        } else if (result.buttonValue === 'cancel') {
+          // 用户取消，不做任何操作
+        } else {
+          // 其他情况，例如用户没有输入密码
+          await showDialog({
+            type: 'error',
+            title: 'Error',
+            message: 'Please enter a password to connect.',
+          })
         }
       } else {
         // 其它普通错误

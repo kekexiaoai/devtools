@@ -520,11 +520,21 @@ func (a *App) ConnectInTerminalWithPassword(alias string, password string, saveP
 		return fmt.Errorf("failed to get connection config even with password: %w", err)
 	}
 
-	// === 新增：密码有效性测试 ===
+	runtime.EventsEmit(a.ctx, "ssh:status", map[string]any{
+		"alias":   alias,
+		"status":  "testing",
+		"message": fmt.Sprintf("testing to %s...", alias),
+	})
+	// 密码有效性测试
 	log.Printf("Info: testing SSH connection with provided password for %s", alias)
 	sshAddr := fmt.Sprintf("%s:%s", authConfig.HostName, authConfig.Port)
 	testClient, dialErr := ssh.Dial("tcp", sshAddr, authConfig.ClientConfig)
 	if dialErr != nil {
+		runtime.EventsEmit(a.ctx, "ssh:status", map[string]any{
+			"alias":   alias,
+			"status":  "failed",
+			"message": fmt.Sprintf("testing to %s failed: %s", alias, dialErr),
+		})
 		// 识别常见认证错误（适配不同SSH服务器的错误提示）
 		authErrorKeywords := []string{
 			"unable to authenticate",
@@ -542,30 +552,33 @@ func (a *App) ConnectInTerminalWithPassword(alias string, password string, saveP
 	}
 	testClient.Close() // 关闭测试连接
 	log.Printf("Info: password validation succeeded for host %s", alias)
-	// === 密码测试结束 ===
+	// 密码测试结束
 
+	runtime.EventsEmit(a.ctx, "ssh:status", map[string]any{
+		"alias":   alias,
+		"status":  "connecting",
+		"message": fmt.Sprintf("Connecting to %s...", alias),
+	})
 	// 调用执行函数
 	log.Printf("Info: connect in terminal for host %s with password", alias)
 	err = a.sshManager.ConnectInTerminalWithConfig(alias, authConfig, a.isDebug) // 新增debug参数
 	if err != nil {
-		// === 新增：发送"连接中"事件 ===
-		runtime.EventsEmit(a.ctx, "ssh:status", map[string]interface{}{
-			"alias":  alias,
-			"status": "connecting",
-			"message": fmt.Sprintf("Connecting to %s...", alias),
+		// 发送"连接中"事件
+		runtime.EventsEmit(a.ctx, "ssh:status", map[string]any{
+			"alias":   alias,
+			"status":  "failed",
+			"message": fmt.Sprintf("Connecting to %s failed: %s", alias, err),
 		})
-		// === 事件发送结束 ===
 
 		return fmt.Errorf("failed to connect in terminal with password: %w", err)
 	}
 
-	// === 新增：发送"连接成功"事件 ===
-	runtime.EventsEmit(a.ctx, "ssh:status", map[string]interface{}{
-		"alias":  alias,
-		"status": "success",
+	// 发送"连接成功"事件
+	runtime.EventsEmit(a.ctx, "ssh:status", map[string]any{
+		"alias":   alias,
+		"status":  "success",
 		"message": fmt.Sprintf("Terminal opened for %s", alias),
 	})
-	// === 事件发送结束 ===
 
 	return nil
 }
