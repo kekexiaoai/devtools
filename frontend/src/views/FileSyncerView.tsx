@@ -336,7 +336,7 @@ export function FileSyncerView() {
       ],
     })
 
-    if (choice !== 'yes') return
+    if (choice.buttonValue !== 'yes') return
 
     try {
       await DeleteConfig(id)

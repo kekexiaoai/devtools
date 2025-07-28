@@ -26,6 +26,7 @@ type ConnectionConfig struct {
 	HostName     string
 	Port         string
 	User         string
+	IdentityFile string // 添加此字段存储密钥文件路径
 	ClientConfig *ssh.ClientConfig
 }
 
@@ -135,6 +136,7 @@ func (m *Manager) GetConnectionConfig(alias string, password string) (*Connectio
 		HostName:     host.HostName,
 		Port:         host.Port,
 		User:         host.User,
+		IdentityFile: host.IdentityFile, // 新增：传递密钥文件路径
 		ClientConfig: clientConfig,
 	}, nil
 }
@@ -539,32 +541,61 @@ func (m *Manager) ConnectInTerminal(alias string) error {
 }
 
 // ConnectInTerminalWithConfig 接收一个完整的配置，并在系统终端中打开连接
-func (m *Manager) ConnectInTerminalWithConfig(alias string, config *ConnectionConfig) error {
-	// 这个函数不再关心如何认证，它只负责执行
+func (m *Manager) ConnectInTerminalWithConfig(alias string, config *ConnectionConfig, debug bool) error {
+	// 处理密钥文件路径（展开~并验证）
+	identityFile := config.IdentityFile
+	if identityFile != "" {
+		// 展开路径中的~符号
+		if strings.HasPrefix(identityFile, "~") {
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				return fmt.Errorf("failed to resolve home directory: %w", err)
+			}
+			identityFile = filepath.Join(homeDir, identityFile[1:])
+		}
+		// 验证文件是否存在
+		if _, err := os.Stat(identityFile); err != nil {
+			log.Printf("Warning: Identity file %s not found", identityFile)
+			identityFile = "" // 文件不存在时不使用该参数
+		}
+	}
+
+	// 构建SSH命令参数（动态拼接，避免硬编码）
+	sshArgs := []string{
+		"-p", config.Port, // 端口参数
+		"-F", "/dev/null", // 忽略系统默认配置
+		"-o", "IdentitiesOnly=yes", // 仅使用指定的身份验证方式
+	}
+
+	// 仅当密钥文件有效时添加-i参数
+	if identityFile != "" {
+		sshArgs = append(sshArgs, "-i", identityFile)
+	}
+
+	// 添加目标用户@主机
+	sshArgs = append(sshArgs, fmt.Sprintf("%s@%s", config.User, config.HostName))
+
+	// 拼接完整命令字符串
+	sshCmd := strings.Join(sshArgs, " ")
+
+	// === 新增：调试模式下打印完整命令 ===
+	if debug {
+		log.Printf("Debug: SSH command: %s", sshCmd)
+	}
+	// === 日志输出结束 ===
+
+	// 为不同平台构建启动终端的命令（保持原平台适配逻辑）
 	var cmd *exec.Cmd
-
-	// 我们需要构建一个包含所有必要参数的、完整的 ssh 命令
-	// -F /dev/null -o IdentitiesOnly=yes 可以确保只使用我们提供的认证方法
-	sshCmd := fmt.Sprintf("ssh -p %s -i %s %s@%s",
-		config.Port,
-		"~/.ssh/id_rsa", // 这是一个占位符，更健壮的实现需要从config中获取
-		config.User,
-		config.HostName,
-	)
-
-	// 为不同平台构建启动终端的命令
 	switch runtime.GOOS {
 	case "darwin":
 		script := fmt.Sprintf(`tell app "Terminal" to do script "%s"`, sshCmd)
 		cmd = exec.Command("osascript", "-e", script)
 	case "windows":
-		// 在 Windows 上，我们直接启动 ssh.exe
-		cmd = exec.Command("cmd.exe", "/c", "start", "wt.exe", "ssh.exe", fmt.Sprintf("%s@%s", config.User, config.HostName))
+		cmd = exec.Command("cmd.exe", "/c", "start", "wt.exe", "cmd.exe", "/k", sshCmd)
 	default: // Linux
 		cmd = exec.Command("gnome-terminal", "--", "bash", "-c", sshCmd+"; exec bash")
 	}
 
-	// Start() 启动命令，不等待它完成
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start terminal command: %w", err)
 	}

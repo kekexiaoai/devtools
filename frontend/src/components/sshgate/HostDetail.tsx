@@ -8,7 +8,7 @@ import {
   CardDescription,
 } from '@/components/ui/card'
 import { PlayCircle, Pencil, Trash2, Network } from 'lucide-react'
-import { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { TunnelDial } from './TunnelDialog'
 
 interface HostDetailProps {
@@ -18,6 +18,12 @@ interface HostDetailProps {
   onConnect: (alias: string) => void
 }
 
+interface SSHStatusEventDetail {
+  alias: string
+  status: 'connecting' | 'failed' | 'success'
+  message: string
+}
+
 export function HostDetail({
   host,
   onEdit,
@@ -25,6 +31,42 @@ export function HostDetail({
   onConnect,
 }: HostDetailProps) {
   const [isTunnelModalOpen, setIsTunnelModalOpen] = useState(false)
+  // === 连接状态管理 ===
+  const [connecting, setConnecting] = useState(false)
+  const [statusMessage, setStatusMessage] = useState('')
+  useEffect(() => {
+    const onSSHStatus = (event: Event) => {
+      const customEvent = event as CustomEvent<SSHStatusEventDetail>
+      const { alias, status, message } = customEvent.detail
+      // 只处理当前主机的状态事件
+      if (alias !== host.alias) return
+
+      switch (status) {
+        case 'connecting':
+          setConnecting(true)
+          setStatusMessage(message || 'Connecting...')
+          break
+        case 'failed':
+          setConnecting(false)
+          setStatusMessage(message || 'Connection failed')
+          // 3秒后自动清除失败消息
+          setTimeout(() => setStatusMessage(''), 3000)
+          break
+        case 'success':
+          setConnecting(false)
+          setStatusMessage('Connected successfully')
+          setTimeout(() => setStatusMessage(''), 2000)
+          break
+        default:
+          setStatusMessage('')
+      }
+    }
+
+    window.addEventListener('ssh:status', onSSHStatus)
+    return () => window.removeEventListener('ssh:status', onSSHStatus)
+  }, [host.alias]) // 依赖主机别名，确保切换主机时重新监听
+  // === 状态管理结束 ===
+
   return (
     <>
       <Card>
@@ -67,6 +109,21 @@ export function HostDetail({
             </div>
           </div>
         </CardHeader>
+        {/* === 连接状态显示区域 === */}
+        {statusMessage && (
+          <div
+            className={`p-3 mx-6 ${
+              connecting
+                ? 'bg-blue-50 text-blue-700'
+                : statusMessage.includes('failed')
+                  ? 'bg-red-50 text-red-700'
+                  : 'bg-green-50 text-green-700'
+            }`}
+          >
+            {statusMessage}
+          </div>
+        )}
+        {/* === 状态显示结束 === */}
         <CardContent className="text-sm space-y-4">
           <div className="space-y-1">
             <p className="text-muted-foreground">HostName</p>

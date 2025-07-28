@@ -111,8 +111,12 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
       type: 'confirm',
       title: 'Delete Host',
       message: `Are you sure you want to delete the host "${alias}"?`,
+      buttons: [
+        { text: 'Cancel', variant: 'outline', value: 'cancel' },
+        { text: 'Yes, Delete', variant: 'destructive', value: 'yes' },
+      ],
     })
-    if (choice !== 'yes') return
+    if (choice.buttonValue !== 'yes') return
     try {
       await DeleteSSHHost(alias)
       await fetchHosts()

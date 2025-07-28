@@ -1,5 +1,16 @@
 import { createContext, useContext } from 'react'
 
+export interface PromptOptions {
+  label: string
+  type: 'text' | 'password'
+}
+
+export interface CheckboxOptions {
+  label: string
+  value: string
+  CheckedState?: boolean
+}
+
 export type DialogOptions = {
   title: string
   message: string
@@ -16,11 +27,18 @@ export type DialogOptions = {
       | 'link'
     value: string // 点击 Promise resolve 的值
   }[]
+  prompt?: PromptOptions
+  checkboxes?: CheckboxOptions[]
 }
 
+export interface DialogResult {
+  buttonValue: string | null
+  inputValue?: string // 输入框的 value
+  checkedValues?: string[] // 所有被勾选的复选框的 value
+}
 export type ShowDialogFunction = (
   options: DialogOptions
-) => Promise<string | null>
+) => Promise<DialogResult>
 
 // 定义 Context 值的类型
 export type DialogContextValue = {

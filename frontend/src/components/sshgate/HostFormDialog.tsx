@@ -2,7 +2,7 @@ import { useDialog } from '@/hooks/useDialog'
 import { types } from '@wailsjs/go/models'
 import { useEffect, useState } from 'react'
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
-import { SaveSSHHost } from '@wailsjs/go/backend/App'
+import { SavePasswordForAlias, SaveSSHHost } from '@wailsjs/go/backend/App'
 import { DialogContent } from '../ui/dialog'
 import { Label } from '../ui/label'
 import { Input } from '../ui/input'
@@ -20,8 +20,13 @@ export function HostFormDialog(props: HostFormDialogProps) {
   const { showDialog } = useDialog()
   const [formData, setFormData] = useState<types.SSHHost>({} as types.SSHHost)
 
+  const [password, setPassword] = useState('')
+  const [savePassword, setSavePassword] = useState(true)
+
   useEffect(() => {
     if (isOpen) {
+      setPassword('')
+      setSavePassword(true)
       if (host) {
         setFormData(host)
       } else {
@@ -59,10 +64,13 @@ export function HostFormDialog(props: HostFormDialogProps) {
     }
     try {
       await SaveSSHHost(formData)
+      if (password && savePassword) {
+        await SavePasswordForAlias(formData.alias, password)
+      }
       onSave()
       onOpenChange(false)
       await showDialog({
-        type: 'info',
+        type: 'success',
         title: 'Success',
         message: 'Host saved successfully.',
       })

@@ -102,7 +102,7 @@ export function SyncPairsManager({
       ],
     })
 
-    if (choice !== 'yes') return
+    if (choice.buttonValue !== 'yes') return
     try {
       await DeleteSyncPair(pairId)
       await fetchSyncPairs() // 删除后刷新列表

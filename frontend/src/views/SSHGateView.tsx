@@ -6,6 +6,7 @@ import {
   DeleteSSHHost,
   GetSSHConfigFileContent,
   SaveSSHConfigFileContent,
+  ConnectInTerminalWithPassword,
 } from '@wailsjs/go/backend/App'
 import { useDialog } from '@/hooks/useDialog'
 
@@ -133,8 +134,13 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
       type: 'confirm',
       title: 'Delete Host',
       message: `Are you sure you want to delete the host "${alias}"?`,
+      buttons: [
+        { text: 'Cancel', variant: 'outline', value: 'cancel' },
+        { text: 'Yes, Delete', variant: 'destructive', value: 'yes' },
+      ],
     })
-    if (choice !== 'yes') return
+    console.log('handleDelete, choice', choice)
+    if (choice.buttonValue !== 'yes') return
     try {
       await DeleteSSHHost(alias)
       await fetchHosts()
@@ -150,13 +156,56 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
 
   const handleConnect = async (alias: string) => {
     try {
+      // 先尝试无密码连接
       await ConnectInTerminal(alias)
     } catch (error) {
-      await showDialog({
-        type: 'error',
-        title: 'Error',
-        message: `Failed to connect: ${String(error)}`,
-      })
+      // 检查是否是“需要密码”的特定错误
+      if (String(error).includes('password is required')) {
+        // 提示用户输入密码
+        const result = await showDialog({
+          title: `Password Required for ${alias}`,
+          message: `Please enter the password to connect.`,
+          prompt: {
+            label: 'Password',
+            type: 'password',
+          },
+          checkboxes: [
+            {
+              label: 'Save password to system keychian',
+              value: 'Save',
+              CheckedState: true,
+            },
+          ],
+          buttons: [
+            { text: 'Cancel', variant: 'outline', value: 'cancel' },
+            { text: 'Connect', variant: 'default', value: 'connect' },
+          ],
+        })
+        // 根据用户的选择和输入，掉用带密码的连接方法
+        if (result.buttonValue === 'connect' && result.inputValue) {
+          const savePassword = result.checkedValues?.includes('save') || false
+          try {
+            await ConnectInTerminalWithPassword(
+              alias,
+              result.inputValue,
+              savePassword
+            )
+          } catch (connectError) {
+            await showDialog({
+              type: 'error',
+              title: 'Connect Failed',
+              message: String(connectError),
+            })
+          }
+        }
+      } else {
+        // 其它普通错误
+        await showDialog({
+          type: 'error',
+          title: 'Error',
+          message: `Failed to connect: ${String(error)}`,
+        })
+      }
     }
   }
 
@@ -234,10 +283,18 @@ function RawEditor({ onDataChange }: { onDataChange: () => void }) {
     try {
       await SaveSSHConfigFileContent(content)
       setIsDirty(false)
-      await showDialog({ title: 'Success', message: 'SSH config file saved.' })
+      await showDialog({
+        type: 'success',
+        title: 'Success',
+        message: 'SSH config file saved.',
+      })
       onDataChange() // 通知父组件数据已变动
     } catch (error) {
-      await showDialog({ title: 'Validation Error', message: String(error) })
+      await showDialog({
+        type: 'error',
+        title: 'Validation Error',
+        message: String(error),
+      })
     }
   }
 

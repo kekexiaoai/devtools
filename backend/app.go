@@ -7,11 +7,13 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/menu"
 	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"golang.org/x/crypto/ssh"
 
 	"devtools/backend/internal/config"
 	"devtools/backend/internal/sshmanager"
@@ -356,7 +358,7 @@ func (a *App) ShowConfirmDialog(title string, message string) (string, error) {
 
 // LogFromFrontend 接收一个结构化的 LogEntry 对象
 func (a *App) LogFromFrontend(entry types.LogEntry) {
-	// 我们可以从 entry 中获取时间戳，或者如果前端没有提供，我们自己生成一个
+	// 我们可以从 entry 中获取时间戳，或者如果前端没有提供， ourselves generate one
 	timestamp := entry.Timestamp
 	if timestamp == "" {
 		timestamp = time.Now().Format("15:04:05")
@@ -498,24 +500,72 @@ func (a *App) ConnectInTerminal(alias string) error {
 	}
 
 	// 如果成功获取配置，则调用执行函数
-	return a.sshManager.ConnectInTerminalWithConfig(alias, authConfig)
+	return a.sshManager.ConnectInTerminalWithConfig(alias, authConfig, a.isDebug)
 }
 
 // ConnectInTerminalWithPassword 接收密码来完成连接
 func (a *App) ConnectInTerminalWithPassword(alias string, password string, savePassword bool) error {
 	// 如果用户选择保存密码，则先保存
 	if savePassword && password != "" {
+		log.Printf("Info: saving password to keychain for host %s", alias)
 		if err := a.sshManager.SavePasswordForAlias(alias, password); err != nil {
 			log.Printf("Warning: failed to save password to keychain for host %s: %v", alias, err)
 		}
 	}
 
 	// 使用用户提供的密码来获取配置
+	log.Printf("Info: get connection config for host %s with password", alias)
 	authConfig, err := a.sshManager.GetConnectionConfig(alias, password)
 	if err != nil {
 		return fmt.Errorf("failed to get connection config even with password: %w", err)
 	}
 
+	// === 新增：密码有效性测试 ===
+	log.Printf("Info: testing SSH connection with provided password for %s", alias)
+	sshAddr := fmt.Sprintf("%s:%s", authConfig.HostName, authConfig.Port)
+	testClient, dialErr := ssh.Dial("tcp", sshAddr, authConfig.ClientConfig)
+	if dialErr != nil {
+		// 识别常见认证错误（适配不同SSH服务器的错误提示）
+		authErrorKeywords := []string{
+			"unable to authenticate",
+			"permission denied",
+			"invalid password",
+			"publickey denied",
+			"authentication failed",
+		}
+		for _, keyword := range authErrorKeywords {
+			if strings.Contains(strings.ToLower(dialErr.Error()), strings.ToLower(keyword)) {
+				return fmt.Errorf("invalid password for host %s", alias)
+			}
+		}
+		return fmt.Errorf("failed to connect to %s: %w", sshAddr, dialErr)
+	}
+	testClient.Close() // 关闭测试连接
+	log.Printf("Info: password validation succeeded for host %s", alias)
+	// === 密码测试结束 ===
+
 	// 调用执行函数
-	return a.sshManager.ConnectInTerminalWithConfig(alias, authConfig)
+	log.Printf("Info: connect in terminal for host %s with password", alias)
+	err = a.sshManager.ConnectInTerminalWithConfig(alias, authConfig, a.isDebug) // 新增debug参数
+	if err != nil {
+		// === 新增：发送"连接中"事件 ===
+		runtime.EventsEmit(a.ctx, "ssh:status", map[string]interface{}{
+			"alias":  alias,
+			"status": "connecting",
+			"message": fmt.Sprintf("Connecting to %s...", alias),
+		})
+		// === 事件发送结束 ===
+
+		return fmt.Errorf("failed to connect in terminal with password: %w", err)
+	}
+
+	// === 新增：发送"连接成功"事件 ===
+	runtime.EventsEmit(a.ctx, "ssh:status", map[string]interface{}{
+		"alias":  alias,
+		"status": "success",
+		"message": fmt.Sprintf("Terminal opened for %s", alias),
+	})
+	// === 事件发送结束 ===
+
+	return nil
 }

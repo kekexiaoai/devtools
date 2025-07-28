@@ -13,20 +13,37 @@ import {
   DialogContext,
   type DialogOptions,
   type ShowDialogFunction,
+  type DialogResult,
 } from '@/hooks/useDialog'
 import { Button } from '../ui/button'
 
 import { Info, CheckCircle2, XCircle, HelpCircle } from 'lucide-react'
+import { Label } from '@radix-ui/react-label'
+import { Input } from '../ui/input'
+import { Checkbox } from '../ui/checkbox'
 
 // 创建一个 Provider 组件
 export function DialogProvider({ children }: { children: ReactNode }) {
   const [dialogConfig, setDialogConfig] = useState<{
     options: DialogOptions
-    resolve: (value: string | null) => void
+    resolve: (value: DialogResult) => void
   } | null>(null)
+
+  const [inputValue, setInputValue] = useState('')
+  const [checkedValues, setCheckedValues] = useState<string[]>([])
 
   const showDialog: ShowDialogFunction = useCallback((options) => {
     return new Promise((resolve) => {
+      // 每次打开新对话框时，重置内部状态
+      setInputValue('')
+      // 初始化选中状态
+      const initialCheckedValues = options.checkboxes
+        ? options.checkboxes
+            .filter((cb) => cb.CheckedState)
+            .map((cb) => cb.value)
+        : []
+      console.log('showDialog,initialCheckedValues', initialCheckedValues)
+      setCheckedValues(initialCheckedValues)
       // 默认类型为 'info'
       const optsWithDefaults: DialogOptions = { type: 'info', ...options }
       setDialogConfig({ options: optsWithDefaults, resolve })
@@ -68,8 +85,22 @@ export function DialogProvider({ children }: { children: ReactNode }) {
   }
 
   const handleClose = (value: string | null) => {
-    dialogConfig?.resolve(value)
+    dialogConfig?.resolve({
+      buttonValue: value,
+      inputValue: inputValue,
+      checkedValues: checkedValues,
+    })
     closeDialog()
+  }
+
+  const handleCheckboxChange = (checked: boolean, value: string) => {
+    setCheckedValues((prev) => {
+      if (checked) {
+        return [...prev, value]
+      } else {
+        return prev.filter((item) => item !== value)
+      }
+    })
   }
 
   return (
@@ -104,6 +135,37 @@ export function DialogProvider({ children }: { children: ReactNode }) {
             <AlertDialogDescription className="whitespace-pre-wrap break-words">
               {dialogConfig?.options.message}
             </AlertDialogDescription>
+          </div>
+          <div className="py-4 space-y-4">
+            {/* 条件渲染输入框 */}
+            {dialogConfig?.options.prompt && (
+              <div className="flex items-center space-x-2">
+                <Label htmlFor="dialog-prompt" className=" whitespace-nowrap">
+                  {dialogConfig.options.prompt.label}
+                </Label>
+                <Input
+                  id="dialog-prompt"
+                  type={dialogConfig.options.prompt.type}
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  className="mt-2 flex-grow"
+                />
+              </div>
+            )}
+            {/* 条件渲染选择框 */}
+            {dialogConfig?.options.checkboxes &&
+              dialogConfig.options.checkboxes.map((cb) => (
+                <div key={cb.value} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`dialog-cb-${cb.value}`}
+                    onCheckedChange={(checked) =>
+                      handleCheckboxChange(Boolean(checked), cb.value)
+                    }
+                    checked={checkedValues.includes(cb.value)}
+                  />
+                  <Label htmlFor={`dialog-cb-${cb.value}`}>{cb.label}</Label>
+                </div>
+              ))}
           </div>
 
           {/* 脚部：不允许收缩 */}
