@@ -105,7 +105,68 @@
         "-o",
         "build/bin/devtools"
       ]
+    },
+    {
+      "label": "wails-dev",
+      "type": "shell",
+      "command": "wails",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "args": [
+        "dev",
+        "-tags",
+        "debug",
+        "-loglevel",
+        "Debug"
+      ],
+      "problemMatcher": {
+        "owner": "custom",
+        "pattern": {
+          "regexp": "_______"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": "To develop in the browser and call your bound Go methods from Javascript, navigate to: .*"
+        }
+      }
+    },
+    {
+      "label": "dlv-server",
+      "type": "shell",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "command": "bash", // Windows: "bash" (Git Bash/WSL) or "powershell"
+      "args": [
+        "debug.sh",
+        "devtools",
+        "2345"
+      ],
+      // "command": "powershell",
+      // "args": [
+      //   "-File",
+      //   "./debug.sh",
+      //   "devtools",
+      //   "2345"
+      // ],
+      "dependsOn": [
+        "wails-dev"
+      ],
+      "problemMatcher": {
+        "owner": "custom",
+        "pattern": {
+          "regexp": "_______"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": "API server listening at: .*"
+        }
+      }
     }
   ]
 }
-  
