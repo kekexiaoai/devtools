@@ -2,6 +2,16 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Wails Debug with delve",
+      "type": "go",
+      "request": "attach",
+      "mode": "remote",
+      "preLaunchTask": "dlv-server",
+      "remotePath": "${workspaceFolder}",
+      "port": 2345, // here goes the port you defined in the preLaunchTask 
+      "host": "127.0.0.1"
+    },
+    {
       "name": "Wails: Production devtools",
       "type": "go",
       "request": "launch",
@@ -27,16 +37,6 @@
       "program": "${workspaceFolder}/build/bin/devtools",
       "preLaunchTask": "build dev",
       "cwd": "${workspaceFolder}"
-    },
-    {
-      "name": "Wails Debug with delve",
-      "type": "go",
-      "request": "attach",
-      "mode": "remote",
-      "preLaunchTask": "dlv-server",
-      "remotePath": "${workspaceFolder}",
-      "port": 2345, // here goes the port you defined in the preLaunchTask 
-      "host": "127.0.0.1"
     }
   ]
 }

@@ -143,14 +143,14 @@
       "command": "bash", // Windows: "bash" (Git Bash/WSL) or "powershell"
       "args": [
         "debug.sh",
-        "devtools",
+        "DevTools",
         "2345"
       ],
       // "command": "powershell",
       // "args": [
       //   "-File",
       //   "./debug.sh",
-      //   "devtools",
+      //   "DevTools",
       //   "2345"
       // ],
       "dependsOn": [
