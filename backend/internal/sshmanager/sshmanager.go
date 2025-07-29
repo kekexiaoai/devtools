@@ -14,6 +14,7 @@ import (
 	"devtools/backend/internal/types"
 	"devtools/backend/pkg/sshconfig"
 
+	"github.com/skeema/knownhosts"
 	"github.com/zalando/go-keyring"
 	"golang.org/x/crypto/ssh"
 )
@@ -87,7 +88,7 @@ func NewManager(configPath string) (*Manager, error) {
 
 // GetConnectionConfig 是一个智能的函数，它会按优先级尝试所有认证方法
 // password 参数是用户在UI上本次操作临时输入的密码（如果有的话）
-func (m *Manager) GetConnectionConfig(alias string, password string) (*ConnectionConfig, error) {
+func (m *Manager) GetConnectionConfig(alias string, password string, ignoreHostKey bool) (*ConnectionConfig, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -125,10 +126,28 @@ func (m *Manager) GetConnectionConfig(alias string, password string) (*Connectio
 		return nil, &types.PasswordRequiredError{Alias: alias}
 	}
 
+	var hostKeyCallback ssh.HostKeyCallback
+
+	if ignoreHostKey {
+		// 如果用户已经确认过，则使用 InsecureIgnoreHostKey (简化版，更安全的做法是添加)
+		hostKeyCallback = ssh.InsecureIgnoreHostKey()
+	} else {
+		// 否则，使用我们自定义的、更安全的回调
+		knownHostsPath := filepath.Join(filepath.Dir(m.configPath), "known_hosts")
+		var err error
+		// knownhosts.New 会创建或加载 known_hosts 文件
+		var hkcb knownhosts.HostKeyCallback
+		hkcb, err = knownhosts.New(knownHostsPath)
+		if err != nil {
+			return nil, fmt.Errorf("could not create known_hosts callback: %w", err)
+		}
+		hostKeyCallback = hkcb.HostKeyCallback()
+	}
+
 	clientConfig := &ssh.ClientConfig{
 		User:            host.User,
 		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO: 在第二阶段实现主机指纹验证
+		HostKeyCallback: hostKeyCallback,
 		Timeout:         10 * time.Second,
 	}
 
@@ -136,7 +155,7 @@ func (m *Manager) GetConnectionConfig(alias string, password string) (*Connectio
 		HostName:     host.HostName,
 		Port:         host.Port,
 		User:         host.User,
-		IdentityFile: host.IdentityFile, // 新增：传递密钥文件路径
+		IdentityFile: host.IdentityFile,
 		ClientConfig: clientConfig,
 	}, nil
 }

@@ -6,6 +6,10 @@ export function ConnectInTerminal(arg1) {
   return window['go']['backend']['App']['ConnectInTerminal'](arg1);
 }
 
+export function ConnectInTerminalAndTrustHost(arg1) {
+  return window['go']['backend']['App']['ConnectInTerminalAndTrustHost'](arg1);
+}
+
 export function ConnectInTerminalWithPassword(arg1, arg2, arg3) {
   return window['go']['backend']['App']['ConnectInTerminalWithPassword'](arg1, arg2, arg3);
 }

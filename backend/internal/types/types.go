@@ -47,3 +47,14 @@ func (e *PasswordRequiredError) Error() string {
 	// 这个错误信息字符串，将是我们前端用来判断错误类型的“暗号”
 	return fmt.Sprintf("password is required for host %s", e.Alias)
 }
+
+// HostKeyVerificationRequiredError 表示需要用户确认一个新的主机指纹
+type HostKeyVerificationRequiredError struct {
+	Alias       string
+	Fingerprint string
+	HostAddress string
+}
+
+func (e *HostKeyVerificationRequiredError) Error() string {
+	return fmt.Sprintf("host key verification required for host %s (%s)", e.Alias, e.HostAddress)
+}
