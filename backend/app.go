@@ -594,45 +594,50 @@ func (a *App) handleSSHConnectError(alias string, err error) error {
 	// 检查是否是主机密钥验证错误（需要提取远程主机密钥）
 	var keyErr *knownhosts.KeyError
 	if errors.As(err, &keyErr) {
-		// 步骤1：通过 alias 获取主机配置（解决 host 未定义问题）
-		host, getHostErr := a.sshManager.GetSSHHostByAlias(alias)
-		if getHostErr != nil {
-			return fmt.Errorf("获取主机配置失败: %w", getHostErr)
+		// 这是一个新的或已更改的主机密钥，我们需要去捕获它
+		log.Printf("Host key error for %s, attempting to capture new key...", alias)
+
+		remoteKey, captureErr := a.sshManager.CaptureHostKey(alias)
+		if captureErr != nil {
+			return fmt.Errorf("failed to capture remote host key: %w", captureErr)
+		}
+		
+		host, err := a.sshManager.GetSSHHostByAlias(alias)
+		if err != nil {
+		return fmt.Errorf("failed to get ssh host %q: %w", alias, err)
 		}
 		hostAddress := fmt.Sprintf("%s:%s", host.HostName, host.Port)
 
-		// 步骤2：提取远程主机密钥（解决 keyError.Key 不存在问题）
-		// 注意：需要通过底层错误提取，不同 SSH 实现可能有差异
-		var remoteKey ssh.PublicKey
-		if len(keyErr.Want) > 0 {
-			// 兼容部分实现：从已知密钥中获取（非最佳实践，但可临时使用）
-			remoteKey = keyErr.Want[0].Key
-		} else {
-			// 更通用的方式：从错误信息中解析（实际场景可能需要更复杂的处理）
-			// 这里简化处理，假设 keyErr 包含足够信息
-			return fmt.Errorf("无法获取远程主机密钥指纹: %w", err)
-		}
-
 		return &types.HostKeyVerificationRequiredError{
 			Alias:       alias,
-			Fingerprint: ssh.FingerprintSHA256(remoteKey), // 使用正确的远程密钥生成指纹
+			Fingerprint: ssh.FingerprintSHA256(remoteKey),
 			HostAddress: hostAddress,
 		}
 	}
 
 	// 其他通用错误
-	return fmt.Errorf("获取连接配置失败: %w", err)
+	return fmt.Errorf("connection failed: %w", err)
 }
 
-
 // ConnectInTerminalAndTrustHost 用户确认后，接受主机指纹并连接
-func (a *App) ConnectInTerminalAndTrustHost(alias string) error {
-	// 在这种情况下，我们告诉 GetConnectionConfig 忽略主机密钥检查，
-	// 因为用户已经“信任”了它。更安全的做法是手动将密钥写入 known_hosts。
-	// 为简化，我们先用 InsecureIgnoreHostKey
-	_, err := a.sshManager.GetConnectionConfig(alias, "", true)
+func (a *App) ConnectInTerminalAndTrustHost(alias string, password string, savePassword bool) error {
+	// 1. 先将新的主机密钥添加到 known_hosts 文件
+	host, err := a.sshManager.GetSSHHostByAlias(alias)
 	if err != nil {
-		// 如果此时还需要密码，则再次返回错误
+		return err
+	}
+	remoteKey, err := a.sshManager.CaptureHostKey(alias)
+	if err != nil {
+		return err
+	}
+	if err := a.sshManager.AddHostKeyToKnownHosts(host, remoteKey); err != nil {
+		log.Printf("Warning: failed to add host key to known_hosts: %v", err)
+	}
+	
+	// 2. 然后再用正常的方式连接（此时 known_hosts 检查会通过）
+	// 注意：这里可能依然需要密码
+	_, err = a.sshManager.GetConnectionConfig(alias, password, false)
+	if err != nil {
 		return a.handleSSHConnectError(alias, err)
 	}
 	return a.sshManager.ConnectInTerminal(alias)

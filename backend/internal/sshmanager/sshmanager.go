@@ -1,8 +1,10 @@
 package sshmanager
 
 import (
+	"errors"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -84,6 +86,77 @@ func NewManager(configPath string) (*Manager, error) {
 		manager:    manager,
 		configPath: configPath,
 	}, nil
+}
+
+// a special error type to capture the host key
+type captureHostKeyError struct {
+	key ssh.PublicKey
+}
+
+func (e *captureHostKeyError) Error() string {
+	return "host key captured"
+}
+
+// captureHostKey 是一个特殊的函数，用于捕获服务器的公钥
+func (m *Manager) CaptureHostKey(alias string) (ssh.PublicKey, error) {
+	host, err := m.GetSSHHostByAlias(alias)
+	if err != nil {
+		return nil, err
+	}
+
+	// 创建一个只用于捕获的、不进行任何认证的配置
+	captureConfig := &ssh.ClientConfig{
+		User: host.User,
+		// 关键：这个回调函数在拿到公钥后，会立即返回一个特殊错误来中断连接
+		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			return &captureHostKeyError{key: key}
+		},
+		Timeout: 5 * time.Second,
+	}
+
+	serverAddr := fmt.Sprintf("%s:%s", host.HostName, host.Port)
+	client, err := ssh.Dial("tcp", serverAddr, captureConfig)
+	if client != nil {
+		client.Close()
+	}
+
+	// 检查返回的错误
+	var capturedKeyErr *captureHostKeyError
+	if errors.As(err, &capturedKeyErr) {
+		// 成功捕获！返回公钥
+		return capturedKeyErr.key, nil
+	}
+
+	// 其他错误
+	return nil, fmt.Errorf("failed to capture host key: %w", err)
+}
+
+// AddHostKeyToKnownHosts 将一个新的主机公钥添加到用户的 known_hosts 文件中
+func (m *Manager) AddHostKeyToKnownHosts(host *types.SSHHost, key ssh.PublicKey) error {
+	knownHostsPath := filepath.Join(filepath.Dir(m.configPath), "known_hosts")
+
+	// 1. 以“追加”模式打开文件，如果文件不存在则创建
+	f, err := os.OpenFile(knownHostsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return fmt.Errorf("failed to open known_hosts file for writing: %w", err)
+	}
+	defer f.Close()
+
+	// 2. 构建要写入的地址列表
+	//    一个主机别名可能对应多个地址（例如，域名和IP地址）
+	//    我们在这里将主机名和端口组合起来
+	addresses := []string{fmt.Sprintf("[%s]:%s", host.HostName, host.Port)}
+
+	// 3. 使用 knownhosts.Line() 这个标准函数来生成格式正确的行
+	newLine := knownhosts.Line(addresses, key)
+
+	// 4. 将新行写入文件末尾
+	if _, err := f.WriteString("\n" + newLine); err != nil {
+		return fmt.Errorf("failed to write to known_hosts file: %w", err)
+	}
+
+	log.Printf("Added new host key for %s to %s", host.Alias, knownHostsPath)
+	return nil
 }
 
 // GetConnectionConfig 是一个智能的函数，它会按优先级尝试所有认证方法

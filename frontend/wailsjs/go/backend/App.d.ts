@@ -7,7 +7,7 @@ import {menu} from '../models';
 
 export function ConnectInTerminal(arg1:string):Promise<void>;
 
-export function ConnectInTerminalAndTrustHost(arg1:string):Promise<void>;
+export function ConnectInTerminalAndTrustHost(arg1:string,arg2:string,arg3:boolean):Promise<void>;
 
 export function ConnectInTerminalWithPassword(arg1:string,arg2:string,arg3:boolean):Promise<void>;
 

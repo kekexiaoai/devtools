@@ -7,6 +7,7 @@ import {
   GetSSHConfigFileContent,
   SaveSSHConfigFileContent,
   ConnectInTerminalWithPassword,
+  ConnectInTerminalAndTrustHost,
 } from '@wailsjs/go/backend/App'
 import { useDialog } from '@/hooks/useDialog'
 
@@ -159,8 +160,9 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
       // 先尝试无密码连接
       await ConnectInTerminal(alias)
     } catch (error) {
+      const errorString = String(error)
       // 检查是否是“需要密码”的特定错误
-      if (String(error).includes('password is required')) {
+      if (errorString.includes('password is required')) {
         // 提示用户输入密码
         const result = await showDialog({
           title: `Password Required for ${alias}`,
@@ -206,6 +208,60 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
             title: 'Error',
             message: 'Please enter a password to connect.',
           })
+        }
+      } else if (errorString.includes('host key verification required')) {
+        // 我们需要从 error 对象中解析出指纹信息
+        // 假设 Go 后端返回的 error 对象被 Wails 转换为了一个带 extra 数据的对象
+        // 定义类型守卫函数
+        function hasDataAndFingerprintAndHostAddress(
+          error: unknown
+        ): error is { data: { Fingerprint: string; HostAddress: string } } {
+          return (
+            typeof error === 'object' &&
+            error !== null &&
+            'data' in error &&
+            typeof (error as { data: unknown }).data === 'object' &&
+            (
+              error as {
+                data: { Fingerprint?: unknown; HostAddress?: unknown }
+              }
+            ).data.Fingerprint !== undefined &&
+            typeof (error as { data: { Fingerprint: unknown } }).data
+              .Fingerprint === 'string' &&
+            (error as { data: { HostAddress?: unknown } }).data.HostAddress !==
+              undefined &&
+            typeof (error as { data: { HostAddress: unknown } }).data
+              .HostAddress === 'string'
+          )
+        }
+
+        let fingerprint: string | undefined
+        let hostAddress: string | undefined
+
+        if (hasDataAndFingerprintAndHostAddress(error)) {
+          fingerprint = error.data.Fingerprint
+          hostAddress = error.data.HostAddress
+        }
+
+        const choice = await showDialog({
+          title: `Host Key Verification for ${alias}`,
+          message: `The authenticity of host '${hostAddress}' can't be established.\n\nFingerprint: ${fingerprint}\n\nAre you sure you want to continue connecting?`,
+          buttons: [
+            { text: 'Cancel', variant: 'outline', value: 'cancel' },
+            { text: 'Yes, Trust Host', variant: 'default', value: 'yes' },
+          ],
+        })
+
+        if (choice.buttonValue === 'yes') {
+          try {
+            // 调用新的信任并连接的函数
+            // 注意：这里可能也需要处理密码
+            await ConnectInTerminalAndTrustHost(alias, '', false)
+          } catch (trustError) {
+            console.error(trustError)
+            // 如果信任后连接依然失败（比如还需要密码），则再次处理
+            // ... 可以在这里递归调用 handleConnect，或者再次弹出密码框
+          }
         }
       } else {
         // 其它普通错误
