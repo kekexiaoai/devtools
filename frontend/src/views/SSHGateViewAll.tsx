@@ -22,14 +22,20 @@ import { StreamLanguage } from '@codemirror/language'
 import { Extension } from '@codemirror/state'
 import { PlayCircle, Pencil, Trash2, Save } from 'lucide-react'
 import { HostFormDialog } from '@/components/sshgate/HostFormDialog'
+import { useOnVisible } from '@/hooks/useOnVisible'
 
 // #############################################################################
 // #  主视图组件 (Main View Component)
 // #############################################################################
-export function SSHGateView() {
+export function SSHGateView({ isActive }: { isActive: boolean }) {
   // 这个 state 用于在两个 Tab 之间同步数据刷新
   const [dataVersion, setDataVersion] = useState(0)
   const refreshData = () => setDataVersion((v) => v + 1)
+
+  // 使用Hook，告诉 useOnVisible: 当这个组件可见时，执行 refreshData 函数
+  useOnVisible(refreshData, isActive)
+
+  console.log('ssh gate, data version:', dataVersion)
 
   return (
     <div className="p-4 h-full flex flex-col">

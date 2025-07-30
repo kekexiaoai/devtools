@@ -34,8 +34,9 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { RadioGroup } from '@radix-ui/react-radio-group'
 import { RadioGroupItem } from '@/components/ui/radio-group'
+import { useOnVisible } from '@/hooks/useOnVisible'
 
-export function FileSyncerView() {
+export function FileSyncerView({ isActive }: { isActive: boolean }) {
   const [configs, setConfigs] = useState<types.SSHConfig[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
@@ -141,6 +142,8 @@ export function FileSyncerView() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // 无依赖, 保持函数引用稳定, 它的引用永远不会改变
+
+  useOnVisible(() => void fetchConfigs(), isActive)
 
   // --方案2-----------------------------------------------------------------------------------
   // 只在组件首次挂载时获取初始数据

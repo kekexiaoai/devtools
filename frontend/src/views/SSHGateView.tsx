@@ -23,17 +23,22 @@ import { HostFormDialog } from '@/components/sshgate/HostFormDialog'
 import { HostList } from '@/components/sshgate/HostList'
 import { HostDetail } from '@/components/sshgate/HostDetail'
 import { Save } from 'lucide-react'
+import { useOnVisible } from '@/hooks/useOnVisible'
 
 // #############################################################################
 // #  主视图组件 (Main View Component)
 // #############################################################################
-export function SSHGateView() {
+export function SSHGateView({ isActive }: { isActive: boolean }) {
   // 这个 state 用于在两个 Tab 之间同步数据刷新
   // 当 RawEditor 保存了文件，或 VisualEditor 增删改了主机，
   // 我们就增加 dataVersion 的值，这会强制两个 Tab 都重新获取数据
   const [dataVersion, setDataVersion] = useState(0)
   const refreshData = () => setDataVersion((v) => v + 1)
   const [activeTab, setActiveTab] = useState('visual')
+
+  // 使用Hook，告诉 useOnVisible: 当这个组件可见时，执行 refreshData 函数
+  useOnVisible(refreshData, isActive)
+  console.log('ssh gate, data version:', dataVersion)
 
   return (
     // 根容器

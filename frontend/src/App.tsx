@@ -204,10 +204,11 @@ function App() {
               {toolComponents.map(({ id, component: ToolComponent }) => (
                 <div
                   key={id}
-                  hidden={activeTool !== id}
-                  className="absolute inset-0 h-full w-full"
+                  className={`absolute inset-0 h-full w-full ${
+                    activeTool === id ? 'block' : 'hidden'
+                  }`}
                 >
-                  <ToolComponent />
+                  <ToolComponent isActive={activeTool === id} />
                 </div>
               ))}
             </main>
