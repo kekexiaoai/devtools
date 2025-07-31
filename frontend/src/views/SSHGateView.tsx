@@ -25,6 +25,45 @@ import { HostDetail } from '@/components/sshgate/HostDetail'
 import { Save } from 'lucide-react'
 import { useOnVisible } from '@/hooks/useOnVisible'
 
+// 我们可以把它定义在组件外部，作为一个可复用的工具函数
+interface HostKeyVerificationError {
+  data: {
+    Fingerprint: string
+    HostAddress: string
+  }
+}
+
+function isHostKeyVerificationError(
+  error: unknown
+): error is HostKeyVerificationError {
+  // 1. 检查 error 是否是一个非 null 的对象
+  if (typeof error !== 'object' || error === null) {
+    return false
+  }
+
+  // 2. 检查这个对象上是否有一个名为 'data' 的属性
+  if (!('data' in error)) {
+    return false
+  }
+
+  // 3. 此时 TypeScript 知道 error 是一个包含 'data' 属性的对象。
+  //    我们将其类型断言为一个更具体的、但仍然安全的类型。
+  const data = (error as { data: unknown }).data
+
+  // 4. 再检查 data 内部的结构
+  if (typeof data !== 'object' || data === null) {
+    return false
+  }
+
+  // 5. 最终检查，确保所有需要的属性都存在且类型正确
+  return (
+    'Fingerprint' in data &&
+    typeof (data as { Fingerprint: unknown }).Fingerprint === 'string' &&
+    'HostAddress' in data &&
+    typeof (data as { HostAddress: unknown }).HostAddress === 'string'
+  )
+}
+
 // #############################################################################
 // #  主视图组件 (Main View Component)
 // #############################################################################
@@ -216,43 +255,15 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
             message: 'Please enter a password to connect.',
           })
         }
-      } else if (errorString.includes('host key verification required')) {
-        // 我们需要从 error 对象中解析出指纹信息
-        // 假设 Go 后端返回的 error 对象被 Wails 转换为了一个带 extra 数据的对象
-        // 定义类型守卫函数
-        function hasDataAndFingerprintAndHostAddress(
-          error: unknown
-        ): error is { data: { Fingerprint: string; HostAddress: string } } {
-          return (
-            typeof error === 'object' &&
-            error !== null &&
-            'data' in error &&
-            typeof (error as { data: unknown }).data === 'object' &&
-            (
-              error as {
-                data: { Fingerprint?: unknown; HostAddress?: unknown }
-              }
-            ).data.Fingerprint !== undefined &&
-            typeof (error as { data: { Fingerprint: unknown } }).data
-              .Fingerprint === 'string' &&
-            (error as { data: { HostAddress?: unknown } }).data.HostAddress !==
-              undefined &&
-            typeof (error as { data: { HostAddress: unknown } }).data
-              .HostAddress === 'string'
-          )
-        }
-
-        let fingerprint: string | undefined
-        let hostAddress: string | undefined
-
-        if (hasDataAndFingerprintAndHostAddress(error)) {
-          fingerprint = error.data.Fingerprint
-          hostAddress = error.data.HostAddress
-        }
+      } else if (isHostKeyVerificationError(error)) {
+        // 使用类型守卫
+        // 在这个 if 代码块内部，TypeScript 现在“知道” error 是 HostKeyVerificationRequiredError 类型
+        // 因此我们可以安全地、无需 `any` 地访问它的属性
+        const { Fingerprint, HostAddress } = error.data
 
         const choice = await showDialog({
           title: `Host Key Verification for ${alias}`,
-          message: `The authenticity of host '${hostAddress}' can't be established.\n\nFingerprint: ${fingerprint}\n\nAre you sure you want to continue connecting?`,
+          message: `The authenticity of host '${HostAddress}' can't be established.\n\nFingerprint: ${Fingerprint}\n\nAre you sure you want to continue connecting?`,
           buttons: [
             { text: 'Cancel', variant: 'outline', value: 'cancel' },
             { text: 'Yes, Trust Host', variant: 'default', value: 'yes' },
@@ -266,8 +277,9 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
             await ConnectInTerminalAndTrustHost(alias, '', false)
           } catch (trustError) {
             console.error(trustError)
-            // 如果信任后连接依然失败（比如还需要密码），则再次处理
-            // ... 可以在这里递归调用 handleConnect，或者再次弹出密码框
+            // 在这里递归调用 handleConnect 是一种简单的处理方式
+            // 更复杂的应用可能会直接在这里再次弹出密码框
+            await handleConnect(alias)
           }
         }
       } else {
