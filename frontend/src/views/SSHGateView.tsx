@@ -179,7 +179,7 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
           checkboxes: [
             {
               label: 'Save password to system keychian',
-              value: 'Save',
+              value: 'save',
               CheckedState: true,
             },
           ],
@@ -188,6 +188,8 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
             { text: 'Connect', variant: 'default', value: 'connect' },
           ],
         })
+
+        console.log('handleConnect, result', result)
         // 根据用户的选择和输入，调用带密码的连接方法
         if (result.buttonValue === 'connect' && result.inputValue) {
           const savePassword = result.checkedValues?.includes('save') || false

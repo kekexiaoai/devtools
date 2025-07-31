@@ -88,178 +88,6 @@ func NewManager(configPath string) (*Manager, error) {
 	}, nil
 }
 
-// a special error type to capture the host key
-type captureHostKeyError struct {
-	key ssh.PublicKey
-}
-
-func (e *captureHostKeyError) Error() string {
-	return "host key captured"
-}
-
-// captureHostKey 是一个特殊的函数，用于捕获服务器的公钥
-func (m *Manager) CaptureHostKey(alias string) (ssh.PublicKey, error) {
-	host, err := m.GetSSHHostByAlias(alias)
-	if err != nil {
-		return nil, err
-	}
-
-	// 创建一个只用于捕获的、不进行任何认证的配置
-	captureConfig := &ssh.ClientConfig{
-		User: host.User,
-		// 关键：这个回调函数在拿到公钥后，会立即返回一个特殊错误来中断连接
-		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-			return &captureHostKeyError{key: key}
-		},
-		Timeout: 5 * time.Second,
-	}
-
-	serverAddr := fmt.Sprintf("%s:%s", host.HostName, host.Port)
-	client, err := ssh.Dial("tcp", serverAddr, captureConfig)
-	if client != nil {
-		client.Close()
-	}
-
-	// 检查返回的错误
-	var capturedKeyErr *captureHostKeyError
-	if errors.As(err, &capturedKeyErr) {
-		// 成功捕获！返回公钥
-		return capturedKeyErr.key, nil
-	}
-
-	// 其他错误
-	return nil, fmt.Errorf("failed to capture host key: %w", err)
-}
-
-// AddHostKeyToKnownHosts 将一个新的主机公钥添加到用户的 known_hosts 文件中
-func (m *Manager) AddHostKeyToKnownHosts(host *types.SSHHost, key ssh.PublicKey) error {
-	knownHostsPath := filepath.Join(filepath.Dir(m.configPath), "known_hosts")
-
-	// 1. 以“追加”模式打开文件，如果文件不存在则创建
-	f, err := os.OpenFile(knownHostsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	if err != nil {
-		return fmt.Errorf("failed to open known_hosts file for writing: %w", err)
-	}
-	defer f.Close()
-
-	// 2. 构建要写入的地址列表
-	//    一个主机别名可能对应多个地址（例如，域名和IP地址）
-	//    我们在这里将主机名和端口组合起来
-	addresses := []string{fmt.Sprintf("[%s]:%s", host.HostName, host.Port)}
-
-	// 3. 使用 knownhosts.Line() 这个标准函数来生成格式正确的行
-	newLine := knownhosts.Line(addresses, key)
-
-	// 4. 将新行写入文件末尾
-	if _, err := f.WriteString("\n" + newLine); err != nil {
-		return fmt.Errorf("failed to write to known_hosts file: %w", err)
-	}
-
-	log.Printf("Added new host key for %s to %s", host.Alias, knownHostsPath)
-	return nil
-}
-
-// GetConnectionConfig 是一个智能的函数，它会按优先级尝试所有认证方法
-// password 参数是用户在UI上本次操作临时输入的密码（如果有的话）
-func (m *Manager) GetConnectionConfig(alias string, password string, ignoreHostKey bool) (*ConnectionConfig, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	host, err := m.GetSSHHostByAlias(alias) // 假设我们有一个根据别名获取主机详情的辅助函数
-	if err != nil {
-		return nil, err
-	}
-
-	var authMethods []ssh.AuthMethod
-
-	// 认证优先级 1: 用户本次在UI上输入的临时密码
-	if password != "" {
-		authMethods = append(authMethods, ssh.Password(password))
-	}
-
-	// 认证优先级 2: ~/.ssh/config 中配置的 IdentityFile (密钥文件)
-	if host.IdentityFile != "" {
-		key, err := readKeyFile(host.IdentityFile)
-		if err == nil {
-			signer, err := ssh.ParsePrivateKey(key)
-			if err == nil {
-				authMethods = append(authMethods, ssh.PublicKeys(signer))
-			}
-		}
-	}
-
-	// 认证优先级 3: 从系统钥匙串中获取已保存的密码
-	savedPassword, err := keyring.Get(keyringService, alias)
-	if err == nil && savedPassword != "" {
-		authMethods = append(authMethods, ssh.Password(savedPassword))
-	}
-
-	// 如果到这里一个有效的认证方法都没有，就返回需要密码的特定错误
-	if len(authMethods) == 0 {
-		return nil, &types.PasswordRequiredError{Alias: alias}
-	}
-
-	var hostKeyCallback ssh.HostKeyCallback
-
-	if ignoreHostKey {
-		// 如果用户已经确认过，则使用 InsecureIgnoreHostKey (简化版，更安全的做法是添加)
-		hostKeyCallback = ssh.InsecureIgnoreHostKey()
-	} else {
-		// 否则，使用我们自定义的、更安全的回调
-		knownHostsPath := filepath.Join(filepath.Dir(m.configPath), "known_hosts")
-		var err error
-		// knownhosts.New 会创建或加载 known_hosts 文件
-		var hkcb knownhosts.HostKeyCallback
-		hkcb, err = knownhosts.New(knownHostsPath)
-		if err != nil {
-			return nil, fmt.Errorf("could not create known_hosts callback: %w", err)
-		}
-		hostKeyCallback = hkcb.HostKeyCallback()
-	}
-
-	clientConfig := &ssh.ClientConfig{
-		User:            host.User,
-		Auth:            authMethods,
-		HostKeyCallback: hostKeyCallback,
-		Timeout:         10 * time.Second,
-	}
-
-	return &ConnectionConfig{
-		HostName:     host.HostName,
-		Port:         host.Port,
-		User:         host.User,
-		IdentityFile: host.IdentityFile,
-		ClientConfig: clientConfig,
-	}, nil
-}
-
-// readKeyFile 是一个辅助函数，用于读取密钥文件并展开'~'
-func readKeyFile(path string) ([]byte, error) {
-	if strings.HasPrefix(path, "~") {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return nil, err
-		}
-		path = filepath.Join(homeDir, path[1:])
-	}
-	return os.ReadFile(path)
-}
-
-// SavePasswordForAlias 将密码安全地存入系统钥匙串
-func (m *Manager) SavePasswordForAlias(alias string, password string) error {
-	return keyring.Set(keyringService, alias, password)
-}
-
-// DeletePasswordForAlias 从系统钥匙串中删除密码
-func (m *Manager) DeletePasswordForAlias(alias string) error {
-	// 在删除前检查是否存在，避免keyring库在某些平台因找不到而报错
-	_, err := keyring.Get(keyringService, alias)
-	if err == nil {
-		return keyring.Delete(keyringService, alias)
-	}
-	return nil // 如果本来就不存在，也算成功
-}
-
 // GetConfigSnapshot 获取当前配置的快照
 func (m *Manager) GetConfigSnapshot() (*ConfigSnapshot, error) {
 	m.mu.RLock()
@@ -596,40 +424,208 @@ func (m *Manager) GetSSHHosts() ([]types.SSHHost, error) {
 	return hosts, nil
 }
 
-// ConnectInTerminal 在系统默认终端中打开一个 SSH 连接
-func (m *Manager) ConnectInTerminal(alias string) error {
-	// 注意：这个函数本身不需要使用 m.manager 的配置数据，
-	// 它依赖 SSH 客户端去读取配置文件。
-	// 但是，它现在是 Manager 的方法，可以访问 m.configPath (如果需要的话)。
+// a special error type to capture the host key
+type captureHostKeyError struct {
+	key ssh.PublicKey
+}
 
+func (e *captureHostKeyError) Error() string {
+	return "host key captured"
+}
+
+// captureHostKey 是一个特殊的函数，用于捕获服务器的公钥
+func (m *Manager) CaptureHostKey(alias string) (ssh.PublicKey, error) {
+	host, err := m.GetSSHHostByAlias(alias)
+	if err != nil {
+		return nil, err
+	}
+
+	// 创建一个只用于捕获的、不进行任何认证的配置
+	captureConfig := &ssh.ClientConfig{
+		User: host.User,
+		// 关键：这个回调函数在拿到公钥后，会立即返回一个特殊错误来中断连接
+		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			return &captureHostKeyError{key: key}
+		},
+		Timeout: 5 * time.Second,
+	}
+
+	serverAddr := fmt.Sprintf("%s:%s", host.HostName, host.Port)
+	client, err := ssh.Dial("tcp", serverAddr, captureConfig)
+	if client != nil {
+		client.Close()
+	}
+
+	// 检查返回的错误
+	var capturedKeyErr *captureHostKeyError
+	if errors.As(err, &capturedKeyErr) {
+		// 成功捕获！返回公钥
+		return capturedKeyErr.key, nil
+	}
+
+	// 其他错误
+	return nil, fmt.Errorf("failed to capture host key: %w", err)
+}
+
+// AddHostKeyToKnownHosts 将一个新的主机公钥添加到用户的 known_hosts 文件中
+func (m *Manager) AddHostKeyToKnownHosts(host *types.SSHHost, key ssh.PublicKey) error {
+	knownHostsPath := filepath.Join(filepath.Dir(m.configPath), "known_hosts")
+
+	// 1. 以“追加”模式打开文件，如果文件不存在则创建
+	f, err := os.OpenFile(knownHostsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return fmt.Errorf("failed to open known_hosts file for writing: %w", err)
+	}
+	defer f.Close()
+
+	// 2. 构建要写入的地址列表
+	//    一个主机别名可能对应多个地址（例如，域名和IP地址）
+	//    我们在这里将主机名和端口组合起来
+	addresses := []string{fmt.Sprintf("[%s]:%s", host.HostName, host.Port)}
+
+	// 3. 使用 knownhosts.Line() 这个标准函数来生成格式正确的行
+	newLine := knownhosts.Line(addresses, key)
+
+	// 4. 将新行写入文件末尾
+	if _, err := f.WriteString("\n" + newLine); err != nil {
+		return fmt.Errorf("failed to write to known_hosts file: %w", err)
+	}
+
+	log.Printf("Added new host key for %s to %s", host.Alias, knownHostsPath)
+	return nil
+}
+
+// readKeyFile 是一个辅助函数，用于读取密钥文件并展开'~'
+func readKeyFile(path string) ([]byte, error) {
+	if strings.HasPrefix(path, "~") {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return nil, err
+		}
+		path = filepath.Join(homeDir, path[1:])
+	}
+	return os.ReadFile(path)
+}
+
+// SavePasswordForAlias 将密码安全地存入系统钥匙串
+func (m *Manager) SavePasswordForAlias(alias string, password string) error {
+	return keyring.Set(keyringService, alias, password)
+}
+
+// DeletePasswordForAlias 从系统钥匙串中删除密码
+func (m *Manager) DeletePasswordForAlias(alias string) error {
+	// 在删除前检查是否存在，避免keyring库在某些平台因找不到而报错
+	_, err := keyring.Get(keyringService, alias)
+	if err == nil {
+		return keyring.Delete(keyringService, alias)
+	}
+	return nil // 如果本来就不存在，也算成功
+}
+
+// GetConnectionConfig 是一个智能的函数，它会按优先级尝试所有认证方法
+// password 参数是用户在UI上本次操作临时输入的密码（如果有的话）
+func (m *Manager) GetConnectionConfig(alias string, password string, ignoreHostKey bool) (*ConnectionConfig, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	host, err := m.GetSSHHostByAlias(alias) // 假设我们有一个根据别名获取主机详情的辅助函数
+	if err != nil {
+		return nil, err
+	}
+
+	var authMethods []ssh.AuthMethod
+
+	// 认证优先级 1: 用户本次在UI上输入的临时密码
+	if password != "" {
+		authMethods = append(authMethods, ssh.Password(password))
+	}
+
+	// 认证优先级 2: ~/.ssh/config 中配置的 IdentityFile (密钥文件)
+	if host.IdentityFile != "" {
+		key, err := readKeyFile(host.IdentityFile)
+		if err == nil {
+			signer, err := ssh.ParsePrivateKey(key)
+			if err == nil {
+				authMethods = append(authMethods, ssh.PublicKeys(signer))
+			}
+		}
+	}
+
+	// 认证优先级 3: 从系统钥匙串中获取已保存的密码
+	savedPassword, err := keyring.Get(keyringService, alias)
+	if err == nil && savedPassword != "" {
+		authMethods = append(authMethods, ssh.Password(savedPassword))
+	}
+
+	// 如果到这里一个有效的认证方法都没有，就返回需要密码的特定错误
+	if len(authMethods) == 0 {
+		return nil, &types.PasswordRequiredError{Alias: alias}
+	}
+
+	var hostKeyCallback ssh.HostKeyCallback
+
+	if ignoreHostKey {
+		// 如果用户已经确认过，则使用 InsecureIgnoreHostKey (简化版，更安全的做法是添加)
+		hostKeyCallback = ssh.InsecureIgnoreHostKey()
+	} else {
+		// 否则，使用我们自定义的、更安全的回调
+		knownHostsPath := filepath.Join(filepath.Dir(m.configPath), "known_hosts")
+		var err error
+		// knownhosts.New 会创建或加载 known_hosts 文件
+		var hkcb knownhosts.HostKeyCallback
+		hkcb, err = knownhosts.New(knownHostsPath)
+		if err != nil {
+			return nil, fmt.Errorf("could not create known_hosts callback: %w", err)
+		}
+		hostKeyCallback = hkcb.HostKeyCallback()
+	}
+
+	clientConfig := &ssh.ClientConfig{
+		User:            host.User,
+		Auth:            authMethods,
+		HostKeyCallback: hostKeyCallback,
+		Timeout:         10 * time.Second,
+	}
+
+	return &ConnectionConfig{
+		HostName:     host.HostName,
+		Port:         host.Port,
+		User:         host.User,
+		IdentityFile: host.IdentityFile,
+		ClientConfig: clientConfig,
+	}, nil
+}
+
+func sshExec(sshCmd string) error {
 	var cmd *exec.Cmd
-	switch runtime.GOOS { // 使用标准库 runtime
+	switch runtime.GOOS {
 	case "darwin":
 		// macOS 的命令
-		script := fmt.Sprintf(`tell app "Terminal" to do script "ssh %s"`, alias)
+		script := fmt.Sprintf(`tell app "Terminal" to do script "%s"`, sshCmd)
 		cmd = exec.Command("osascript", "-e", script)
 	case "windows":
 		// Windows 的命令
-		// 注意：这里的 sshConfigPath 可能不需要，因为 ssh 客户端通常会查找默认位置。
-		// 如果你需要强制指定，可以从 m.configPath 获取，但通常 alias 就足够了。
-		// 保持原逻辑不变，或者简化为直接使用 alias
-		// sshCmd := fmt.Sprintf("ssh -F %s %s", m.configPath, alias) // 如果需要指定文件
-		sshCmd := fmt.Sprintf("ssh %s", alias) // 更常见
-		cmd = exec.Command("cmd.exe", "/c", "start", "wt.exe", "cmd.exe", "/k", sshCmd)
-	default:
-		// Linux 的通用命令
-		cmd = exec.Command("gnome-terminal", "--", "ssh", alias)
-		// 注意：不同的 Linux 发行版和桌面环境可能需要不同的命令
-		// 例如，对于 KDE 可能是 konsole，对于 xfce 可能是 xfce4-terminal
-		// 一个更健壮的方法是检测终端类型或提供配置选项。
-		// 简单起见，这里保持原样。
+		// start 命令会打开一个新的终端窗口
+		cmd = exec.Command("cmd.exe", "/c", "start", "wt.exe", sshCmd)
+	default: // Linux
+		cmd = exec.Command("gnome-terminal", "--", "bash", "-c", sshCmd+"; exec bash")
 	}
 
-	// cmd.Start() 启动命令，不等待它完成，这符合在终端中启动新会话的预期。
+	// Start() 启动命令，不等待它完成
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start terminal command: %w", err)
 	}
 	return nil
+}
+
+// ConnectInTerminal 在系统默认终端中打开一个 SSH 连接
+func (m *Manager) ConnectInTerminal(alias string) error {
+	// ssh 客户端非常智能，我们只需要告诉它要连接的别名 (alias) 即可。
+	// 它会自动从 ~/.ssh/config 文件中读取 HostName, User, Port, IdentityFile 等所有配置。
+	sshCmd := fmt.Sprintf("ssh %s", alias)
+	log.Printf("Debug: SSH command to be executed: %s", sshCmd)
+
+	return sshExec(sshCmd)
 }
 
 // ConnectInTerminalWithConfig 接收一个完整的配置，并在系统终端中打开连接
@@ -668,28 +664,9 @@ func (m *Manager) ConnectInTerminalWithConfig(alias string, config *ConnectionCo
 	sshArgs = append(sshArgs, fmt.Sprintf("%s@%s", config.User, config.HostName))
 
 	// 拼接完整命令字符串
-	sshCmd := strings.Join(sshArgs, " ")
+	sshCmd := "ssh " + strings.Join(sshArgs, " ")
 
-	// === 新增：调试模式下打印完整命令 ===
-	if debug {
-		log.Printf("Debug: SSH command: %s", sshCmd)
-	}
-	// === 日志输出结束 ===
+	log.Printf("Debug: SSH command to be executed: %s", sshCmd)
 
-	// 为不同平台构建启动终端的命令（保持原平台适配逻辑）
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "darwin":
-		script := fmt.Sprintf(`tell app "Terminal" to do script "%s"`, sshCmd)
-		cmd = exec.Command("osascript", "-e", script)
-	case "windows":
-		cmd = exec.Command("cmd.exe", "/c", "start", "wt.exe", "cmd.exe", "/k", sshCmd)
-	default: // Linux
-		cmd = exec.Command("gnome-terminal", "--", "bash", "-c", sshCmd+"; exec bash")
-	}
-
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start terminal command: %w", err)
-	}
-	return nil
+	return sshExec(sshCmd)
 }
