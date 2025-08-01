@@ -123,6 +123,71 @@ export namespace sshtunnel {
 
 export namespace types {
 	
+	export class HostKeyVerificationRequiredError {
+	    Alias: string;
+	    Fingerprint: string;
+	    HostAddress: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostKeyVerificationRequiredError(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Alias = source["Alias"];
+	        this.Fingerprint = source["Fingerprint"];
+	        this.HostAddress = source["HostAddress"];
+	    }
+	}
+	export class PasswordRequiredError {
+	    Alias: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PasswordRequiredError(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Alias = source["Alias"];
+	    }
+	}
+	export class ConnectionResult {
+	    success: boolean;
+	    errorMessage?: string;
+	    passwordRequired?: PasswordRequiredError;
+	    hostKeyVerificationRequired?: HostKeyVerificationRequiredError;
+	
+	    static createFrom(source: any = {}) {
+	        return new ConnectionResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.success = source["success"];
+	        this.errorMessage = source["errorMessage"];
+	        this.passwordRequired = this.convertValues(source["passwordRequired"], PasswordRequiredError);
+	        this.hostKeyVerificationRequired = this.convertValues(source["hostKeyVerificationRequired"], HostKeyVerificationRequiredError);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class LogEntry {
 	    timestamp: string;
 	    level: string;
@@ -139,6 +204,7 @@ export namespace types {
 	        this.message = source["message"];
 	    }
 	}
+	
 	export class SSHConfig {
 	    id: string;
 	    name: string;

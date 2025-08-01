@@ -25,45 +25,6 @@ import { HostDetail } from '@/components/sshgate/HostDetail'
 import { Save } from 'lucide-react'
 import { useOnVisible } from '@/hooks/useOnVisible'
 
-// 我们可以把它定义在组件外部，作为一个可复用的工具函数
-interface HostKeyVerificationError {
-  data: {
-    Fingerprint: string
-    HostAddress: string
-  }
-}
-
-function isHostKeyVerificationError(
-  error: unknown
-): error is HostKeyVerificationError {
-  // 1. 检查 error 是否是一个非 null 的对象
-  if (typeof error !== 'object' || error === null) {
-    return false
-  }
-
-  // 2. 检查这个对象上是否有一个名为 'data' 的属性
-  if (!('data' in error)) {
-    return false
-  }
-
-  // 3. 此时 TypeScript 知道 error 是一个包含 'data' 属性的对象。
-  //    我们将其类型断言为一个更具体的、但仍然安全的类型。
-  const data = (error as { data: unknown }).data
-
-  // 4. 再检查 data 内部的结构
-  if (typeof data !== 'object' || data === null) {
-    return false
-  }
-
-  // 5. 最终检查，确保所有需要的属性都存在且类型正确
-  return (
-    'Fingerprint' in data &&
-    typeof (data as { Fingerprint: unknown }).Fingerprint === 'string' &&
-    'HostAddress' in data &&
-    typeof (data as { HostAddress: unknown }).HostAddress === 'string'
-  )
-}
-
 // #############################################################################
 // #  主视图组件 (Main View Component)
 // #############################################################################
@@ -201,12 +162,19 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
 
   const handleConnect = async (alias: string) => {
     try {
-      // 先尝试无密码连接
-      await ConnectInTerminal(alias)
-    } catch (error) {
-      const errorString = String(error)
-      // 检查是否是“需要密码”的特定错误
-      if (errorString.includes('password is required')) {
+      // 1. 调用 ConnectInTerminal，先尝试无密码连接,它现在总会成功地 resolve 一个 result 对象
+      const result = await ConnectInTerminal(alias)
+
+      debugger
+      // 2. 在前端检查 result 的内容来决定下一步操作
+      if (result.success) {
+        // 连接成功，无需任何操作
+        return
+      }
+
+      // 3. 如果连接失败，检查错误信息
+      // 这个 if 块就是类型守卫。在块内部，TypeScript 确信 result.passwordRequired 存在。
+      if (result.passwordRequired) {
         // 提示用户输入密码
         const result = await showDialog({
           title: `Password Required for ${alias}`,
@@ -255,12 +223,11 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
             message: 'Please enter a password to connect.',
           })
         }
-      } else if (isHostKeyVerificationError(error)) {
-        // 使用类型守卫
-        // 在这个 if 代码块内部，TypeScript 现在“知道” error 是 HostKeyVerificationRequiredError 类型
-        // 因此我们可以安全地、无需 `any` 地访问它的属性
-        const { Fingerprint, HostAddress } = error.data
+      }
 
+      // 4. 检查是否需要主机验证
+      else if (result.hostKeyVerificationRequired) {
+        const { Fingerprint, HostAddress } = result.hostKeyVerificationRequired
         const choice = await showDialog({
           title: `Host Key Verification for ${alias}`,
           message: `The authenticity of host '${HostAddress}' can't be established.\n\nFingerprint: ${Fingerprint}\n\nAre you sure you want to continue connecting?`,
@@ -282,14 +249,22 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
             await handleConnect(alias)
           }
         }
-      } else {
-        // 其它普通错误
-        await showDialog({
-          type: 'error',
-          title: 'Error',
-          message: `Failed to connect: ${String(error)}`,
-        })
+        // 5. 其他通用错误
+        else {
+          await showDialog({
+            type: 'error',
+            title: 'Error',
+            message: `Failed to connect: ${result.errorMessage}`,
+          })
+        }
       }
+    } catch (systemError) {
+      // 这里的 catch 现在只捕获 Wails 本身的系统级错误
+      await showDialog({
+        type: 'error',
+        title: 'System Error',
+        message: `A critical error occurred: ${String(systemError)}`,
+      })
     }
   }
 

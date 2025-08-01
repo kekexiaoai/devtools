@@ -58,3 +58,10 @@ type HostKeyVerificationRequiredError struct {
 func (e *HostKeyVerificationRequiredError) Error() string {
 	return fmt.Sprintf("host key verification required for host %s (%s)", e.Alias, e.HostAddress)
 }
+
+type ConnectionResult struct {
+	Success                     bool                              `json:"success"`
+	ErrorMessage                string                            `json:"errorMessage,omitempty"`
+	PasswordRequired            *PasswordRequiredError            `json:"passwordRequired,omitempty"`
+	HostKeyVerificationRequired *HostKeyVerificationRequiredError `json:"hostKeyVerificationRequired,omitempty"`
+}

@@ -112,7 +112,7 @@ func (m *SSHConfigManager) BuildConfig() string {
 func (m *SSHConfigManager) GetHost(hostname string) (*HostConfig, error) {
 	hostStart, hostEnd, found := m.findHost(hostname)
 	if !found {
-		return nil, fmt.Errorf("host %s not found", hostname)
+		return nil, &HostNotFoundError{Alias: hostname}
 	}
 
 	hostConfig := &HostConfig{
@@ -503,6 +503,14 @@ func (m *SSHConfigManager) getGlobalHost() (start, end int, found bool) {
 }
 
 // Helper methods
+
+type HostNotFoundError struct {
+	Alias string
+}
+
+func (e *HostNotFoundError) Error() string {
+	return fmt.Sprintf("host '%s' not found in ssh config", e.Alias)
+}
 
 // findHost 查找主机配置的开始和结束行号
 func (m *SSHConfigManager) findHost(hostname string) (start, end int, found bool) {
