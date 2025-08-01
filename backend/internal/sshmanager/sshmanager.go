@@ -388,6 +388,22 @@ func convertToSSHHost(hostConfig *sshconfig.HostConfig) types.SSHHost {
 	}
 }
 
+// _getHydratedHost 是一个新的私有辅助函数。
+// "Hydrated" (水合) 是一个编程术语，意为“用附加信息（如默认值）丰富一个对象”。
+// 它负责获取主机信息，并补全所有必需的默认值。
+func (m *Manager) _getHydratedHost(alias string) (*types.SSHHost, error) {
+	host, err := m.GetSSHHostByAlias(alias)
+	if err != nil {
+		return nil, err
+	}
+	// 在这里，我们集中处理所有默认值逻辑
+	if host.Port == "" {
+		host.Port = "22"
+	}
+	// 未来如果还有其他默认值，也在这里添加
+	return host, nil
+}
+
 func (m *Manager) GetSSHHostByAlias(alias string) (*types.SSHHost, error) {
 	return m.GetSSHHost(alias)
 }
@@ -434,12 +450,7 @@ func (e *captureHostKeyError) Error() string {
 }
 
 // captureHostKey 是一个特殊的函数，用于捕获服务器的公钥
-func (m *Manager) CaptureHostKey(alias string) (ssh.PublicKey, error) {
-	host, err := m.GetSSHHostByAlias(alias)
-	if err != nil {
-		return nil, err
-	}
-
+func (m *Manager) CaptureHostKey(host *types.SSHHost) (ssh.PublicKey, error) {
 	// 创建一个只用于捕获的、不进行任何认证的配置
 	captureConfig := &ssh.ClientConfig{
 		User: host.User,
@@ -450,6 +461,7 @@ func (m *Manager) CaptureHostKey(alias string) (ssh.PublicKey, error) {
 		Timeout: 5 * time.Second,
 	}
 
+	// 使用处理过的 port
 	serverAddr := fmt.Sprintf("%s:%s", host.HostName, host.Port)
 	client, err := ssh.Dial("tcp", serverAddr, captureConfig)
 	if client != nil {
@@ -471,23 +483,33 @@ func (m *Manager) CaptureHostKey(alias string) (ssh.PublicKey, error) {
 func (m *Manager) AddHostKeyToKnownHosts(host *types.SSHHost, key ssh.PublicKey) error {
 	knownHostsPath := filepath.Join(filepath.Dir(m.configPath), "known_hosts")
 
-	// 1. 以“追加”模式打开文件，如果文件不存在则创建
+	// 以“追加”模式打开文件，如果文件不存在则创建
 	f, err := os.OpenFile(knownHostsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("failed to open known_hosts file for writing: %w", err)
 	}
 	defer f.Close()
 
-	// 2. 构建要写入的地址列表
-	//    一个主机别名可能对应多个地址（例如，域名和IP地址）
-	//    我们在这里将主机名和端口组合起来
+	// 构建要写入的地址列表
+	// 一个主机别名可能对应多个地址（例如，域名和IP地址）
+	// 我们在这里将主机名和端口组合起来
 	addresses := []string{fmt.Sprintf("[%s]:%s", host.HostName, host.Port)}
 
-	// 3. 使用 knownhosts.Line() 这个标准函数来生成格式正确的行
+	// 使用 knownhosts.Line() 这个标准函数来生成格式正确的行
 	newLine := knownhosts.Line(addresses, key)
 
-	// 4. 将新行写入文件末尾
-	if _, err := f.WriteString("\n" + newLine); err != nil {
+	// 检查文件是否为空，如果是，则不加换行符
+	stat, err := f.Stat()
+	if err != nil {
+		return err
+	}
+
+	if stat.Size() > 0 {
+		newLine = "\n" + newLine
+	}
+
+	// 将新行写入文件末尾
+	if _, err := f.WriteString(newLine); err != nil {
 		return fmt.Errorf("failed to write to known_hosts file: %w", err)
 	}
 
@@ -522,17 +544,8 @@ func (m *Manager) DeletePasswordForAlias(alias string) error {
 	return nil // 如果本来就不存在，也算成功
 }
 
-// GetConnectionConfig 是一个智能的函数，它会按优先级尝试所有认证方法
-// password 参数是用户在UI上本次操作临时输入的密码（如果有的话）
-func (m *Manager) GetConnectionConfig(alias string, password string, ignoreHostKey bool) (*ConnectionConfig, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	host, err := m.GetSSHHostByAlias(alias) // 假设我们有一个根据别名获取主机详情的辅助函数
-	if err != nil {
-		return nil, err
-	}
-
+// _getAuthMethods 智能地构建认证方法列表
+func (m *Manager) _getAuthMethods(host *types.SSHHost, password string) ([]ssh.AuthMethod, error) {
 	var authMethods []ssh.AuthMethod
 
 	// 认证优先级 1: 用户本次在UI上输入的临时密码
@@ -540,42 +553,82 @@ func (m *Manager) GetConnectionConfig(alias string, password string, ignoreHostK
 		authMethods = append(authMethods, ssh.Password(password))
 	}
 
-	// 认证优先级 2: ~/.ssh/config 中配置的 IdentityFile (密钥文件)
+	// 认证优先级 2: 从系统钥匙串中获取已保存的密码
+	// 优化点：在尝试密钥文件前先尝试钥匙串，因为钥匙串密码通常更明确
+	savedPassword, err := keyring.Get(keyringService, host.Alias)
+	if err == nil && savedPassword != "" {
+		authMethods = append(authMethods, ssh.Password(savedPassword))
+	}
+
+	// 认证优先级 3: ~/.ssh/config 中配置的 IdentityFile (密钥文件)
 	if host.IdentityFile != "" {
 		key, err := readKeyFile(host.IdentityFile)
 		if err == nil {
 			signer, err := ssh.ParsePrivateKey(key)
 			if err == nil {
 				authMethods = append(authMethods, ssh.PublicKeys(signer))
+			} else {
+				log.Printf("Warning: Failed to parse private key %s: %v", host.IdentityFile, err)
 			}
+		} else {
+			log.Printf("Warning: Failed to read private key file %s: %v", host.IdentityFile, err)
 		}
 	}
 
-	// 认证优先级 3: 从系统钥匙串中获取已保存的密码
-	savedPassword, err := keyring.Get(keyringService, alias)
-	if err == nil && savedPassword != "" {
-		authMethods = append(authMethods, ssh.Password(savedPassword))
+	// 如果一个有效的认证方法都没有，就返回需要密码的特定错误
+	if len(authMethods) == 0 {
+		return nil, &types.PasswordRequiredError{Alias: host.Alias}
 	}
 
-	// 如果到这里一个有效的认证方法都没有，就返回需要密码的特定错误
-	if len(authMethods) == 0 {
-		return nil, &types.PasswordRequiredError{Alias: alias}
+	return authMethods, nil
+}
+
+// VerifyConnection 执行一次真正的连接“预检”
+func (m *Manager) VerifyConnection(alias string, password string) (*types.SSHHost, error) {
+	// 获取连接配置，注意 trustHostKey 永远是 false，我们总是进行严格检查
+	config, host, err := m.GetConnectionConfig(alias, password, false)
+	if err != nil {
+		return host, err
+	}
+
+	// 尝试真正地拨号连接
+	serverAddr := fmt.Sprintf("%s:%s", config.HostName, config.Port)
+	client, err := ssh.Dial("tcp", serverAddr, config.ClientConfig)
+	if err != nil {
+		// 如果拨号失败，就返回这个错误（可能是需要密码，或需要主机验证）
+		return host, err
+	}
+	// 如果连接成功，立即关闭。我们只是为了检查，不需要保持连接。
+	client.Close()
+
+	// 连接成功，没有错误
+	return host, nil
+}
+
+// GetConnectionConfig 现在调用私有的 _getAuthMethods
+func (m *Manager) GetConnectionConfig(alias string, password string, trustHostKey bool) (*ConnectionConfig, *types.SSHHost, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	host, err := m._getHydratedHost(alias)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	authMethods, err := m._getAuthMethods(host, password)
+	if err != nil {
+		return nil, host, err
 	}
 
 	var hostKeyCallback ssh.HostKeyCallback
-
-	if ignoreHostKey {
-		// 如果用户已经确认过，则使用 InsecureIgnoreHostKey (简化版，更安全的做法是添加)
+	if trustHostKey {
 		hostKeyCallback = ssh.InsecureIgnoreHostKey()
 	} else {
-		// 否则，使用我们自定义的、更安全的回调
 		knownHostsPath := filepath.Join(filepath.Dir(m.configPath), "known_hosts")
-		var err error
-		// knownhosts.New 会创建或加载 known_hosts 文件
 		var hkcb knownhosts.HostKeyCallback
 		hkcb, err = knownhosts.New(knownHostsPath)
 		if err != nil {
-			return nil, fmt.Errorf("could not create known_hosts callback: %w", err)
+			return nil, host, fmt.Errorf("could not create known_hosts callback: %w", err)
 		}
 		hostKeyCallback = hkcb.HostKeyCallback()
 	}
@@ -587,13 +640,14 @@ func (m *Manager) GetConnectionConfig(alias string, password string, ignoreHostK
 		Timeout:         10 * time.Second,
 	}
 
-	return &ConnectionConfig{
+	connectionConfig := &ConnectionConfig{
 		HostName:     host.HostName,
 		Port:         host.Port,
 		User:         host.User,
 		IdentityFile: host.IdentityFile,
 		ClientConfig: clientConfig,
-	}, nil
+	}
+	return connectionConfig, host, nil
 }
 
 func sshExec(sshCmd string) error {

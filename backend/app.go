@@ -478,21 +478,22 @@ func (a *App) StartLocalForward(alias string, localPort int, remoteHost string, 
 // -----ssh连接-------------------------------------------------
 
 // 辅助函数，用于处理“预检”阶段的错误
-func (a *App) handleSSHConnectError(alias string, err error) error {
+func (a *App) handleSSHConnectError(host *types.SSHHost, err error) error {
+	alias := host.Alias
 	// 检查是否是需要密码的错误
 	if _, ok := err.(*types.PasswordRequiredError); ok {
+		log.Printf("Connection check for '%s' failed: Password required.", alias)
 		return err // 原样返回给前端
 	}
 	// 检查是否是主机密钥验证错误
 	var keyErr *knownhosts.KeyError
 	if errors.As(err, &keyErr) {
 		log.Printf("Host key error for %s, attempting to capture new key...", alias)
-		remoteKey, captureErr := a.sshManager.CaptureHostKey(alias)
+		remoteKey, captureErr := a.sshManager.CaptureHostKey(host)
 		if captureErr != nil {
 			return fmt.Errorf("failed to capture remote host key: %w", captureErr)
 		}
 
-		host, _ := a.sshManager.GetSSHHostByAlias(alias)
 		hostAddress := fmt.Sprintf("%s:%s", host.HostName, host.Port)
 
 		return &types.HostKeyVerificationRequiredError{
@@ -502,31 +503,40 @@ func (a *App) handleSSHConnectError(alias string, err error) error {
 		}
 	}
 	// 其他通用错误
+	log.Printf("Error during connection pre-flight check for '%s': %v", alias, err)
 	return fmt.Errorf("connection pre-flight check failed: %w", err)
 }
 
 // ConnectInTerminal 尝试无密码连接
 func (a *App) ConnectInTerminal(alias string) error {
-	// 预检：尝试不带密码获取配置，这会触发密钥、钥匙串和主机指纹的检查
-	_, err := a.sshManager.GetConnectionConfig(alias, "", false) // trustHostKey = false
+	log.Printf("Attempting connection for '%s'", alias)
+	// 执行“预检”
+	host, err := a.sshManager.VerifyConnection(alias, "") // password 为空
 	if err != nil {
-		return a.handleSSHConnectError(alias, err)
+		// 如果预检失败，则将特定错误返回给前端
+		return a.handleSSHConnectError(host, err)
 	}
 	// 预检通过，执行连接
+	log.Printf("Pre-flight check for '%s' passed. Launching terminal.", alias)
 	return a.sshManager.ConnectInTerminal(alias)
 }
 
 // ConnectInTerminalWithPassword 接收密码进行连接
 func (a *App) ConnectInTerminalWithPassword(alias string, password string, savePassword bool) error {
 	if savePassword && password != "" {
+		log.Printf("Saving password to keychain for '%s'", alias)
 		if err := a.sshManager.SavePasswordForAlias(alias, password); err != nil {
 			log.Printf("Warning: failed to save password: %v", err)
 		}
 	}
 	// 预检：使用用户提供的密码来获取配置, 以验证密码是否正确
-	_, err := a.sshManager.GetConnectionConfig(alias, password, false) // trustHostKey = false
+	log.Printf("Attempting connection for '%s' with provided password", alias)
+	_, host, err := a.sshManager.GetConnectionConfig(alias, password, false)
 	if err != nil {
-		return a.handleSSHConnectError(alias, err)
+		if host == nil {
+			host, _ = a.sshManager.GetSSHHostByAlias(alias)
+		}
+		return a.handleSSHConnectError(host, err)
 	}
 	// 预检通过，执行连接
 	return a.sshManager.ConnectInTerminal(alias)
@@ -534,19 +544,24 @@ func (a *App) ConnectInTerminalWithPassword(alias string, password string, saveP
 
 // ConnectInTerminalAndTrustHost 用户确认后，接受主机指纹并连接
 func (a *App) ConnectInTerminalAndTrustHost(alias string, password string, savePassword bool) error {
+	log.Printf("User trusted host key for '%s'. Adding to known_hosts.", alias)
 	// 先将新的主机密钥添加到 known_hosts 文件
 	host, err := a.sshManager.GetSSHHostByAlias(alias)
 	if err != nil {
 		return err
 	}
-	remoteKey, err := a.sshManager.CaptureHostKey(alias)
+	remoteKey, err := a.sshManager.CaptureHostKey(host)
 	if err != nil {
 		return err
 	}
 	if err := a.sshManager.AddHostKeyToKnownHosts(host, remoteKey); err != nil {
+		// 这是一个非致命错误，我们只记录警告，然后继续尝试连接
 		log.Printf("Warning: failed to add host key to known_hosts: %v", err)
 	}
 
 	// 信任后，再次尝试连接，但这次可能还需要密码
+	// 我们直接调用 ConnectInTerminalWithPassword，如果 password 为空，
+	// 它会自动尝试密钥或钥匙串，完美地处理了所有情况。
+	log.Printf("Host key for '%s' added. Re-attempting connection.", alias)
 	return a.ConnectInTerminalWithPassword(alias, password, savePassword)
 }
