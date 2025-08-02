@@ -484,6 +484,7 @@ func (a *App) handleSSHConnectError(host *types.SSHHost, err error) (*types.Conn
 
 	var hostNotFoundError *sshconfig.HostNotFoundError
 	var passwordRequiredError *types.PasswordRequiredError
+	var authFailedError *types.AuthenticationFailedError
 	var keyErr *knownhosts.KeyError
 
 	switch {
@@ -494,6 +495,11 @@ func (a *App) handleSSHConnectError(host *types.SSHHost, err error) (*types.Conn
 		// 检查是否是需要密码的错误
 		log.Printf("Connection check for '%s' failed: Password required.", alias)
 		return &types.ConnectionResult{Success: false, PasswordRequired: passwordRequiredError}, nil
+	case errors.As(err, &authFailedError):
+		log.Printf("Connection check for '%s' failed: Authentication failed.", alias)
+		// 我们将这个错误也包装在 PasswordRequired 字段里，
+		// 前端可以通过检查 Error() 字符串来区分
+		return &types.ConnectionResult{Success: false, PasswordRequired: &types.PasswordRequiredError{Alias: alias}}, nil
 	case errors.As(err, &keyErr):
 		// 检查是否是主机密钥验证错误
 		log.Printf("Host key error for %s, attempting to capture new key...", alias)
@@ -539,23 +545,25 @@ func (a *App) ConnectInTerminal(alias string) (*types.ConnectionResult, error) {
 
 // ConnectInTerminalWithPassword 接收密码进行连接
 func (a *App) ConnectInTerminalWithPassword(alias string, password string, savePassword bool) (*types.ConnectionResult, error) {
+	log.Printf("Attempting connection for '%s' with provided password", alias)
+	// 预检：使用用户提供的密码
+	host, err := a.sshManager.VerifyConnection(alias, password)
+	if err != nil {
+		return a.handleSSHConnectError(host, err)
+	}
+
+	// 预检通过，执行连接
+	log.Printf("Credentials for '%s' are valid. Launching terminal.", alias)
+	// 只有在连接预检成功后，我们才保存密码，避免保存错误密码
 	if savePassword && password != "" {
 		log.Printf("Saving password to keychain for '%s'", alias)
 		if err := a.sshManager.SavePasswordForAlias(alias, password); err != nil {
 			log.Printf("Warning: failed to save password: %v", err)
 		}
 	}
-	// 预检：使用用户提供的密码来获取配置, 以验证密码是否正确
-	log.Printf("Attempting connection for '%s' with provided password", alias)
-	_, host, err := a.sshManager.GetConnectionConfig(alias, password, false)
-	if err != nil {
-		return a.handleSSHConnectError(host, err)
-	}
-	// 预检通过，执行连接
 	if err := a.sshManager.ConnectInTerminal(alias); err != nil {
 		return &types.ConnectionResult{Success: false, ErrorMessage: err.Error()}, nil
 	}
-
 	return &types.ConnectionResult{Success: true}, nil
 }
 

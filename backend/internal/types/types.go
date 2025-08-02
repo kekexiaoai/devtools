@@ -65,3 +65,12 @@ type ConnectionResult struct {
 	PasswordRequired            *PasswordRequiredError            `json:"passwordRequired,omitempty"`
 	HostKeyVerificationRequired *HostKeyVerificationRequiredError `json:"hostKeyVerificationRequired,omitempty"`
 }
+
+// AuthenticationFailedError 表示尝试连接但因凭据错误而失败
+type AuthenticationFailedError struct {
+	Alias string
+}
+
+func (e *AuthenticationFailedError) Error() string {
+	return fmt.Sprintf("authentication failed for host %s", e.Alias)
+}

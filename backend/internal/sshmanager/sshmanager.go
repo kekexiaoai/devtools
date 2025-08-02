@@ -585,8 +585,7 @@ func (m *Manager) _getAuthMethods(host *types.SSHHost, password string) ([]ssh.A
 
 // VerifyConnection 执行一次真正的连接“预检”
 func (m *Manager) VerifyConnection(alias string, password string) (*types.SSHHost, error) {
-	// 获取连接配置，注意 trustHostKey 永远是 false，我们总是进行严格检查
-	config, host, err := m.GetConnectionConfig(alias, password, false)
+	config, host, err := m.GetConnectionConfig(alias, password)
 	if err != nil {
 		return host, err
 	}
@@ -595,7 +594,41 @@ func (m *Manager) VerifyConnection(alias string, password string) (*types.SSHHos
 	serverAddr := fmt.Sprintf("%s:%s", config.HostName, config.Port)
 	client, err := ssh.Dial("tcp", serverAddr, config.ClientConfig)
 	if err != nil {
-		// 如果拨号失败，就返回这个错误（可能是需要密码，或需要主机验证）
+
+		dialErrStr := strings.ToLower(err.Error())
+		// 检查是否是因为没有可用的认证方法
+		if strings.Contains(dialErrStr, "no supported methods remain") {
+			// 这种情况明确意味着我们需要一个凭据
+			return host, &types.PasswordRequiredError{Alias: alias}
+		}
+
+		// 检查是否是常见的认证失败错误
+		authErrorKeywords := []string{
+			"unable to authenticate",
+			"permission denied",
+			"invalid password",
+			"publickey denied",
+			"authentication failed",
+			// Add more keywords as needed from different SSH server implementations
+		}
+		for _, keyword := range authErrorKeywords {
+			if strings.Contains(dialErrStr, keyword) {
+				// 如果是认证失败，我们返回一个更具体的、对用户友好的错误信息
+				// 这会覆盖掉底层的 HostKeyVerificationRequiredError 或 PasswordRequiredError
+				// 因为“密码或密钥错误”是更精确的原因
+
+				// 如果是认证失败，并且我们确实尝试了至少一种认证方法
+				// (GetConnectionConfig 返回的 ClientConfig.Auth 不为空)，
+				// 那么我们就返回一个“认证失败”的特定错误。
+				if len(config.ClientConfig.Auth) > 0 {
+					return host, &types.AuthenticationFailedError{Alias: alias}
+				}
+				// todo 确认是否需要返回下面的错误
+				return host, fmt.Errorf("authentication failed: please check your password or key file")
+			}
+		}
+
+		// 如果不是认证失败，再返回原始的拨号错误（可能是需要密码，或需要主机验证）
 		return host, err
 	}
 	// 如果连接成功，立即关闭。我们只是为了检查，不需要保持连接。
@@ -606,7 +639,7 @@ func (m *Manager) VerifyConnection(alias string, password string) (*types.SSHHos
 }
 
 // GetConnectionConfig 现在调用私有的 _getAuthMethods
-func (m *Manager) GetConnectionConfig(alias string, password string, trustHostKey bool) (*ConnectionConfig, *types.SSHHost, error) {
+func (m *Manager) GetConnectionConfig(alias string, password string) (*ConnectionConfig, *types.SSHHost, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -621,17 +654,14 @@ func (m *Manager) GetConnectionConfig(alias string, password string, trustHostKe
 	}
 
 	var hostKeyCallback ssh.HostKeyCallback
-	if trustHostKey {
-		hostKeyCallback = ssh.InsecureIgnoreHostKey()
-	} else {
-		knownHostsPath := filepath.Join(filepath.Dir(m.configPath), "known_hosts")
-		var hkcb knownhosts.HostKeyCallback
-		hkcb, err = knownhosts.New(knownHostsPath)
-		if err != nil {
-			return nil, host, fmt.Errorf("could not create known_hosts callback: %w", err)
-		}
-		hostKeyCallback = hkcb.HostKeyCallback()
+
+	knownHostsPath := filepath.Join(filepath.Dir(m.configPath), "known_hosts")
+	var hkcb knownhosts.HostKeyCallback
+	hkcb, err = knownhosts.New(knownHostsPath)
+	if err != nil {
+		return nil, host, fmt.Errorf("could not create known_hosts callback: %w", err)
 	}
+	hostKeyCallback = hkcb.HostKeyCallback()
 
 	clientConfig := &ssh.ClientConfig{
 		User:            host.User,
@@ -683,7 +713,7 @@ func (m *Manager) ConnectInTerminal(alias string) error {
 }
 
 // ConnectInTerminalWithConfig 接收一个完整的配置，并在系统终端中打开连接
-func (m *Manager) ConnectInTerminalWithConfig(alias string, config *ConnectionConfig, debug bool) error {
+func (m *Manager) ConnectInTerminalWithConfig(alias string, config *ConnectionConfig) error {
 	// 处理密钥文件路径（展开~并验证）
 	identityFile := config.IdentityFile
 	if identityFile != "" {

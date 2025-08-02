@@ -160,113 +160,114 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
     }
   }
 
-  const handleConnect = async (alias: string) => {
-    try {
-      // 1. 调用 ConnectInTerminal，先尝试无密码连接,它现在总会成功地 resolve 一个 result 对象
-      const result = await ConnectInTerminal(alias)
+  const handleConnect = useCallback(
+    async (alias: string) => {
+      let currentPassword = ''
+      let savePassword = false
+      let trustHost = false
 
-      debugger
-      // 2. 在前端检查 result 的内容来决定下一步操作
-      if (result.success) {
-        // 连接成功，无需任何操作
-        return
-      }
+      // 使用一个循环来处理多步骤的交互式对话
+      while (true) {
+        try {
+          let result: types.ConnectionResult | null = null
 
-      // 3. 如果连接失败，检查错误信息
-      // 这个 if 块就是类型守卫。在块内部，TypeScript 确信 result.passwordRequired 存在。
-      if (result.passwordRequired) {
-        // 提示用户输入密码
-        const result = await showDialog({
-          title: `Password Required for ${alias}`,
-          message: `Please enter the password to connect.`,
-          prompt: {
-            label: 'Password',
-            type: 'password',
-          },
-          checkboxes: [
-            {
-              label: 'Save password to system keychian',
-              value: 'save',
-              CheckedState: true,
-            },
-          ],
-          buttons: [
-            { text: 'Cancel', variant: 'outline', value: 'cancel' },
-            { text: 'Connect', variant: 'default', value: 'connect' },
-          ],
-        })
-
-        console.log('handleConnect, result', result)
-        // 根据用户的选择和输入，调用带密码的连接方法
-        if (result.buttonValue === 'connect' && result.inputValue) {
-          const savePassword = result.checkedValues?.includes('save') || false
-          try {
-            await ConnectInTerminalWithPassword(
+          // 根据 trustHost 状态，决定调用哪个函数
+          if (trustHost) {
+            result = await ConnectInTerminalAndTrustHost(
               alias,
-              result.inputValue,
+              currentPassword,
               savePassword
             )
-          } catch (connectError) {
+            trustHost = false // 重置信任标志，只用一次
+          } else {
+            result = currentPassword
+              ? await ConnectInTerminalWithPassword(
+                  alias,
+                  currentPassword,
+                  savePassword
+                )
+              : await ConnectInTerminal(alias)
+          }
+
+          if (result.success) {
+            console.log('Connection successful!')
+            break // 成功，退出循环
+          }
+
+          if (result.passwordRequired) {
+            const dialogResult = await showDialog({
+              type: 'confirm',
+              title: `Password Required for ${alias}`,
+              message: result.errorMessage
+                ? `${result.errorMessage}\nPlease enter the password.`
+                : `Please enter the password to connect.`,
+              prompt: { label: 'Password', type: 'password' },
+              checkboxes: [
+                { label: 'Save password to system keychain', value: 'save' },
+              ],
+              buttons: [
+                { text: 'Cancel', variant: 'outline', value: 'cancel' },
+                { text: 'Connect', variant: 'default', value: 'connect' },
+              ],
+            })
+
+            if (
+              dialogResult.buttonValue === 'connect' &&
+              dialogResult.inputValue
+            ) {
+              currentPassword = dialogResult.inputValue
+              savePassword =
+                dialogResult.checkedValues?.includes('save') || false
+              continue // 继续下一次循环，这次会带着密码
+            } else {
+              break // 用户取消，退出循环
+            }
+          } else if (result.hostKeyVerificationRequired) {
+            const { Fingerprint, HostAddress } =
+              result.hostKeyVerificationRequired
+            const choice = await showDialog({
+              type: 'confirm',
+              title: `Host Key Verification for ${alias}`,
+              message: `The authenticity of host '${HostAddress}' can't be established.\n\nFingerprint: ${Fingerprint}\n\nAre you sure you want to continue connecting?`,
+              buttons: [
+                { text: 'Cancel', variant: 'outline', value: 'cancel' },
+                { text: 'Yes, Trust Host', variant: 'default', value: 'yes' },
+              ],
+            })
+
+            if (choice.buttonValue === 'yes') {
+              trustHost = true // 设置信任标志
+              continue // 继续下一次循环，这次会信任主机
+            } else {
+              break // 用户取消，退出循环
+            }
+          } else if (result.errorMessage) {
             await showDialog({
               type: 'error',
-              title: 'Connect Failed',
-              message: String(connectError),
+              title: 'Connection Failed',
+              message: result.errorMessage,
             })
+            break // 出现未知错误，退出循环
+          } else {
+            await showDialog({
+              type: 'error',
+              title: 'Error',
+              message: 'An unknown connection error occurred.',
+            })
+            break
           }
-        } else if (result.buttonValue === 'cancel') {
-          // 用户取消，不做任何操作
-        } else {
-          // 其他情况，例如用户没有输入密码
+        } catch (systemError) {
           await showDialog({
             type: 'error',
-            title: 'Error',
-            message: 'Please enter a password to connect.',
+            title: 'System Error',
+            message: `A critical error occurred: ${String(systemError)}`,
           })
+          break // 系统级错误，退出循环
         }
       }
-
-      // 4. 检查是否需要主机验证
-      else if (result.hostKeyVerificationRequired) {
-        const { Fingerprint, HostAddress } = result.hostKeyVerificationRequired
-        const choice = await showDialog({
-          title: `Host Key Verification for ${alias}`,
-          message: `The authenticity of host '${HostAddress}' can't be established.\n\nFingerprint: ${Fingerprint}\n\nAre you sure you want to continue connecting?`,
-          buttons: [
-            { text: 'Cancel', variant: 'outline', value: 'cancel' },
-            { text: 'Yes, Trust Host', variant: 'default', value: 'yes' },
-          ],
-        })
-
-        if (choice.buttonValue === 'yes') {
-          try {
-            // 调用新的信任并连接的函数
-            // 注意：这里可能也需要处理密码
-            await ConnectInTerminalAndTrustHost(alias, '', false)
-          } catch (trustError) {
-            console.error(trustError)
-            // 在这里递归调用 handleConnect 是一种简单的处理方式
-            // 更复杂的应用可能会直接在这里再次弹出密码框
-            await handleConnect(alias)
-          }
-        }
-        // 5. 其他通用错误
-        else {
-          await showDialog({
-            type: 'error',
-            title: 'Error',
-            message: `Failed to connect: ${result.errorMessage}`,
-          })
-        }
-      }
-    } catch (systemError) {
-      // 这里的 catch 现在只捕获 Wails 本身的系统级错误
-      await showDialog({
-        type: 'error',
-        title: 'System Error',
-        message: `A critical error occurred: ${String(systemError)}`,
-      })
-    }
-  }
+    },
+    [showDialog]
+  )
 
   const selectedHost = useMemo(() => {
     if (!selectedAlias) return null
