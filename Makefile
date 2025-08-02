@@ -9,6 +9,7 @@ BACKEND_DIR := backend
 OUTPUT_DIR := build/bin # 建议将构建输出统一到 build/bin
 
 .PHONY: help install hooks clean-hooks show-hooks lint format format-check lint-all \
+		 lint-staged lint-staged-debug \
          frontend-dev frontend-build frontend-preview \
          dev build preview
 
@@ -22,7 +23,7 @@ help:  ## 📜 显示所有可用命令（分类展示）
 	@grep -E '^(install|install-frontend|install-wails):.*?## ' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo " ✨ 代码检查与格式化"
-	@grep -E '^(lint|format|format-check|lint-all):.*?## ' $(MAKEFILE_LIST) | \
+	@grep -E '^(lint|format|format-check|lint-all|lint-staged|lint-staged-debug):.*?## ' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo " 🌐 前端独立命令"
 	@grep -E '^(frontend-dev|frontend-build|frontend-preview):.*?## ' $(MAKEFILE_LIST) | \
@@ -84,6 +85,14 @@ lint:  ## 🔎 运行 ESLint 检查
 lint-all:  ## 🔎 完整检查（类型+格式+lint）
 	@echo "🔍 运行 完整检查（类型+格式+lint）..."
 	@pnpm --filter $(FRONTEND_DIR) run lint-all
+
+lint-staged:  ## 🔎 git 暂存检查（类型+格式+lint）
+	@echo "🔍 运行 git 暂存检查（类型+格式+lint）..."
+	@pnpm --filter $(FRONTEND_DIR) run lint-staged
+
+lint-staged-debug:  ## 🔎 git 暂存检查(debug 模式)（类型+格式+lint）
+	@echo "🔍 运行 git 暂存检查(debug 模式)（类型+格式+lint）..."
+	@pnpm --filter $(FRONTEND_DIR) run lint-staged:debug
 
 format:  ## ✨ 自动格式化所有前端代码
 	@echo "✨ 自动格式化代码..."

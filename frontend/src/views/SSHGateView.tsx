@@ -164,6 +164,7 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
     async (alias: string) => {
       let currentPassword = ''
       let savePassword = false
+
       let trustHost = false
 
       // 使用一个循环来处理多步骤的交互式对话

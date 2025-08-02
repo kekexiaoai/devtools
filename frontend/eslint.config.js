@@ -14,6 +14,7 @@ export default tseslint.config(
       'eslint.config.js',
       'vite.config.ts',
       'postcss.config.mjs',
+      '.lintstagedrc.js',
     ],
   },
 
