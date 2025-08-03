@@ -1,4 +1,4 @@
-package config
+package syncconfig
 
 import (
 	"encoding/json"
