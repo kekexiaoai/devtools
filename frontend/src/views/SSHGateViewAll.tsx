@@ -6,7 +6,7 @@ import {
   DeleteSSHHost,
   GetSSHConfigFileContent,
   SaveSSHConfigFileContent,
-} from '@wailsjs/go/backend/App'
+} from '@wailsjs/go/sshgate/Service'
 import { useDialog } from '@/hooks/useDialog'
 
 // --- UI 组件导入 ---

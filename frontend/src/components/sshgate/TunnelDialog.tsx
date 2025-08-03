@@ -1,5 +1,5 @@
 import { useDialog } from '@/hooks/useDialog'
-import { StartLocalForward } from '@wailsjs/go/backend/App'
+import { StartLocalForward } from '@wailsjs/go/sshgate/Service'
 import { types } from '@wailsjs/go/models'
 import { useState } from 'react'
 import {

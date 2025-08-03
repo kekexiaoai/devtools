@@ -30,7 +30,7 @@ import {
 import {
   SaveConfig,
   UpdateRemoteFileFromClipboard,
-} from '@wailsjs/go/backend/App'
+} from '@wailsjs/go/filesyncer/Service'
 import { useDialog } from '@/hooks/useDialog'
 import { DialogDescription } from '@radix-ui/react-dialog'
 

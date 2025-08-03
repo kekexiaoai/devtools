@@ -12,10 +12,10 @@ import {
   GetConfigs,
   SaveConfig,
   TestConnection,
-  SelectFile,
   StartWatching,
   StopWatching,
-} from '@wailsjs/go/backend/App'
+} from '@wailsjs/go/filesyncer/Service'
+import { SelectFile } from '@wailsjs/go/backend/App'
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { EventsOn, EventsOff } from '@wailsjs/runtime/runtime'

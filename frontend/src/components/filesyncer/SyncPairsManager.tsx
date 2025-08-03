@@ -1,10 +1,10 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
+  DeleteSyncPair,
   GetSyncPairs,
   SaveSyncPair,
-  DeleteSyncPair,
-  SelectDirectory,
-} from '@wailsjs/go/backend/App'
+} from '@wailsjs/go/filesyncer/Service'
+import { SelectDirectory } from '@wailsjs/go/backend/App'
 import { types } from '@wailsjs/go/models'
 
 import { Button } from '@/components/ui/button'
