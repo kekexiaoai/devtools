@@ -7,7 +7,7 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card'
-import { PlayCircle, Pencil, Trash2, Network } from 'lucide-react'
+import { ExternalLink, Terminal, Pencil, Trash2, Network } from 'lucide-react'
 import React, { useState, useEffect } from 'react'
 import { TunnelDial } from './TunnelDialog'
 
@@ -15,7 +15,8 @@ interface HostDetailProps {
   host: types.SSHHost
   onEdit: (host: types.SSHHost) => void
   onDelete: (alias: string) => void
-  onConnect: (alias: string) => void
+  onConnectExternal: (alias: string) => void
+  onConnectInternal: (alias: string) => void
 }
 
 interface SSHStatusEventDetail {
@@ -30,7 +31,8 @@ export function HostDetail({
   host,
   onEdit,
   onDelete,
-  onConnect,
+  onConnectExternal,
+  onConnectInternal,
 }: HostDetailProps) {
   const [isTunnelModalOpen, setIsTunnelModalOpen] = useState(false)
   // === 连接状态管理 ===
@@ -88,6 +90,22 @@ export function HostDetail({
               </CardDescription>
             </div>
             <div className="flex items-center space-x-1">
+              <Button
+                onClick={() => onConnectInternal(host.alias)}
+                variant="ghost"
+                size="icon"
+                title="Connect in App Terminal"
+              >
+                <Terminal className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={() => onConnectExternal(host.alias)}
+                variant="ghost"
+                size="icon"
+                title="Connect in External Terminal"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Button>
               <Button onClick={() => onEdit(host)} variant="ghost" size="icon">
                 <Pencil className="h-4 w-4" />
               </Button>
@@ -98,14 +116,6 @@ export function HostDetail({
                 className="hover:text-destructive"
               >
                 <Trash2 className="h-4 w-4" />
-              </Button>
-              <Button
-                onClick={() => onConnect(host.alias)}
-                variant="ghost"
-                size="icon"
-                title="Connect"
-              >
-                <PlayCircle className="h-5 w-5" />
               </Button>
               <Button
                 onClick={() => setIsTunnelModalOpen(true)}

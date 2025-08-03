@@ -24,6 +24,9 @@ import { HostList } from '@/components/sshgate/HostList'
 import { HostDetail } from '@/components/sshgate/HostDetail'
 import { Save } from 'lucide-react'
 import { useOnVisible } from '@/hooks/useOnVisible'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { IntegratedTerminal } from '@/components/sshgate/IntegratedTerminal'
+import { StartSession as StartTerminalSession } from '@wailsjs/go/terminal/Service'
 
 // #############################################################################
 // #  主视图组件 (Main View Component)
@@ -275,6 +278,38 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
     return hosts.find((h) => h.alias === selectedAlias) || null
   }, [selectedAlias, hosts])
 
+  // === 终端会话管理 ===
+  const [terminalSession, setTerminalSession] = useState<{
+    alias: string
+    url: string
+  } | null>(null)
+
+  const handleConnectExternal = async (alias: string) => {
+    try {
+      // await ConnectInTerminal(alias) // 这里的交互流程我们已经完善了
+      await handleConnect(alias)
+    } catch (error) {
+      // 可以在这里调用我们强大的 handleConnect 交互式流程
+      console.error('External connection failed:', error)
+    }
+  }
+
+  // 新增一个函数来处理“在应用内连接”
+  const handleConnectInternal = async (alias: string) => {
+    try {
+      // 调用后端获取 WebSocket "门票"
+      // TODO: 在这里集成我们之前写的、带密码和主机验证的 handleConnect 流程
+      const url = await StartTerminalSession(alias, '')
+      setTerminalSession({ alias, url }) // 设置 URL，这将触发UI切换到终端界面
+    } catch (error) {
+      await showDialog({
+        type: 'error',
+        title: 'Error',
+        message: `Failed to start terminal session: ${String(error)}`,
+      })
+    }
+  }
+
   if (isLoading) return <p>Loading SSH hosts...</p>
 
   return (
@@ -297,7 +332,8 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
             host={selectedHost}
             onEdit={() => void handleOpenEdit(selectedHost)}
             onDelete={() => void handleDelete(selectedHost.alias)}
-            onConnect={() => void handleConnect(selectedHost.alias)}
+            onConnectExternal={() => void handleConnectExternal}
+            onConnectInternal={() => void handleConnectInternal}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -315,6 +351,32 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
           onDataChange()
         }}
       />
+
+      {/* 渲染内置终端模态框 */}
+      <Dialog
+        open={!!terminalSession}
+        onOpenChange={(isOpen) => !isOpen && setTerminalSession(null)}
+      >
+        <DialogContent className="w-[90vw] h-[90vh] max-w-none flex flex-col p-0">
+          <div className="p-2 border-b flex justify-between items-center">
+            <span className="font-mono text-sm font-semibold">
+              Terminal: {terminalSession?.alias}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setTerminalSession(null)}
+            >
+              Close
+            </Button>
+          </div>
+          <div className="flex-grow">
+            {terminalSession && (
+              <IntegratedTerminal websocketUrl={terminalSession.url} />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
