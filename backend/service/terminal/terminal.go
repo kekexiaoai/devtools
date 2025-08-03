@@ -122,7 +122,7 @@ func (s *Service) StartSession(alias string, password string) (string, error) {
 
 // startWebSocketServer 在后台启动一个 HTTP 服务器来处理 WebSocket 连接
 func (s *Service) startWebSocketServer() {
-	http.HandleFunc("/ws/terminal/", s.HandleConnection)
+	http.HandleFunc("/ws/terminal/", s.handleConnection)
 	port := ":45678" // 选择一个不常用的端口，避免冲突
 	log.Printf("Starting terminal WebSocket server on %s", port)
 	if err := http.ListenAndServe(port, nil); err != nil {
@@ -131,8 +131,8 @@ func (s *Service) startWebSocketServer() {
 	}
 }
 
-// HandleConnection 是一个 HTTP Handler，它会将一个标准的 HTTP 请求升级为 WebSocket 连接
-func (s *Service) HandleConnection(w http.ResponseWriter, r *http.Request) {
+// handleConnection 是一个 HTTP Handler，它会将一个标准的 HTTP 请求升级为 WebSocket 连接
+func (s *Service) handleConnection(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.URL.Path[len("/ws/terminal/"):]
 	s.mu.RLock()
 	session, ok := s.sessions[sessionID]

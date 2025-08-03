@@ -31,6 +31,9 @@ func main() {
 	// 创建一个 app 的实例
 	app := backend.NewApp(IsDebug, isMacOS)
 
+	// 完成所有服务的初始化和注入
+	app.Bootstrap()
+
 	// 创建应用主菜单 (跨平台)
 	appMenu := menu.NewMenu()
 
@@ -68,6 +71,9 @@ func main() {
 		HideWindowOnClose: isMacOS,
 		Bind: []any{
 			app,
+			app.FileSyncService,
+			app.SSHGateService,
+			app.TerminalService,
 		},
 		Mac: &mac.Options{
 			TitleBar: &mac.TitleBar{
