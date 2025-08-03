@@ -20,6 +20,7 @@ import (
 	"devtools/backend/internal/sshmanager"
 	"devtools/backend/internal/sshtunnel"
 	"devtools/backend/internal/syncer"
+	"devtools/backend/internal/terminal"
 	"devtools/backend/internal/types"
 	"devtools/backend/pkg/sshconfig"
 )
@@ -31,9 +32,12 @@ type App struct {
 	watcherSvc    *syncer.WatcherService
 	sshManager    *sshmanager.Manager
 	tunnelManager *sshtunnel.Manager
-	isQuitting    bool // 内部状态标志
-	isDebug       bool
-	isMacOS       bool
+
+	Terminal *terminal.Service
+
+	isQuitting bool // 内部状态标志
+	isDebug    bool
+	isMacOS    bool
 }
 
 // NewApp creates a new App application struct
@@ -107,6 +111,9 @@ func (a *App) Startup(ctx context.Context) {
 	}
 
 	a.tunnelManager = sshtunnel.NewManager(a.ctx, a.sshManager)
+
+	// 初始化终端管理器
+	a.Terminal = terminal.NewService(a.ctx, a.sshManager)
 
 	// 初始化并启动文件监控服务
 	a.watcherSvc = syncer.NewWatcherService(a.ctx)
@@ -589,4 +596,9 @@ func (a *App) ConnectInTerminalAndTrustHost(alias string, password string, saveP
 	// 它会自动尝试密钥或钥匙串，完美地处理了所有情况。
 	log.Printf("Host key for '%s' added. Re-attempting connection.", alias)
 	return a.ConnectInTerminalWithPassword(alias, password, savePassword)
+}
+
+// StartTerminalSession 启动一个终端会话并返回 WebSocket 连接信息
+func (a *App) StartTerminalSession(alias string, password string) (string, error) {
+	return a.Terminal.StartSession(alias, password)
 }

@@ -126,6 +126,10 @@ export function StartLocalForward(arg1, arg2, arg3, arg4, arg5, arg6) {
   return window['go']['backend']['App']['StartLocalForward'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
+export function StartTerminalSession(arg1, arg2) {
+  return window['go']['backend']['App']['StartTerminalSession'](arg1, arg2);
+}
+
 export function StartWatching(arg1) {
   return window['go']['backend']['App']['StartWatching'](arg1);
 }
