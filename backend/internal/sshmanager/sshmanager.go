@@ -388,11 +388,8 @@ func convertToSSHHost(hostConfig *sshconfig.HostConfig) types.SSHHost {
 	}
 }
 
-// _getHydratedHost 是一个新的私有辅助函数。
-// "Hydrated" (水合) 是一个编程术语，意为“用附加信息（如默认值）丰富一个对象”。
-// 它负责获取主机信息，并补全所有必需的默认值。
-func (m *Manager) _getHydratedHost(alias string) (*types.SSHHost, error) {
-	host, err := m.GetSSHHostByAlias(alias)
+func (m *Manager) GetSSHHostByAlias(alias string) (*types.SSHHost, error) {
+	host, err := m.GetSSHHost(alias)
 	if err != nil {
 		return nil, err
 	}
@@ -404,12 +401,8 @@ func (m *Manager) _getHydratedHost(alias string) (*types.SSHHost, error) {
 	return host, nil
 }
 
-func (m *Manager) GetSSHHostByAlias(alias string) (*types.SSHHost, error) {
-	return m.GetSSHHost(alias)
-}
-
-func (m *Manager) GetSSHHost(hostname string) (*types.SSHHost, error) {
-	hostConfig, err := m.manager.GetHost(hostname)
+func (m *Manager) GetSSHHost(alias string) (*types.SSHHost, error) {
+	hostConfig, err := m.manager.GetHost(alias)
 	if err != nil {
 		return nil, err
 	}
@@ -643,7 +636,7 @@ func (m *Manager) GetConnectionConfig(alias string, password string) (*Connectio
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	host, err := m._getHydratedHost(alias)
+	host, err := m.GetSSHHostByAlias(alias)
 	if err != nil {
 		return nil, nil, err
 	}

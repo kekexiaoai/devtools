@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo } from 'react'
 import { useXTerm } from 'react-xtermjs'
 import { FitAddon } from '@xterm/addon-fit'
-import 'xterm/css/xterm.css'
 
 interface IntegratedTerminalProps {
   websocketUrl: string

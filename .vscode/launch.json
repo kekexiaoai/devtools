@@ -12,6 +12,26 @@
       "host": "127.0.0.1"
     },
     {
+      "type": "chrome",
+      "request": "attach",
+      "name": "Debug frontend(attach)",
+      "url": "http://localhost:34115",
+      "port": 9222,
+      "webRoot": "${workspaceFolder}/frontend/src",
+      "sourceMaps": true
+    },
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "Debug frontend",
+      "url": "http://localhost:34115",
+      "webRoot": "${workspaceFolder}/frontend/src",
+      "runtimeArgs": [
+        "--remote-debugging-port=9222"
+      ],
+      "sourceMaps": true
+    },
+    {
       "name": "Wails: Production devtools",
       "type": "go",
       "request": "launch",
