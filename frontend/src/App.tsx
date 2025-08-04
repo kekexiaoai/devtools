@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { DialogProvider } from './components/providers/DialogProvider'
 import { Sidebar } from './components/Sidebar'
 import { JsonToolsView } from './views/JsonToolsView'
@@ -199,23 +199,38 @@ function App() {
   }
 
   // --- 现在由 App 组件提供管理终端会话的函数 ---
-  const openTerminal = (session: TerminalSession) => {
+
+  const openTerminal = useCallback((session: TerminalSession) => {
     // 检查是否已有同名会话，如果有则直接切换过去
-    const existingSession = terminalSessions.find((s) => s.id === session.id)
-    if (!existingSession) {
-      setTerminalSessions((prev) => [...prev, session])
-    }
+
+    setTerminalSessions((prev) => {
+      // 避免重复添加
+      if (prev.some((s) => s.id === session.id)) return prev
+      return [...prev, session]
+    })
     // 切换到 Terminal 工具视图
     setActiveTool('Terminal')
-  }
 
-  const closeTerminal = (sessionId: string) => {
+    // 检查是否已有同名会话，如果有则直接切换过去
+    // const existingSession = terminalSessions.find((s) => s.id === session.id)
+    // if (!existingSession) {
+    //   setTerminalSessions((prev) => [...prev, session])
+    // }
+    // // 切换到 Terminal 工具视图
+    // setActiveTool('Terminal')
+  }, []) // 空依赖数组，确保函数引用永远稳定
+
+  const closeTerminal = useCallback((sessionId: string) => {
     setTerminalSessions((prev) => prev.filter((s) => s.id !== sessionId))
-    // 如果关闭的是最后一个终端，可以考虑切换回 SSH Gate
-    if (terminalSessions.length === 1) {
-      setActiveTool('SSHGate')
-    }
-  }
+    // 当关闭所有终端后，自动切换回 SSH Gate
+    setTerminalSessions((prev) => {
+      const newSessions = prev.filter((s) => s.id !== sessionId)
+      if (newSessions.length === 0) {
+        setActiveTool('SSHGate')
+      }
+      return newSessions
+    })
+  }, [])
 
   return (
     <DialogProvider>
