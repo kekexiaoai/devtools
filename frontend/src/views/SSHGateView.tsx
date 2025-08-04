@@ -33,7 +33,13 @@ import { TerminalSession } from '@/App'
 // #############################################################################
 // #  主视图组件 (Main View Component)
 // #############################################################################
-export function SSHGateView({ isActive }: { isActive: boolean }) {
+
+interface SSHGateViewProps {
+  isActive: boolean
+  onOpenTerminal: (host: TerminalSession) => void
+}
+
+export function SSHGateView({ isActive, onOpenTerminal }: SSHGateViewProps) {
   // 这个 state 用于在两个 Tab 之间同步数据刷新
   // 当 RawEditor 保存了文件，或 VisualEditor 增删改了主机，
   // 我们就增加 dataVersion 的值，这会强制两个 Tab 都重新获取数据
@@ -73,7 +79,11 @@ export function SSHGateView({ isActive }: { isActive: boolean }) {
 
         {/* 可视化编辑器 Tab */}
         <TabsContent value="visual" className="flex-1 min-h-0">
-          <VisualEditor key={dataVersion} onDataChange={refreshData}, onOpenTerminal={} />
+          <VisualEditor
+            key={dataVersion}
+            onDataChange={refreshData}
+            onOpenTerminal={onOpenTerminal}
+          />
         </TabsContent>
 
         {/* 原始文件编辑器 Tab */}
@@ -179,8 +189,11 @@ function VisualEditor({
 
   const handleConnectionAttempt = useCallback(
     async (alias: string, strategy: 'internal' | 'external') => {
-      // toast() 函数返回一个 ID，我们可以用它来稍后更新这个提示
-      const toastId = toast.loading(`Connecting to ${alias}...`)
+      if (strategy === 'external') {
+        toast('Launching...', {
+          description: `Opening ${alias} in your system's terminal.`,
+        })
+      }
 
       let currentPassword = ''
       let savePassword = false
@@ -227,21 +240,15 @@ function VisualEditor({
 
               console.log(`Connecting ws ${url} ...`)
               setTerminalSession({ alias, url })
-              toast.dismiss(toastId) // 成功后关闭加载提示
+              console.log(`Connection for ${alias} opened successfully.`)
+              break // 退出
             } else {
-              // 连接成功后，使用 toast.success 更新提示
-              toast.success('Terminal Launched', {
-                id: toastId,
-                description: `Connection for ${alias} opened successfully.`,
-              })
               console.log('Connection successful!')
               break // 成功，退出循环
             }
           }
 
           if (result.passwordRequired) {
-            // 在弹窗前，先关闭“加载中”的提示，避免遮挡
-            toast.dismiss(toastId)
             const dialogResult = await showDialog({
               type: 'confirm',
               title: `Password Required for ${alias}`,
@@ -267,12 +274,9 @@ function VisualEditor({
                 dialogResult.checkedValues?.includes('save') || false
               continue // 继续下一次循环，这次会带着密码
             } else {
-              toast.dismiss(toastId)
               break // 用户取消，退出循环
             }
           } else if (result.hostKeyVerificationRequired) {
-            // 在弹窗前，先关闭“加载中”的提示，避免遮挡
-            toast.dismiss(toastId)
             const { Fingerprint, HostAddress } =
               result.hostKeyVerificationRequired
             const choice = await showDialog({
@@ -297,7 +301,6 @@ function VisualEditor({
               title: 'Connection Failed',
               message: result.errorMessage,
             })
-            toast.dismiss(toastId)
             break // 出现未知错误，退出循环
           } else {
             await showDialog({
@@ -305,14 +308,13 @@ function VisualEditor({
               title: 'Error',
               message: 'An unknown connection error occurred.',
             })
-            toast.dismiss(toastId)
             break
           }
         } catch (systemError) {
-          toast.error('System Error', {
-            id: toastId,
-            description: `A critical error occurred: ${String(systemError)}`,
-          })
+          // toast.error('System Error', {
+          //   id: toastId,
+          //   description: `A critical error occurred: ${String(systemError)}`,
+          // })
           await showDialog({
             type: 'error',
             title: 'System Error',

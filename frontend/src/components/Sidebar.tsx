@@ -28,8 +28,8 @@ export function Sidebar({ activeTool, onToolChange }: SidebarProps) {
   const tools = [
     { id: 'FileSyncer', name: 'File Syncer', icon: FolderDown },
     { id: 'JsonTools', name: 'JSON Tools', icon: FileJson2 },
-    { id: 'SshGate', name: 'SSH Gate', icon: TerminalSquare },
-    { id: 'Termianl', name: 'Terminal', icon: TerminalIcon },
+    { id: 'SSHGate', name: 'SSH Gate', icon: TerminalSquare },
+    { id: 'Terminal', name: 'Terminal', icon: TerminalIcon },
     // 这里可以添加更多工具
   ]
   return (
