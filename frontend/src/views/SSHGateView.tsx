@@ -339,6 +339,7 @@ function VisualEditor({
 
       toast.promise(connectionPromise, {
         loading: `Connecting to ${alias}...`,
+        duration: 1000, // 自动关闭时间（1000毫秒）
         success: (successMessage) => {
           return successMessage
         },
