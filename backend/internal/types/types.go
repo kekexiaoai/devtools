@@ -74,3 +74,10 @@ type AuthenticationFailedError struct {
 func (e *AuthenticationFailedError) Error() string {
 	return fmt.Sprintf("authentication failed for host %s", e.Alias)
 }
+
+// TerminalSessionInfo 是一个用于向前端展示的、简化的隧道信息结构
+type TerminalSessionInfo struct {
+	ID    string `json:"id"`
+	Alias string `json:"alias"`
+	URL   string `json:"url"`
+}

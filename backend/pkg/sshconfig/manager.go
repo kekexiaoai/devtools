@@ -109,14 +109,14 @@ func (m *SSHConfigManager) BuildConfig() string {
 }
 
 // GetHost 获取主机配置
-func (m *SSHConfigManager) GetHost(hostname string) (*HostConfig, error) {
-	hostStart, hostEnd, found := m.findHost(hostname)
+func (m *SSHConfigManager) GetHost(alias string) (*HostConfig, error) {
+	hostStart, hostEnd, found := m.findHost(alias)
 	if !found {
-		return nil, &HostNotFoundError{Alias: hostname}
+		return nil, &HostNotFoundError{Alias: alias}
 	}
 
 	hostConfig := &HostConfig{
-		Name:   hostname,
+		Name:   alias,
 		Params: make(map[string][]Param),
 	}
 
@@ -183,10 +183,10 @@ func (m *SSHConfigManager) GetAllHosts() ([]*HostConfig, error) {
 	for i := 0; i < len(m.rawLines); i++ {
 		line := strings.TrimSpace(m.rawLines[i])
 		if strings.HasPrefix(line, "Host ") {
-			hostNames := parseHostNames(strings.TrimPrefix(line, "Host"))
-			for _, hostName := range hostNames {
+			hostAliases := parseHostNames(strings.TrimPrefix(line, "Host"))
+			for _, hostAlias := range hostAliases {
 				// 处理所有主机，包括全局配置
-				host, err := m.GetHost(hostName)
+				host, err := m.GetHost(hostAlias)
 				if err == nil {
 					hosts = append(hosts, host)
 				}

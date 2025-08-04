@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"devtools/backend/internal/sshmanager"
+	"devtools/backend/internal/types"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -18,6 +19,7 @@ import (
 // Session 代表一个活动的终端会话
 type Session struct {
 	ID         string
+	Alias      string
 	sshConn    *ssh.Client
 	sshSession *ssh.Session
 	ptyIn      io.WriteCloser
@@ -48,32 +50,32 @@ func NewService(ctx context.Context, sshMgr *sshmanager.Manager) *Service {
 }
 
 // StartSession 使用 Go 原生 SSH 库创建一个新的终端会话
-func (s *Service) StartSession(alias string, password string) (string, error) {
+func (s *Service) StartSession(alias string, password string) (*types.TerminalSessionInfo, error) {
 	// 获取 SSH 配置
 	config, _, err := s.sshManager.GetConnectionConfig(alias, password)
 	if err != nil {
-		return "", fmt.Errorf("could not get ssh config for %s: %w", alias, err)
+		return nil, fmt.Errorf("could not get ssh config for %s: %w", alias, err)
 	}
 
 	// 建立 SSH 连接
 	serverAddr := fmt.Sprintf("%s:%s", config.HostName, config.Port)
 	sshConn, err := ssh.Dial("tcp", serverAddr, config.ClientConfig)
 	if err != nil {
-		return "", fmt.Errorf("SSH dial to %s failed: %w", alias, err)
+		return nil, fmt.Errorf("SSH dial to %s failed: %w", alias, err)
 	}
 
 	// 创建 SSH 会话
 	sshSession, err := sshConn.NewSession()
 	if err != nil {
 		sshConn.Close()
-		return "", fmt.Errorf("failed to create SSH session: %w", err)
+		return nil, fmt.Errorf("failed to create SSH session: %w", err)
 	}
 
 	// 请求 PTY
 	if err := sshSession.RequestPty("xterm-256color", 40, 80, ssh.TerminalModes{}); err != nil {
 		sshSession.Close()
 		sshConn.Close()
-		return "", fmt.Errorf("failed to request PTY: %w", err)
+		return nil, fmt.Errorf("failed to request PTY: %w", err)
 	}
 
 	// 获取 PTY 的输入输出流
@@ -81,25 +83,26 @@ func (s *Service) StartSession(alias string, password string) (string, error) {
 	if err != nil {
 		sshSession.Close()
 		sshConn.Close()
-		return "", err
+		return nil, err
 	}
 	ptyOut, err := sshSession.StdoutPipe()
 	if err != nil {
 		sshSession.Close()
 		sshConn.Close()
-		return "", err
+		return nil, err
 	}
 
 	// 启动远程 Shell
 	if err := sshSession.Shell(); err != nil {
 		sshSession.Close()
 		sshConn.Close()
-		return "", fmt.Errorf("failed to start shell: %w", err)
+		return nil, fmt.Errorf("failed to start shell: %w", err)
 	}
 
 	sessionID := uuid.NewString()
 	session := &Session{
 		ID:         sessionID,
+		Alias:      alias,
 		sshConn:    sshConn,
 		sshSession: sshSession,
 		ptyIn:      ptyIn,
@@ -117,7 +120,12 @@ func (s *Service) StartSession(alias string, password string) (string, error) {
 		_ = sshSession.Wait() // 等待会话结束
 	}()
 
-	return fmt.Sprintf("ws://localhost:45678/ws/terminal/%s", sessionID), nil
+	// 返回一个结构化的对象
+	return &types.TerminalSessionInfo{
+		ID:    sessionID,
+		Alias: alias,
+		URL:   fmt.Sprintf("ws://localhost:45678/ws/terminal/%s", sessionID),
+	}, nil
 }
 
 // startWebSocketServer 在后台启动一个 HTTP 服务器来处理 WebSocket 连接

@@ -10,6 +10,7 @@ import {
   ConnectInTerminalAndTrustHost,
 } from '@wailsjs/go/sshgate/Service'
 import { useDialog } from '@/hooks/useDialog'
+import { toast } from 'sonner'
 
 // --- UI 组件导入 ---
 import { Button } from '@/components/ui/button'
@@ -27,6 +28,7 @@ import { useOnVisible } from '@/hooks/useOnVisible'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { IntegratedTerminal } from '@/components/sshgate/IntegratedTerminal'
 import { StartSession as StartTerminalSession } from '@wailsjs/go/terminal/Service'
+import { TerminalSession } from '@/App'
 
 // #############################################################################
 // #  主视图组件 (Main View Component)
@@ -71,7 +73,7 @@ export function SSHGateView({ isActive }: { isActive: boolean }) {
 
         {/* 可视化编辑器 Tab */}
         <TabsContent value="visual" className="flex-1 min-h-0">
-          <VisualEditor key={dataVersion} onDataChange={refreshData} />
+          <VisualEditor key={dataVersion} onDataChange={refreshData}, onOpenTerminal={} />
         </TabsContent>
 
         {/* 原始文件编辑器 Tab */}
@@ -86,7 +88,13 @@ export function SSHGateView({ isActive }: { isActive: boolean }) {
 // #############################################################################
 // #  子组件：可视化编辑器 (Visual Editor)
 // #############################################################################
-function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
+function VisualEditor({
+  onDataChange,
+  onOpenTerminal,
+}: {
+  onDataChange: () => void
+  onOpenTerminal: (session: TerminalSession) => void
+}) {
   const [hosts, setHosts] = useState<types.SSHHost[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedAlias, setSelectedAlias] = useState<string | null>(null)
@@ -163,8 +171,17 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
     }
   }
 
-  const handleConnect = useCallback(
-    async (alias: string) => {
+  // === 终端会话管理 ===
+  const [terminalSession, setTerminalSession] = useState<{
+    alias: string
+    url: string
+  } | null>(null)
+
+  const handleConnectionAttempt = useCallback(
+    async (alias: string, strategy: 'internal' | 'external') => {
+      // toast() 函数返回一个 ID，我们可以用它来稍后更新这个提示
+      const toastId = toast.loading(`Connecting to ${alias}...`)
+
       let currentPassword = ''
       let savePassword = false
 
@@ -194,11 +211,37 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
           }
 
           if (result.success) {
-            console.log('Connection successful!')
-            break // 成功，退出循环
+            // 预检成功后，根据“策略”执行最终动作
+            if (strategy === 'internal') {
+              const sessionInfo = await StartTerminalSession(
+                alias,
+                currentPassword
+              )
+              // 关键：调用从 App 组件传下来的 onOpenTerminal 函数
+              onOpenTerminal({
+                id: sessionInfo.id,
+                alias,
+                url: sessionInfo.url,
+              }) // 使用 url 作为唯一 ID
+              const url = sessionInfo.url
+
+              console.log(`Connecting ws ${url} ...`)
+              setTerminalSession({ alias, url })
+              toast.dismiss(toastId) // 成功后关闭加载提示
+            } else {
+              // 连接成功后，使用 toast.success 更新提示
+              toast.success('Terminal Launched', {
+                id: toastId,
+                description: `Connection for ${alias} opened successfully.`,
+              })
+              console.log('Connection successful!')
+              break // 成功，退出循环
+            }
           }
 
           if (result.passwordRequired) {
+            // 在弹窗前，先关闭“加载中”的提示，避免遮挡
+            toast.dismiss(toastId)
             const dialogResult = await showDialog({
               type: 'confirm',
               title: `Password Required for ${alias}`,
@@ -224,9 +267,12 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
                 dialogResult.checkedValues?.includes('save') || false
               continue // 继续下一次循环，这次会带着密码
             } else {
+              toast.dismiss(toastId)
               break // 用户取消，退出循环
             }
           } else if (result.hostKeyVerificationRequired) {
+            // 在弹窗前，先关闭“加载中”的提示，避免遮挡
+            toast.dismiss(toastId)
             const { Fingerprint, HostAddress } =
               result.hostKeyVerificationRequired
             const choice = await showDialog({
@@ -251,6 +297,7 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
               title: 'Connection Failed',
               message: result.errorMessage,
             })
+            toast.dismiss(toastId)
             break // 出现未知错误，退出循环
           } else {
             await showDialog({
@@ -258,9 +305,14 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
               title: 'Error',
               message: 'An unknown connection error occurred.',
             })
+            toast.dismiss(toastId)
             break
           }
         } catch (systemError) {
+          toast.error('System Error', {
+            id: toastId,
+            description: `A critical error occurred: ${String(systemError)}`,
+          })
           await showDialog({
             type: 'error',
             title: 'System Error',
@@ -270,45 +322,13 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
         }
       }
     },
-    [showDialog]
+    [showDialog, onOpenTerminal]
   )
 
   const selectedHost = useMemo(() => {
     if (!selectedAlias) return null
     return hosts.find((h) => h.alias === selectedAlias) || null
   }, [selectedAlias, hosts])
-
-  // === 终端会话管理 ===
-  const [terminalSession, setTerminalSession] = useState<{
-    alias: string
-    url: string
-  } | null>(null)
-
-  const handleConnectExternal = async (alias: string) => {
-    try {
-      // await ConnectInTerminal(alias) // 这里的交互流程我们已经完善了
-      await handleConnect(alias)
-    } catch (error) {
-      // 可以在这里调用我们强大的 handleConnect 交互式流程
-      console.error('External connection failed:', error)
-    }
-  }
-
-  // 新增一个函数来处理“在应用内连接”
-  const handleConnectInternal = async (alias: string) => {
-    try {
-      // 调用后端获取 WebSocket "门票"
-      // TODO: 在这里集成我们之前写的、带密码和主机验证的 handleConnect 流程
-      const url = await StartTerminalSession(alias, '')
-      setTerminalSession({ alias, url }) // 设置 URL，这将触发UI切换到终端界面
-    } catch (error) {
-      await showDialog({
-        type: 'error',
-        title: 'Error',
-        message: `Failed to start terminal session: ${String(error)}`,
-      })
-    }
-  }
 
   if (isLoading) return <p>Loading SSH hosts...</p>
 
@@ -332,8 +352,12 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
             host={selectedHost}
             onEdit={() => void handleOpenEdit(selectedHost)}
             onDelete={() => void handleDelete(selectedHost.alias)}
-            onConnectExternal={() => void handleConnectExternal}
-            onConnectInternal={() => void handleConnectInternal}
+            onConnectExternal={() =>
+              void handleConnectionAttempt(selectedHost.alias, 'external')
+            }
+            onConnectInternal={() =>
+              void handleConnectionAttempt(selectedHost.alias, 'internal')
+            }
           />
         ) : (
           <div className="flex items-center justify-center h-full text-muted-foreground">

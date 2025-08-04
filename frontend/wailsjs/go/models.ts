@@ -273,6 +273,22 @@ export namespace types {
 	        this.syncDeletes = source["syncDeletes"];
 	    }
 	}
+	export class TerminalSessionInfo {
+	    id: string;
+	    alias: string;
+	    url: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TerminalSessionInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.alias = source["alias"];
+	        this.url = source["url"];
+	    }
+	}
 
 }
 

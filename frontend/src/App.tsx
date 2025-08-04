@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar'
 import { JsonToolsView } from './views/JsonToolsView'
 import { FileSyncerView } from './views/FileSyncerView'
 import { SSHGateView } from './views/SSHGateView'
+import { TerminalView } from './views/TerminalView'
 import { TitleBar } from '@/components/TitleBar'
 import {
   EventsOn,
@@ -29,11 +30,16 @@ import { Button } from '@/components/ui/button' // AlertDialogAction 本质上�
 
 import { AlertTriangle } from 'lucide-react'
 import { useThemeDetector } from './hooks/useThemeDetector'
+import { Toaster } from 'sonner'
+import { types } from '@wailsjs/go/models'
+
+export type TerminalSession = types.TerminalSessionInfo
 
 const toolComponents = [
   { id: 'FileSyncer', component: FileSyncerView },
   { id: 'JsonTools', component: JsonToolsView },
-  { id: 'SshGate', component: SSHGateView },
+  { id: 'SSHGate', component: SSHGateView },
+  { id: 'Terminal', component: TerminalView },
 ]
 
 function App() {
@@ -44,6 +50,10 @@ function App() {
   const [isFullscreen, setIsFullscreen] = useState(false)
 
   const [platform, setPlatform] = useState('')
+
+  const [terminalSessions, setTerminalSessions] = useState<TerminalSession[]>(
+    []
+  )
 
   useEffect(() => {
     Environment()
@@ -188,6 +198,25 @@ function App() {
     await ForceQuit() // 调用后端函数，真正退出
   }
 
+  // --- 现在由 App 组件提供管理终端会话的函数 ---
+  const openTerminal = (session: TerminalSession) => {
+    // 检查是否已有同名会话，如果有则直接切换过去
+    const existingSession = terminalSessions.find((s) => s.id === session.id)
+    if (!existingSession) {
+      setTerminalSessions((prev) => [...prev, session])
+    }
+    // 切换到 Terminal 工具视图
+    setActiveTool('Terminal')
+  }
+
+  const closeTerminal = (sessionId: string) => {
+    setTerminalSessions((prev) => prev.filter((s) => s.id !== sessionId))
+    // 如果关闭的是最后一个终端，可以考虑切换回 SSH Gate
+    if (terminalSessions.length === 1) {
+      setActiveTool('SSHGate')
+    }
+  }
+
   return (
     <DialogProvider>
       <div id="App" className="w-screen h-screen bg-transparent">
@@ -208,7 +237,12 @@ function App() {
                     activeTool === id ? 'block' : 'hidden'
                   }`}
                 >
-                  <ToolComponent isActive={activeTool === id} />
+                  <ToolComponent
+                    isActive={activeTool === id}
+                    terminalSessions={terminalSessions}
+                    onOpenTerminal={openTerminal}
+                    onCloseTerminal={closeTerminal}
+                  />
                 </div>
               ))}
             </main>
@@ -245,6 +279,8 @@ function App() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* 信息停靠站 */}
+      <Toaster />
     </DialogProvider>
   )
 }
