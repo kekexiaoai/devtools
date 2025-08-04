@@ -188,141 +188,168 @@ function VisualEditor({
   } | null>(null)
 
   const handleConnectionAttempt = useCallback(
-    async (alias: string, strategy: 'internal' | 'external') => {
-      if (strategy === 'external') {
-        toast('Launching...', {
-          description: `Opening ${alias} in your system's terminal.`,
-        })
-      }
+    (alias: string, strategy: 'internal' | 'external') => {
+      const connectionPromise = new Promise<string>((resolve, reject) => {
+        // 使用 void 来明确告知 linter 我们有意不 await 这个 IIFE
+        void (async () => {
+          let currentPassword = ''
+          let savePassword = false
 
-      let currentPassword = ''
-      let savePassword = false
+          let trustHost = false
 
-      let trustHost = false
+          // 使用一个循环来处理多步骤的交互式对话
+          while (true) {
+            try {
+              let result: types.ConnectionResult | null = null
 
-      // 使用一个循环来处理多步骤的交互式对话
-      while (true) {
-        try {
-          let result: types.ConnectionResult | null = null
-
-          // 根据 trustHost 状态，决定调用哪个函数
-          if (trustHost) {
-            result = await ConnectInTerminalAndTrustHost(
-              alias,
-              currentPassword,
-              savePassword
-            )
-            trustHost = false // 重置信任标志，只用一次
-          } else {
-            result = currentPassword
-              ? await ConnectInTerminalWithPassword(
+              // 根据 trustHost 状态，决定调用哪个函数
+              if (trustHost) {
+                result = await ConnectInTerminalAndTrustHost(
                   alias,
                   currentPassword,
                   savePassword
                 )
-              : await ConnectInTerminal(alias)
-          }
+                trustHost = false // 重置信任标志，只用一次
+              } else {
+                result = currentPassword
+                  ? await ConnectInTerminalWithPassword(
+                      alias,
+                      currentPassword,
+                      savePassword
+                    )
+                  : await ConnectInTerminal(alias)
+              }
 
-          if (result.success) {
-            // 预检成功后，根据“策略”执行最终动作
-            if (strategy === 'internal') {
-              const sessionInfo = await StartTerminalSession(
-                alias,
-                currentPassword
-              )
-              // 关键：调用从 App 组件传下来的 onOpenTerminal 函数
-              onOpenTerminal({
-                id: sessionInfo.id,
-                alias,
-                url: sessionInfo.url,
-              }) // 使用 url 作为唯一 ID
-              const url = sessionInfo.url
+              if (result.success) {
+                // 预检成功后，根据“策略”执行最终动作
+                if (strategy === 'internal') {
+                  const sessionInfo = await StartTerminalSession(
+                    alias,
+                    currentPassword
+                  )
+                  // 关键：调用从 App 组件传下来的 onOpenTerminal 函数
+                  onOpenTerminal({
+                    id: sessionInfo.id,
+                    alias,
+                    url: sessionInfo.url,
+                  }) // 使用 url 作为唯一 ID
+                  const url = sessionInfo.url
 
-              console.log(`Connecting ws ${url} ...`)
-              setTerminalSession({ alias, url })
-              console.log(`Connection for ${alias} opened successfully.`)
-              break // 退出
-            } else {
-              console.log('Connection successful!')
-              break // 成功，退出循环
+                  console.log(`Connecting ws ${url} ...`)
+                  setTerminalSession({ alias, url })
+                  console.log(`Connection for ${alias} opened successfully.`)
+                  resolve(`Terminal for ${alias} is ready.`)
+                } else {
+                  console.log('Connection successful!')
+                  resolve(`Terminal for ${alias} launched.`)
+                }
+
+                return
+              }
+
+              if (result.passwordRequired) {
+                const dialogResult = await showDialog({
+                  type: 'confirm',
+                  title: `Password Required for ${alias}`,
+                  message: result.errorMessage
+                    ? `${result.errorMessage}\nPlease enter the password.`
+                    : `Please enter the password to connect.`,
+                  prompt: { label: 'Password', type: 'password' },
+                  checkboxes: [
+                    {
+                      label: 'Save password to system keychain',
+                      value: 'save',
+                    },
+                  ],
+                  buttons: [
+                    { text: 'Cancel', variant: 'outline', value: 'cancel' },
+                    { text: 'Connect', variant: 'default', value: 'connect' },
+                  ],
+                })
+
+                if (
+                  dialogResult.buttonValue === 'connect' &&
+                  dialogResult.inputValue
+                ) {
+                  currentPassword = dialogResult.inputValue
+                  savePassword =
+                    dialogResult.checkedValues?.includes('save') || false
+                  continue // 继续下一次循环，这次会带着密码
+                } else {
+                  reject(new Error('Connection cancelled by user.')) // 用户取消，Promise 失败
+                  return // 用户取消，使用 return 终止
+                }
+              } else if (result.hostKeyVerificationRequired) {
+                const { Fingerprint, HostAddress } =
+                  result.hostKeyVerificationRequired
+                const choice = await showDialog({
+                  type: 'confirm',
+                  title: `Host Key Verification for ${alias}`,
+                  message: `The authenticity of host '${HostAddress}' can't be established.\n\nFingerprint: ${Fingerprint}\n\nAre you sure you want to continue connecting?`,
+                  buttons: [
+                    { text: 'Cancel', variant: 'outline', value: 'cancel' },
+                    {
+                      text: 'Yes, Trust Host',
+                      variant: 'default',
+                      value: 'yes',
+                    },
+                  ],
+                })
+
+                if (choice.buttonValue === 'yes') {
+                  trustHost = true // 设置信任标志
+                  continue // 继续下一次循环，这次会信任主机
+                } else {
+                  reject(new Error('Connection cancelled by user.')) // 用户取消，Promise 失败
+                  return // 用户取消，使用 return 终止
+                }
+              } else if (result.errorMessage) {
+                await showDialog({
+                  type: 'error',
+                  title: 'Connection Failed',
+                  message: result.errorMessage,
+                })
+                reject(new Error(result.errorMessage))
+                return // 出现未知错误，使用 return 终止
+              } else {
+                await showDialog({
+                  type: 'error',
+                  title: 'Error',
+                  message: 'An unknown connection error occurred.',
+                })
+                reject(new Error('An unknown connection error occurred.'))
+                return // 出现未知错误，使用 return 终止
+              }
+            } catch (systemError) {
+              // toast.error('System Error', {
+              //   id: toastId,
+              //   description: `A critical error occurred: ${String(systemError)}`,
+              // })
+              await showDialog({
+                type: 'error',
+                title: 'System Error',
+                message: `A critical error occurred: ${String(systemError)}`,
+              })
+              reject(systemError as Error) // 系统级错误，Promise 失败
+              return // 系统级错误，使用 return 终止
             }
           }
+        })()
+      })
 
-          if (result.passwordRequired) {
-            const dialogResult = await showDialog({
-              type: 'confirm',
-              title: `Password Required for ${alias}`,
-              message: result.errorMessage
-                ? `${result.errorMessage}\nPlease enter the password.`
-                : `Please enter the password to connect.`,
-              prompt: { label: 'Password', type: 'password' },
-              checkboxes: [
-                { label: 'Save password to system keychain', value: 'save' },
-              ],
-              buttons: [
-                { text: 'Cancel', variant: 'outline', value: 'cancel' },
-                { text: 'Connect', variant: 'default', value: 'connect' },
-              ],
-            })
-
-            if (
-              dialogResult.buttonValue === 'connect' &&
-              dialogResult.inputValue
-            ) {
-              currentPassword = dialogResult.inputValue
-              savePassword =
-                dialogResult.checkedValues?.includes('save') || false
-              continue // 继续下一次循环，这次会带着密码
-            } else {
-              break // 用户取消，退出循环
-            }
-          } else if (result.hostKeyVerificationRequired) {
-            const { Fingerprint, HostAddress } =
-              result.hostKeyVerificationRequired
-            const choice = await showDialog({
-              type: 'confirm',
-              title: `Host Key Verification for ${alias}`,
-              message: `The authenticity of host '${HostAddress}' can't be established.\n\nFingerprint: ${Fingerprint}\n\nAre you sure you want to continue connecting?`,
-              buttons: [
-                { text: 'Cancel', variant: 'outline', value: 'cancel' },
-                { text: 'Yes, Trust Host', variant: 'default', value: 'yes' },
-              ],
-            })
-
-            if (choice.buttonValue === 'yes') {
-              trustHost = true // 设置信任标志
-              continue // 继续下一次循环，这次会信任主机
-            } else {
-              break // 用户取消，退出循环
-            }
-          } else if (result.errorMessage) {
-            await showDialog({
-              type: 'error',
-              title: 'Connection Failed',
-              message: result.errorMessage,
-            })
-            break // 出现未知错误，退出循环
-          } else {
-            await showDialog({
-              type: 'error',
-              title: 'Error',
-              message: 'An unknown connection error occurred.',
-            })
-            break
+      toast.promise(connectionPromise, {
+        loading: `Connecting to ${alias}...`,
+        success: (successMessage) => {
+          return successMessage
+        },
+        // 在 error 回调中添加类型检查
+        error: (error: unknown) => {
+          if (error instanceof Error) {
+            return error.message // 安全地访问 .message
           }
-        } catch (systemError) {
-          // toast.error('System Error', {
-          //   id: toastId,
-          //   description: `A critical error occurred: ${String(systemError)}`,
-          // })
-          await showDialog({
-            type: 'error',
-            title: 'System Error',
-            message: `A critical error occurred: ${String(systemError)}`,
-          })
-          break // 系统级错误，退出循环
-        }
-      }
+          return 'An unknown error occurred.'
+        },
+      })
     },
     [showDialog, onOpenTerminal]
   )
