@@ -33,7 +33,9 @@ import { useThemeDetector } from './hooks/useThemeDetector'
 import { Toaster } from 'sonner'
 import { types } from '@wailsjs/go/models'
 
-export type TerminalSession = types.TerminalSessionInfo
+export type TerminalSession = types.TerminalSessionInfo & {
+  displayName: string
+}
 
 const toolComponents = [
   { id: 'FileSyncer', component: FileSyncerView },
@@ -200,25 +202,34 @@ function App() {
 
   // --- 现在由 App 组件提供管理终端会话的函数 ---
 
-  const openTerminal = useCallback((session: TerminalSession) => {
-    // 检查是否已有同名会话，如果有则直接切换过去
+  const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null)
 
-    setTerminalSessions((prev) => {
-      // 避免重复添加
-      if (prev.some((s) => s.id === session.id)) return prev
-      return [...prev, session]
-    })
-    // 切换到 Terminal 工具视图
-    setActiveTool('Terminal')
+  const openTerminal = useCallback(
+    (sessionInfo: TerminalSession) => {
+      // 检查是否已有同名会话，如果有则直接切换过去
 
-    // 检查是否已有同名会话，如果有则直接切换过去
-    // const existingSession = terminalSessions.find((s) => s.id === session.id)
-    // if (!existingSession) {
-    //   setTerminalSessions((prev) => [...prev, session])
-    // }
-    // // 切换到 Terminal 工具视图
-    // setActiveTool('Terminal')
-  }, []) // 空依赖数组，确保函数引用永远稳定
+      const baseName = sessionInfo.alias
+      let displayName = baseName
+      let counter = 1
+      // 检查是否已存在同名的 displayName
+      while (terminalSessions.some((s) => s.displayName === displayName)) {
+        counter++
+        displayName = `${baseName} (${counter})`
+      }
+
+      const newSession: TerminalSession = {
+        ...sessionInfo,
+        displayName: displayName,
+      }
+
+      setTerminalSessions((prev) => [...prev, newSession])
+      // 打开新终端后，立即将其设为激活状态
+      setActiveTerminalId(newSession.id)
+      // 切换到 Terminal 工具视图
+      setActiveTool('Terminal')
+    },
+    [terminalSessions]
+  ) // 依赖 terminalSessions 来正确计算序号
 
   const closeTerminal = useCallback((sessionId: string) => {
     setTerminalSessions((prev) => prev.filter((s) => s.id !== sessionId))
@@ -230,6 +241,16 @@ function App() {
       }
       return newSessions
     })
+  }, [])
+
+  const renameTerminal = useCallback((sessionId: string, newName: string) => {
+    setTerminalSessions((prev) =>
+      prev.map((session) =>
+        session.id === sessionId
+          ? { ...session, displayName: newName }
+          : session
+      )
+    )
   }, [])
 
   return (
@@ -257,6 +278,8 @@ function App() {
                     terminalSessions={terminalSessions}
                     onOpenTerminal={openTerminal}
                     onCloseTerminal={closeTerminal}
+                    onRenameTerminal={renameTerminal}
+                    currentTerminalId={activeTerminalId}
                   />
                 </div>
               ))}

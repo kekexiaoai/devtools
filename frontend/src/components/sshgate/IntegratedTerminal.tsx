@@ -4,9 +4,13 @@ import { FitAddon } from '@xterm/addon-fit'
 
 interface IntegratedTerminalProps {
   websocketUrl: string
+  isVisible: boolean // 用户组件可见时触发尺寸重新计算
 }
 
-export function IntegratedTerminal({ websocketUrl }: IntegratedTerminalProps) {
+export function IntegratedTerminal({
+  websocketUrl,
+  isVisible,
+}: IntegratedTerminalProps) {
   // 调用 Hook，获取 terminal 实例和 ref
   const { instance: terminal, ref } = useXTerm()
 
@@ -17,7 +21,7 @@ export function IntegratedTerminal({ websocketUrl }: IntegratedTerminalProps) {
   useEffect(() => {
     // 因为 useXTerm hook 保证了 terminal 实例的稳定，
     // 所以我们可以在 effect 内部安全地使用它
-    if (!terminal) {
+    if (!terminal || !ref.current) {
       return
     }
 
@@ -27,6 +31,31 @@ export function IntegratedTerminal({ websocketUrl }: IntegratedTerminalProps) {
 
     // --- WebSocket 连接和数据流绑定 ---
     const ws = new WebSocket(websocketUrl)
+
+    // 获取终端所在的 DOM 元素
+    const terminalContainer = ref.current
+    if (!terminalContainer) return
+
+    const resizeObserver = new ResizeObserver(() => {
+      // 当容器尺寸变化时，自动调用 fitAddon.fit()
+      try {
+        fitAddon.fit()
+        console.log(
+          `FitAddon resize rows: ${fitAddon.proposeDimensions()?.rows}, cols: ${fitAddon.proposeDimensions()?.cols}`
+        )
+      } catch (e) {
+        console.warn('FitAddon resize failed:', e)
+      }
+    })
+
+    // 开始监视容器元素
+    resizeObserver.observe(terminalContainer)
+
+    ws.onopen = () => {
+      console.log('Terminal WebSocket connected.')
+      fitAddon.fit()
+      terminal.focus() // 自动聚焦到终端
+    }
 
     const onDataDisposable = terminal.onData((data) => {
       if (ws.readyState === WebSocket.OPEN) {
@@ -42,12 +71,6 @@ export function IntegratedTerminal({ websocketUrl }: IntegratedTerminalProps) {
       }
     }
 
-    ws.onopen = () => {
-      console.log('Terminal WebSocket connected.')
-      fitAddon.fit()
-      terminal.focus() // 自动聚焦到终端
-    }
-
     ws.onerror = (error) => {
       console.error('Terminal WebSocket error:', error)
       terminal.write('\r\n\x1b[31mConnection Error.\x1b[0m')
@@ -57,22 +80,6 @@ export function IntegratedTerminal({ websocketUrl }: IntegratedTerminalProps) {
       console.log('Terminal WebSocket disconnected.')
       terminal.write('\r\n\x1b[33mConnection Closed.\x1b[0m')
     }
-
-    // 获取终端所在的 DOM 元素
-    const terminalContainer = ref.current
-    if (!terminalContainer) return
-
-    const resizeObserver = new ResizeObserver(() => {
-      // 当容器尺寸变化时，自动调用 fitAddon.fit()
-      try {
-        fitAddon.fit()
-      } catch (e) {
-        console.warn('FitAddon resize failed:', e)
-      }
-    })
-
-    // 开始监视容器元素
-    resizeObserver.observe(terminalContainer)
 
     // const handleResize = () => {
     //   fitAddon.fit()
@@ -91,9 +98,25 @@ export function IntegratedTerminal({ websocketUrl }: IntegratedTerminalProps) {
     }
   }, [websocketUrl, terminal, fitAddon, ref])
 
+  useEffect(() => {
+    // 当组件从隐藏变为可见时，我们强制进行一次尺寸重计算
+    if (isVisible && terminal) {
+      setTimeout(() => {
+        try {
+          fitAddon.fit()
+          console.log(
+            `FitAddon resize rows: ${fitAddon.proposeDimensions()?.rows}, cols: ${fitAddon.proposeDimensions()?.cols}`
+          )
+        } catch (e) {
+          console.warn('FitAddon resize failed:', e)
+        }
+      }, 50)
+    }
+  }, [isVisible, terminal, fitAddon])
+
   return (
     // 模板现在极其简洁
     // 我们只需要将 Hook 返回的 ref 附加到一个 div 上即可
-    <div className="h-full w-full bg-black p-2" ref={ref} />
+    <div className="h-full w-full p-1 bg-gray-500 rounded-md" ref={ref} />
   )
 }
