@@ -45,6 +45,7 @@ export function IntegratedTerminal({ websocketUrl }: IntegratedTerminalProps) {
     ws.onopen = () => {
       console.log('Terminal WebSocket connected.')
       fitAddon.fit()
+      terminal.focus() // 自动聚焦到终端
     }
 
     ws.onerror = (error) => {
@@ -57,18 +58,38 @@ export function IntegratedTerminal({ websocketUrl }: IntegratedTerminalProps) {
       terminal.write('\r\n\x1b[33mConnection Closed.\x1b[0m')
     }
 
-    const handleResize = () => {
-      fitAddon.fit()
-    }
-    window.addEventListener('resize', handleResize)
+    // 获取终端所在的 DOM 元素
+    const terminalContainer = ref.current
+    if (!terminalContainer) return
+
+    const resizeObserver = new ResizeObserver(() => {
+      // 当容器尺寸变化时，自动调用 fitAddon.fit()
+      try {
+        fitAddon.fit()
+      } catch (e) {
+        console.warn('FitAddon resize failed:', e)
+      }
+    })
+
+    // 开始监视容器元素
+    resizeObserver.observe(terminalContainer)
+
+    // const handleResize = () => {
+    //   fitAddon.fit()
+    // }
+    // window.addEventListener('resize', handleResize)
 
     // --- 清理函数 ---
+    // 在组件卸载时，停止监视，防止内存泄漏
     return () => {
       onDataDisposable.dispose()
       ws.close()
-      window.removeEventListener('resize', handleResize)
+      // window.removeEventListener('resize', handleResize)
+      if (terminalContainer) {
+        resizeObserver.unobserve(terminalContainer)
+      }
     }
-  }, [websocketUrl, terminal, fitAddon]) // 依赖项现在包含了 terminal 和 fitAddon
+  }, [websocketUrl, terminal, fitAddon, ref])
 
   return (
     // 模板现在极其简洁
