@@ -3,11 +3,11 @@
 import {types} from '../models';
 import {sshtunnel} from '../models';
 
-export function ConnectInTerminal(arg1:string):Promise<types.ConnectionResult>;
+export function ConnectInTerminal(arg1:string,arg2:boolean):Promise<types.ConnectionResult>;
 
-export function ConnectInTerminalAndTrustHost(arg1:string,arg2:string,arg3:boolean):Promise<types.ConnectionResult>;
+export function ConnectInTerminalAndTrustHost(arg1:string,arg2:string,arg3:boolean,arg4:boolean):Promise<types.ConnectionResult>;
 
-export function ConnectInTerminalWithPassword(arg1:string,arg2:string,arg3:boolean):Promise<types.ConnectionResult>;
+export function ConnectInTerminalWithPassword(arg1:string,arg2:string,arg3:boolean,arg4:boolean):Promise<types.ConnectionResult>;
 
 export function DeletePasswordForAlias(arg1:string):Promise<void>;
 

@@ -169,7 +169,7 @@ func (a *Service) handleSSHConnectError(host *types.SSHHost, err error) (*types.
 }
 
 // ConnectInTerminal 尝试无密码连接
-func (a *Service) ConnectInTerminal(alias string) (*types.ConnectionResult, error) {
+func (a *Service) ConnectInTerminal(alias string, dryRun bool) (*types.ConnectionResult, error) {
 	log.Printf("Attempting connection for '%s'", alias)
 	// 执行“预检”
 	host, err := a.sshManager.VerifyConnection(alias, "") // password 为空
@@ -181,14 +181,15 @@ func (a *Service) ConnectInTerminal(alias string) (*types.ConnectionResult, erro
 	log.Printf("Pre-flight check for '%s' passed. Launching terminal.", alias)
 	// 对于调用第三方ssh终端的，密码是没办法作为 ssh 的参数传递的。只能由用户在ssh终端中输入密码。对于秘钥验证的可以免密登录成功
 	// 所以此处不传递 host，只需要传递 alias 就可以
-	if err := a.sshManager.ConnectInTerminal(alias); err != nil {
+	if err := a.sshManager.ConnectInTerminal(alias, dryRun); err != nil {
 		return &types.ConnectionResult{Success: false, ErrorMessage: err.Error()}, nil
 	}
+
 	return &types.ConnectionResult{Success: true}, nil
 }
 
 // ConnectInTerminalWithPassword 接收密码进行连接
-func (a *Service) ConnectInTerminalWithPassword(alias string, password string, savePassword bool) (*types.ConnectionResult, error) {
+func (a *Service) ConnectInTerminalWithPassword(alias string, password string, savePassword bool, dryRun bool) (*types.ConnectionResult, error) {
 	log.Printf("Attempting connection for '%s' with provided password", alias)
 	// 预检：使用用户提供的密码
 	host, err := a.sshManager.VerifyConnection(alias, password)
@@ -205,14 +206,14 @@ func (a *Service) ConnectInTerminalWithPassword(alias string, password string, s
 			log.Printf("Warning: failed to save password: %v", err)
 		}
 	}
-	if err := a.sshManager.ConnectInTerminal(alias); err != nil {
+	if err := a.sshManager.ConnectInTerminal(alias, dryRun); err != nil {
 		return &types.ConnectionResult{Success: false, ErrorMessage: err.Error()}, nil
 	}
 	return &types.ConnectionResult{Success: true}, nil
 }
 
 // ConnectInTerminalAndTrustHost 用户确认后，接受主机指纹并连接
-func (a *Service) ConnectInTerminalAndTrustHost(alias string, password string, savePassword bool) (*types.ConnectionResult, error) {
+func (a *Service) ConnectInTerminalAndTrustHost(alias string, password string, savePassword bool, dryRun bool) (*types.ConnectionResult, error) {
 	log.Printf("User trusted host key for '%s'. Adding to known_hosts.", alias)
 	// 先将新的主机密钥添加到 known_hosts 文件
 	host, err := a.sshManager.GetSSHHostByAlias(alias)
@@ -232,5 +233,5 @@ func (a *Service) ConnectInTerminalAndTrustHost(alias string, password string, s
 	// 我们直接调用 ConnectInTerminalWithPassword，如果 password 为空，
 	// 它会自动尝试密钥或钥匙串，完美地处理了所有情况。
 	log.Printf("Host key for '%s' added. Re-attempting connection.", alias)
-	return a.ConnectInTerminalWithPassword(alias, password, savePassword)
+	return a.ConnectInTerminalWithPassword(alias, password, savePassword, dryRun)
 }

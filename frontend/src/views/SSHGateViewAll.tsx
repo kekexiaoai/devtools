@@ -138,7 +138,7 @@ function VisualEditor({ onDataChange }: { onDataChange: () => void }) {
 
   const handleConnect = async (alias: string) => {
     try {
-      await ConnectInTerminal(alias)
+      await ConnectInTerminal(alias, false)
     } catch (error) {
       await showDialog({
         type: 'error',

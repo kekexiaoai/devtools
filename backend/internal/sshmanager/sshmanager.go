@@ -696,7 +696,10 @@ func sshExec(sshCmd string) error {
 }
 
 // ConnectInTerminal 在系统默认终端中打开一个 SSH 连接
-func (m *Manager) ConnectInTerminal(alias string) error {
+func (m *Manager) ConnectInTerminal(alias string, dryRun bool) error {
+	if dryRun {
+		return nil
+	}
 	// ssh 客户端非常智能，我们只需要告诉它要连接的别名 (alias) 即可。
 	// 它会自动从 ~/.ssh/config 文件中读取 HostName, User, Port, IdentityFile 等所有配置。
 	sshCmd := fmt.Sprintf("ssh %s", alias)
