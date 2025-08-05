@@ -25,8 +25,6 @@ import { HostList } from '@/components/sshgate/HostList'
 import { HostDetail } from '@/components/sshgate/HostDetail'
 import { Save } from 'lucide-react'
 import { useOnVisible } from '@/hooks/useOnVisible'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { IntegratedTerminal } from '@/components/sshgate/IntegratedTerminal'
 import { StartSession as StartTerminalSession } from '@wailsjs/go/terminal/Service'
 import { TerminalSession } from '@/App'
 
@@ -181,12 +179,6 @@ function VisualEditor({
     }
   }
 
-  // === 终端会话管理 ===
-  const [terminalSession, setTerminalSession] = useState<{
-    alias: string
-    url: string
-  } | null>(null)
-
   const handleConnectionAttempt = useCallback(
     (alias: string, strategy: 'internal' | 'external') => {
       const connectionPromise = new Promise<string>((resolve, reject) => {
@@ -196,6 +188,8 @@ function VisualEditor({
           let savePassword = false
 
           let trustHost = false
+
+          const dryRun = strategy === 'internal'
 
           // 使用一个循环来处理多步骤的交互式对话
           while (true) {
@@ -207,7 +201,8 @@ function VisualEditor({
                 result = await ConnectInTerminalAndTrustHost(
                   alias,
                   currentPassword,
-                  savePassword
+                  savePassword,
+                  dryRun
                 )
                 trustHost = false // 重置信任标志，只用一次
               } else {
@@ -215,9 +210,10 @@ function VisualEditor({
                   ? await ConnectInTerminalWithPassword(
                       alias,
                       currentPassword,
-                      savePassword
+                      savePassword,
+                      dryRun
                     )
-                  : await ConnectInTerminal(alias)
+                  : await ConnectInTerminal(alias, dryRun)
               }
 
               if (result.success) {
@@ -227,16 +223,16 @@ function VisualEditor({
                     alias,
                     currentPassword
                   )
-                  // 关键：调用从 App 组件传下来的 onOpenTerminal 函数
+                  // 调用从 App 组件传下来的 onOpenTerminal 函数
+                  console.log(`Connecting ws ${sessionInfo.url} ...`)
+
                   onOpenTerminal({
                     id: sessionInfo.id,
                     alias,
                     url: sessionInfo.url,
+                    displayName: alias,
                   }) // 使用 url 作为唯一 ID
-                  const url = sessionInfo.url
 
-                  console.log(`Connecting ws ${url} ...`)
-                  setTerminalSession({ alias, url })
                   console.log(`Connection for ${alias} opened successfully.`)
                   resolve(`Terminal for ${alias} is ready.`)
                 } else {
@@ -405,32 +401,6 @@ function VisualEditor({
           onDataChange()
         }}
       />
-
-      {/* 渲染内置终端模态框 */}
-      <Dialog
-        open={!!terminalSession}
-        onOpenChange={(isOpen) => !isOpen && setTerminalSession(null)}
-      >
-        <DialogContent className="w-[90vw] h-[90vh] max-w-none flex flex-col p-0">
-          <div className="p-2 border-b flex justify-between items-center">
-            <span className="font-mono text-sm font-semibold">
-              Terminal: {terminalSession?.alias}
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setTerminalSession(null)}
-            >
-              Close
-            </Button>
-          </div>
-          <div className="flex-grow">
-            {terminalSession && (
-              <IntegratedTerminal websocketUrl={terminalSession.url} />
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
