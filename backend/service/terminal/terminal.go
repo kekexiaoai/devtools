@@ -160,7 +160,7 @@ func (s *Service) handleConnection(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("WebSocket connected for session %s", sessionID)
 
-	// --- 关键修复：双向数据流绑定 ---
+	// --- 双向数据流绑定 ---
 	var wg sync.WaitGroup
 	wg.Add(2)
 
