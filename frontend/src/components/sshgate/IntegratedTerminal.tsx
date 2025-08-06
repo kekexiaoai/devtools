@@ -41,7 +41,7 @@ export function IntegratedTerminal({
       try {
         fitAddon.fit()
         console.log(
-          `FitAddon resize rows: ${fitAddon.proposeDimensions()?.rows}, cols: ${fitAddon.proposeDimensions()?.cols}`
+          `FitAddon resize terminal.url : ${websocketUrl}, rows: ${fitAddon.proposeDimensions()?.rows}, cols: ${fitAddon.proposeDimensions()?.cols}`
         )
       } catch (e) {
         console.warn('FitAddon resize failed:', e)
@@ -105,14 +105,14 @@ export function IntegratedTerminal({
         try {
           fitAddon.fit()
           console.log(
-            `FitAddon resize rows: ${fitAddon.proposeDimensions()?.rows}, cols: ${fitAddon.proposeDimensions()?.cols}`
+            `FitAddon resize terminal.url : ${websocketUrl}, visible, rows: ${fitAddon.proposeDimensions()?.rows}, cols: ${fitAddon.proposeDimensions()?.cols}`
           )
         } catch (e) {
           console.warn('FitAddon resize failed:', e)
         }
       }, 50)
     }
-  }, [isVisible, terminal, fitAddon])
+  }, [isVisible, terminal, fitAddon, websocketUrl])
 
   return (
     // 模板现在极其简洁

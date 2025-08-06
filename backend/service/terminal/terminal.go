@@ -6,11 +6,15 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"os/exec"
+	"runtime"
 	"sync"
 
 	"devtools/backend/internal/sshmanager"
 	"devtools/backend/internal/types"
 
+	"github.com/creack/pty"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ssh"
@@ -47,6 +51,61 @@ func NewService(ctx context.Context, sshMgr *sshmanager.Manager) *Service {
 	}
 	go svc.startWebSocketServer()
 	return svc
+}
+
+// StartLocalSession 启动一个本地的 shell 会话
+func (s *Service) StartLocalSession() (*types.TerminalSessionInfo, error) {
+	// 决定要启动哪个 shell
+	var shell string
+	if runtime.GOOS == "windows" {
+		shell = "powershell.exe"
+	} else {
+		// 在 macOS/Linux 上，从环境变量获取用户的默认 shell
+		shell = os.Getenv("SHELL")
+		if shell == "" {
+			shell = "bash" // 作为备用
+		}
+	}
+
+	// 创建一个执行本地 shell 的命令
+	cmd := exec.Command(shell)
+
+	// 使用 pty 库来在一个伪终端中启动这个命令
+	ptmx, err := pty.Start(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start local pty: %w", err)
+	}
+
+	sessionID := uuid.NewString()
+	session := &Session{
+		ID: sessionID,
+		// 对于本地会话，sshConn 和 sshSession 是 nil
+		sshConn:    nil,
+		sshSession: nil,
+		// ptyIn 和 ptyOut 现在直接就是 ptmx
+		ptyIn:  ptmx,
+		ptyOut: ptmx,
+	}
+
+	s.mu.Lock()
+	s.sessions[sessionID] = session
+	s.mu.Unlock()
+
+	log.Printf("Started new local terminal session %s", sessionID)
+
+	// 监控进程是否结束，以便自动清理
+	go func() {
+		defer s.cleanupSession(sessionID)
+		_ = cmd.Wait()
+		log.Printf("Local terminal session %s exited.", sessionID)
+	}()
+
+	// 返回一个结构化的对象
+	return &types.TerminalSessionInfo{
+		ID:    sessionID,
+		Alias: "local",
+		URL:   fmt.Sprintf("ws://localhost:45678/ws/terminal/%s", sessionID),
+	}, nil
 }
 
 // StartSession 使用 Go 原生 SSH 库创建一个新的终端会话
