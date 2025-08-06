@@ -3,13 +3,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { IntegratedTerminal } from '@/components/sshgate/IntegratedTerminal'
 import type { TerminalSession } from '@/App'
 import { Button } from '@/components/ui/button'
-import { XIcon } from 'lucide-react'
+import { Plus, XIcon } from 'lucide-react'
+import { useDialog } from '@/hooks/useDialog'
+import { StartLocalSession as StartLocalTerminalSession } from '@wailsjs/go/terminal/Service'
 
 interface TerminalViewProps {
   terminalSessions: TerminalSession[]
   onCloseTerminal: (sessionId: string) => void
   onRenameTerminal: (sessionId: string, newName: string) => void
   currentTerminalId: string | null
+  onOpenTerminal: (session: TerminalSession) => void
   isActive: boolean
 }
 
@@ -19,6 +22,7 @@ export function TerminalView({
   onRenameTerminal,
   isActive,
   currentTerminalId,
+  onOpenTerminal,
 }: TerminalViewProps) {
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(
     terminalSessions.length > 0 ? terminalSessions[0].id : null
@@ -73,10 +77,40 @@ export function TerminalView({
     setEditingTabId(null)
   }
 
+  const { showDialog } = useDialog()
+
+  const handleOpenLocalTerminal = async () => {
+    try {
+      const sessionInfo = await StartLocalTerminalSession()
+      // 为新会话生成唯一的显示名称
+      const baseName = sessionInfo.alias
+      let displayName = baseName
+      let counter = 1
+      while (terminalSessions.some((s) => s.displayName === displayName)) {
+        counter++
+        displayName = `${baseName} (${counter})`
+      }
+      onOpenTerminal({
+        ...sessionInfo,
+        displayName: displayName,
+      })
+    } catch (error) {
+      await showDialog({
+        type: 'error',
+        title: 'Error',
+        message: `Failed to start local terminal: ${String(error)}`,
+      })
+    }
+  }
+
+  // 如果没有活动的终端会话，我们显示一个欢迎界面，并提供“新建”按钮
   if (terminalSessions.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-muted-foreground">
-        <p>No active terminal sessions. Open one from the SSH Gate.</p>
+      <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+        <p className="mb-4">No active terminal sessions.</p>
+        <Button onClick={() => void handleOpenLocalTerminal()}>
+          <Plus className="mr-2 h-4 w-4" /> New Local Terminal
+        </Button>
       </div>
     )
   }
@@ -127,7 +161,16 @@ export function TerminalView({
           </TabsTrigger>
         ))}
       </TabsList>
-      <div className="flex-grow relative mt-2">
+      {/* 在 Tab 列表旁边，始终显示“新建”按钮 */}
+      <Button
+        onClick={() => void handleOpenLocalTerminal()}
+        variant="ghost"
+        size="icon"
+        className="ml-2"
+      >
+        <Plus className="h-4 w-4" />
+      </Button>
+      <div className="flex-grow relative ml-1 mr-1 mb-2">
         {terminalSessions.map((session) => (
           // 添加 forceMount 属性！
           // 这会强制 shadcn/ui 始终渲染所有的 Tab 内容，

@@ -204,10 +204,20 @@ function App() {
 
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null)
 
+  const addTerminalSession = useCallback(
+    (session: TerminalSession) => {
+      setTerminalSessions((prev) => [...prev, session])
+      setActiveTerminalId(session.id)
+      // 确保视图是激活的
+      if (activeTool !== 'Terminal') {
+        setActiveTool('Terminal')
+      }
+    },
+    [activeTool]
+  )
+
   const openTerminal = useCallback(
     (sessionInfo: TerminalSession) => {
-      // 检查是否已有同名会话，如果有则直接切换过去
-
       const baseName = sessionInfo.alias
       let displayName = baseName
       let counter = 1
@@ -266,21 +276,44 @@ function App() {
           <div className="flex flex-grow overflow-hidden">
             <Sidebar activeTool={activeTool} onToolChange={setActiveTool} />
             <main className="flex-1 flex flex-col overflow-hidden relative">
-              {toolComponents.map(({ id, component: ToolComponent }) => (
+              {toolComponents.map(({ id }) => (
                 <div
                   key={id}
-                  className={`absolute inset-0 h-full w-full ${
-                    activeTool === id ? 'block' : 'hidden'
-                  }`}
+                  className={`absolute inset-0 h-full w-full ${activeTool === id ? 'block' : 'hidden'}`}
                 >
-                  <ToolComponent
-                    isActive={activeTool === id}
-                    terminalSessions={terminalSessions}
-                    onOpenTerminal={openTerminal}
-                    onCloseTerminal={closeTerminal}
-                    onRenameTerminal={renameTerminal}
-                    currentTerminalId={activeTerminalId}
-                  />
+                  {/* 我们在这里用一个 switch (或 if/else) 来为每个组件提供它专属的 props */}
+                  {(() => {
+                    const isActive = activeTool === id
+                    // 我们现在为每一种情况都返回一个明确的组件
+                    switch (id) {
+                      case 'FileSyncer':
+                        return <FileSyncerView isActive={isActive} />
+                      case 'JsonTools':
+                        return <JsonToolsView />
+                      case 'SSHGate':
+                        return (
+                          <SSHGateView
+                            isActive={isActive}
+                            onOpenTerminal={openTerminal}
+                          />
+                        )
+                      case 'Terminal':
+                        return (
+                          <TerminalView
+                            isActive={isActive}
+                            onOpenTerminal={addTerminalSession}
+                            terminalSessions={terminalSessions}
+                            onCloseTerminal={closeTerminal}
+                            onRenameTerminal={renameTerminal}
+                            currentTerminalId={activeTerminalId}
+                            // onActiveTerminalChange={setActiveTerminalId}
+                          />
+                        )
+                      // default 分支现在只用于处理意外情况
+                      default:
+                        return null
+                    }
+                  })()}
                 </div>
               ))}
             </main>
