@@ -236,14 +236,28 @@ function App() {
     [terminalSessions]
   ) // 依赖 terminalSessions 来正确计算序号
 
+  useEffect(() => {
+    // 判断标签列表是否为空
+    if (terminalSessions.length === 0) {
+      setActiveTerminalId(null)
+      return
+    }
+    // 判断当前激活的标签是否存在，不存在就选中最后一个
+    if (
+      activeTerminalId &&
+      !terminalSessions.some((s) => s.id === activeTerminalId)
+    ) {
+      setActiveTerminalId(terminalSessions[terminalSessions.length - 1].id)
+    }
+  }, [terminalSessions, activeTerminalId])
+
   const closeTerminal = useCallback((sessionId: string) => {
-    setTerminalSessions((prev) => prev.filter((s) => s.id !== sessionId))
     // 当关闭所有终端后，自动切换回 SSH Gate
     setTerminalSessions((prev) => {
       const newSessions = prev.filter((s) => s.id !== sessionId)
-      if (newSessions.length === 0) {
-        setActiveTool('SSHGate')
-      }
+      // if (newSessions.length === 0) {
+      //   setActiveTool('SSHGate')
+      // }
       return newSessions
     })
   }, [])
