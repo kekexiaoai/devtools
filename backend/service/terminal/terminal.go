@@ -10,6 +10,8 @@ import (
 	"os/exec"
 	"runtime"
 	"sync"
+	"syscall"
+	"time"
 
 	"devtools/backend/internal/sshmanager"
 	"devtools/backend/internal/types"
@@ -28,6 +30,7 @@ type Session struct {
 	sshSession *ssh.Session
 	ptyIn      io.WriteCloser
 	ptyOut     io.Reader
+	localCmd   *exec.Cmd
 }
 
 // Service 负责管理所有活动的终端会话
@@ -83,8 +86,9 @@ func (s *Service) StartLocalSession() (*types.TerminalSessionInfo, error) {
 		sshConn:    nil,
 		sshSession: nil,
 		// ptyIn 和 ptyOut 现在直接就是 ptmx
-		ptyIn:  ptmx,
-		ptyOut: ptmx,
+		ptyIn:    ptmx,
+		ptyOut:   ptmx,
+		localCmd: cmd, // 保存cmd到session中
 	}
 
 	s.mu.Lock()
@@ -95,9 +99,18 @@ func (s *Service) StartLocalSession() (*types.TerminalSessionInfo, error) {
 
 	// 监控进程是否结束，以便自动清理
 	go func() {
-		defer s.cleanupSession(sessionID)
-		_ = cmd.Wait()
-		log.Printf("Local terminal session %s exited.", sessionID)
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Panic in session %s: %v", sessionID, r)
+			}
+			log.Printf("defer for session %s to ecleanup...", sessionID) // 新增验证进入等待
+
+			s.cleanupSession(sessionID)
+		}()
+		log.Printf("Waiting for session %s to exit...", sessionID) // 新增验证进入等待
+		err = cmd.Wait()
+		log.Printf("Session %s wait returned. err: %v", sessionID, err) // 验证Wait返回
+		log.Printf("Local terminal session %s exited. err: %s", sessionID, err)
 	}()
 
 	// 返回一个结构化的对象
@@ -230,9 +243,11 @@ func (s *Service) handleConnection(w http.ResponseWriter, r *http.Request) {
 		for {
 			_, message, err := conn.ReadMessage()
 			if err != nil {
+				log.Printf("Error reading from websocket for session %s: %v", sessionID, err)
 				return
 			}
 			if _, err := session.ptyIn.Write(message); err != nil {
+				log.Printf("Error writing to pty for session %s: %v", sessionID, err)
 				return
 			}
 		}
@@ -271,13 +286,61 @@ func (s *Service) cleanupSession(sessionID string) {
 
 	if session, ok := s.sessions[sessionID]; ok {
 		if session != nil {
+			// 1. 关闭 SSH 资源（仅远程会话有效）
 			if session.sshSession != nil {
 				session.sshSession.Close()
 			}
 			if session.sshConn != nil {
 				session.sshConn.Close()
 			}
+
+			// 2. 处理本地会话：关闭伪终端 + 终止进程组
+			if session.localCmd != nil && session.localCmd.Process != nil {
+				// 先关闭伪终端（切断输入输出）
+				if session.ptyIn != nil {
+					session.ptyIn.Close()
+				}
+
+				// 获取进程 ID 和进程组 ID
+				pid := session.localCmd.Process.Pid
+				pgid, err := syscall.Getpgid(pid)
+				if err != nil {
+					// 若获取进程组失败，默认使用进程 ID 作为组 ID
+					pgid = pid
+					log.Printf("Failed to get pgid for pid %d, using pid as pgid: %v", pid, err)
+				}
+
+				// 定义终止函数：向进程组发送信号
+				terminate := func(signal syscall.Signal) error {
+					// 向进程组发送信号（信号值为负表示组信号）
+					return syscall.Kill(-pgid, signal)
+				}
+
+				// 步骤1：发送 SIGTERM 尝试优雅终止
+				if err := terminate(syscall.SIGTERM); err != nil {
+					log.Printf("SIGTERM to session %s (pgid %d) failed: %v", sessionID, pgid, err)
+				} else {
+					// 等待 500ms 让进程优雅退出
+					time.Sleep(500 * time.Millisecond)
+					// 检查进程是否已退出
+					if _, err := os.FindProcess(pid); err != nil {
+						// 进程已退出，无需后续操作
+						log.Printf("Session %s (pid %d) exited on SIGTERM", sessionID, pid)
+						goto cleanupDone
+					}
+				}
+
+				// 步骤2：SIGTERM 失败，发送 SIGKILL 强制终止
+				if err := terminate(syscall.SIGKILL); err != nil {
+					log.Printf("SIGKILL to session %s (pgid %d) failed: %v", sessionID, pgid, err)
+				} else {
+					log.Printf("Session %s (pid %d) killed with SIGKILL", sessionID, pid)
+				}
+
+			cleanupDone:
+			}
 		}
+
 		delete(s.sessions, sessionID)
 		log.Printf("Cleaned up terminal session %s", sessionID)
 	}
