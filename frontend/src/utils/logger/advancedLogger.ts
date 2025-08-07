@@ -3,7 +3,7 @@
  * - 多级前缀
  * - 控制台输出带颜色
  * - 日志级别控制
- * - 自动上报到 Wails 后端
+ * - 注入自定义任务（如上报 Wails、写入文件等）
  *
  * @example
  * const logger = createAdvancedLogger('App')
@@ -17,9 +17,14 @@ import chalk from 'chalk'
 import { LogFromFrontend } from '@wailsjs/go/backend/App'
 import { types } from '@wailsjs/go/models'
 
-type LogLevel = 'debug' | 'info' | 'warn' | 'error'
-type ServerLogLevel = 'INFO' | 'WARN' | 'ERROR'
-type LogMethod = (...args: unknown[]) => void
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
+export type ServerLogLevel = 'INFO' | 'WARN' | 'ERROR'
+export type LogMethod = (...args: unknown[]) => void
+
+export interface LogMeta {
+  upload?: boolean
+  [key: string]: unknown
+}
 
 export interface AdvancedLogger {
   debug: LogMethod
@@ -29,12 +34,20 @@ export interface AdvancedLogger {
   withPrefix: (prefix: string) => AdvancedLogger
 }
 
+export type LogTask = (
+  level: LogLevel,
+  prefix: string,
+  message: string,
+  rest: unknown[],
+  meta?: LogMeta
+) => void | Promise<void>
+
 interface LoggerOptions {
   enabled?: boolean
   level?: LogLevel
   prefix?: string[]
   useColors?: boolean
-  reportToServer?: boolean
+  tasks?: LogTask[]
 }
 
 const levelPriority: Record<LogLevel, number> = {
@@ -60,7 +73,38 @@ const toServerLevel = (level: LogLevel): ServerLogLevel | null => {
     case 'error':
       return 'ERROR'
     default:
-      return null // debug 不上传
+      return null
+  }
+}
+
+// 默认任务：上报到 Wails 后端
+const wailsReportTask: LogTask = async (level, prefix, message, rest, meta) => {
+  if (!meta?.upload) return
+  const serverLevel = toServerLevel(level)
+  if (!serverLevel || !window.go || !LogFromFrontend || !types.LogEntry) return
+
+  const fullMessage = [
+    prefix,
+    message,
+    ...rest.map((p) => {
+      try {
+        return JSON.stringify(p, null, 2)
+      } catch {
+        return String(p)
+      }
+    }),
+  ].join(' ')
+
+  const entry = new types.LogEntry({
+    timestamp: new Date().toISOString(),
+    level: serverLevel,
+    message: fullMessage,
+  })
+
+  try {
+    await LogFromFrontend(entry)
+  } catch (err) {
+    console.error('Failed to report log to server:', err)
   }
 }
 
@@ -73,7 +117,7 @@ export const createAdvancedLogger = (
     level = 'debug',
     prefix = [],
     useColors = true,
-    reportToServer = true,
+    tasks = [wailsReportTask],
   } = options || {}
 
   const currentLevel = levelPriority[level]
@@ -89,58 +133,30 @@ export const createAdvancedLogger = (
     }
   }
 
-  const reportLogToServer = async (
-    level: LogLevel,
-    prefix: string,
-    message: string,
-    optionalParams: unknown[]
-  ) => {
-    const serverLevel = toServerLevel(level)
-    if (!serverLevel || !window.go || !LogFromFrontend || !types.LogEntry) {
-      return
-    }
-
-    const fullMessage = [
-      prefix,
-      message,
-      ...optionalParams.map((p) => {
-        try {
-          return JSON.stringify(p, null, 2)
-        } catch {
-          return String(p)
-        }
-      }),
-    ].join(' ')
-
-    const entry = new types.LogEntry({
-      timestamp: new Date().toISOString(),
-      level: serverLevel,
-      message: fullMessage,
-    })
-
-    try {
-      await LogFromFrontend(entry)
-    } catch (err) {
-      console.error('Failed to report log to server:', err)
-    }
-  }
-
   const logFn = (level: LogLevel): LogMethod => {
     return (...args: unknown[]) => {
-      if (!enabled || levelPriority[level] < currentLevel) return
+      if (levelPriority[level] < currentLevel) return
 
-      const { prefix, fullPrefix } = formatPrefix(level)
+      let meta: LogMeta | undefined
+      const lastArg = args[args.length - 1]
+      if (
+        typeof lastArg === 'object' &&
+        !Array.isArray(lastArg) &&
+        lastArg !== null &&
+        'upload' in lastArg
+      ) {
+        meta = lastArg as LogMeta
+        args = args.slice(0, -1) // 去掉 meta
+      }
 
-      const consoleMethod = console[level] || console.log
-      consoleMethod(fullPrefix, ...args)
+      const prefixStr = formatPrefix(level)
+      if (enabled) {
+        const consoleMethod = console[level] || console.log
+        consoleMethod(prefixStr.fullPrefix, ...args)
+      }
 
-      if (reportToServer) {
-        const [message, ...rest] = args
-        if (typeof message === 'string') {
-          void reportLogToServer(level, prefix, message, rest)
-        } else {
-          void reportLogToServer(level, prefix, String(message), rest)
-        }
+      for (const task of tasks) {
+        void task(level, prefixStr.prefix, String(args[0]), args.slice(1), meta)
       }
     }
   }
@@ -156,7 +172,7 @@ export const createAdvancedLogger = (
         level,
         prefix: [...prefix, newPrefix],
         useColors,
-        reportToServer,
+        tasks,
       }),
   }
 
