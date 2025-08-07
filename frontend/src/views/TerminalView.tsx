@@ -11,52 +11,24 @@ interface TerminalViewProps {
   terminalSessions: TerminalSession[]
   onCloseTerminal: (sessionId: string) => void
   onRenameTerminal: (sessionId: string, newName: string) => void
-  currentTerminalId: string | null
-  onOpenTerminal: (session: TerminalSession) => void
+  onOpenTerminal: (session: TerminalSession) => void // 这是 addTerminalSession
+  activeTerminalId: string | null
+  onActiveTerminalChange: (sessionId: string | null) => void // 这是 setActiveTerminalId
   isActive: boolean
 }
-
 export function TerminalView({
   terminalSessions,
   onCloseTerminal,
   onRenameTerminal,
-  isActive,
-  currentTerminalId,
   onOpenTerminal,
+  activeTerminalId,
+  onActiveTerminalChange,
+  isActive,
 }: TerminalViewProps) {
-  const [activeTerminalId, setActiveTerminalId] = useState<string | null>(
-    terminalSessions.length > 0 ? terminalSessions[0].id : null
-  )
-
   // 新增 state，用于追踪哪个 Tab 正在被编辑
   const [editingTabId, setEditingTabId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    setActiveTerminalId(currentTerminalId)
-  }, [currentTerminalId])
-  // 当会话列表变化时，确保 activeTerminalId 仍然有效
-  useEffect(() => {
-    // 这个 effect 只在“会话列表”或“组件可见性”发生变化时运行
-
-    // 如果当前视图不可见，则不执行任何操作
-    if (!isActive) return
-
-    // 检查当前选中的 Tab 是否还存在
-    const activeTabExists = terminalSessions.some(
-      (s) => s.id === activeTerminalId
-    )
-
-    if (terminalSessions.length > 0 && !activeTabExists) {
-      // 如果会话列表不为空，但当前选中的 Tab 已不存在（比如被关闭了），
-      // 则自动切换到最后一个 Tab。
-      setActiveTerminalId(terminalSessions[terminalSessions.length - 1].id)
-    } else if (terminalSessions.length === 0) {
-      // 如果会话列表为空，则清空选中状态
-      setActiveTerminalId(null)
-    }
-  }, [terminalSessions, isActive, activeTerminalId, currentTerminalId])
 
   useEffect(() => {
     if (editingTabId && inputRef.current) {
@@ -82,7 +54,6 @@ export function TerminalView({
   const handleOpenLocalTerminal = async () => {
     try {
       const sessionInfo = await StartLocalTerminalSession()
-      // 为新会话生成唯一的显示名称
       const baseName = sessionInfo.alias
       let displayName = baseName
       let counter = 1
@@ -90,13 +61,9 @@ export function TerminalView({
         counter++
         displayName = `${baseName} (${counter})`
       }
-      onOpenTerminal({
-        ...sessionInfo,
-        displayName: displayName,
-      })
+      onOpenTerminal({ ...sessionInfo, displayName })
     } catch (error) {
       await showDialog({
-        type: 'error',
         title: 'Error',
         message: `Failed to start local terminal: ${String(error)}`,
       })
@@ -120,7 +87,7 @@ export function TerminalView({
       // 当 activeTerminalId 为 null 时，不设置 value，
       // 让 Tabs 组件自己处理默认状态，避免不必要的重渲染
       value={activeTerminalId ?? undefined}
-      onValueChange={setActiveTerminalId}
+      onValueChange={onActiveTerminalChange}
       className="h-full flex flex-col"
     >
       <div className="flex items-center pl-2 pr-2">
@@ -191,7 +158,7 @@ export function TerminalView({
             >
               <IntegratedTerminal
                 websocketUrl={session.url}
-                isVisible={activeTerminalId === session.id}
+                isVisible={isActive && activeTerminalId === session.id}
               />
             </div>
           </TabsContent>
