@@ -123,7 +123,7 @@ export function TerminalView({
       onValueChange={setActiveTerminalId}
       className="h-full flex flex-col"
     >
-      <div className="flex items-center p-2">
+      <div className="flex items-center pl-2 pr-2">
         {/* 标签列表 - 添加横向滚动和 flex-shrink: 1 */}
         <TabsList className="flex-shrink-1 overflow-x-auto m-0 mr-2">
           {terminalSessions.map((session) => (

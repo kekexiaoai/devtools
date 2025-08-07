@@ -51,7 +51,7 @@ export function SSHGateView({ isActive, onOpenTerminal }: SSHGateViewProps) {
 
   return (
     // 根容器
-    <div className="p-4 h-full flex flex-col">
+    <div className="p-2 h-full flex flex-col">
       <Tabs
         value={activeTab}
         onValueChange={setActiveTab}

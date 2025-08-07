@@ -33,7 +33,7 @@ export function SettingsControl({
             key={option.scale}
             variant={uiScale === option.scale ? 'default' : 'ghost'}
             size="icon"
-            className="h-[24px] w-[24px]"
+            className="h-[24px] w-[24px] hidden"
             title={option.title}
             onClick={() => onScaleChange(option.scale)}
           >

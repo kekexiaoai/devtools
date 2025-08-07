@@ -12,7 +12,7 @@ export function HostList(props: HostListProps) {
   const { hosts, selectedAlias, onSelect, onNew } = props
 
   return (
-    <div className="p-4 h-full flex flex-col">
+    <div className="p-2 h-full flex flex-col">
       <Button onClick={onNew} className="w-full mb-4">
         + Add Host
       </Button>

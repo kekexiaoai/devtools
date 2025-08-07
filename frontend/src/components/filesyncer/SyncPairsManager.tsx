@@ -162,7 +162,7 @@ export function SyncPairsManager({
       <CardContent>
         {/* 添加新同步对的表单 (条件渲染) */}
         {showAddForm && (
-          <div className="p-4 mb-4 bg-muted/50 rounded-lg space-y-4">
+          <div className="p-2 mb-4 bg-muted/50 rounded-lg space-y-4">
             <div>
               <Label className="text-xs">Local Path</Label>
               <div className="flex items-center">

@@ -38,7 +38,7 @@ export function SSHGateView({ isActive }: { isActive: boolean }) {
   console.log('ssh gate, data version:', dataVersion)
 
   return (
-    <div className="p-4 h-full flex flex-col">
+    <div className="p-2 h-full flex flex-col">
       <div className="flex-shrink-0">
         <h1 className="text-2xl font-bold mb-2">SSH Gate</h1>
         <p className="text-muted-foreground mb-4">

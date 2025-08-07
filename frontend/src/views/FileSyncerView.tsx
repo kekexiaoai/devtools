@@ -505,7 +505,7 @@ export function FileSyncerView({ isActive }: { isActive: boolean }) {
         />
       </div>
       {/* 右侧 */}
-      <div className="flex-1 p-6 overflow-y-auto">
+      <div className="flex-1 pl-6 pt-1 pr-6 pb-6 overflow-y-auto">
         {selectedConfig ? (
           <ConfigDetail
             key={selectedConfig.id}

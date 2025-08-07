@@ -23,7 +23,7 @@ export function ConfigList({
   const [hoveredId, setHoveredId] = useState<string | null>(null)
 
   return (
-    <div className="p-4 h-full flex flex-col bg-muted/50">
+    <div className="p-2 h-full flex flex-col bg-muted/50">
       <Button onClick={onNew} className="w-full mb-4">
         + New Configuration
       </Button>
