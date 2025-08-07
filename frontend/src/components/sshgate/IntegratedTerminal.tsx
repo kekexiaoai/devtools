@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { useXTerm } from 'react-xtermjs'
 import { FitAddon } from '@xterm/addon-fit'
 
@@ -43,21 +43,11 @@ export function IntegratedTerminal({
     () => advancedLogger.withPrefix(`${id}<${displayName}>`),
     [id, displayName]
   )
-  // 用useCallback捕获最新的props值
-  const getDebugInfo = useCallback(
-    () => ({
-      id,
-      displayName,
-    }),
-    [id, displayName]
-  )
 
   // debug
   useEffect(() => {
-    logger.info(
-      `[useEffect]isVisible, id: ${id}, displayName: ${displayName}, visible: ${isVisible}`
-    )
-  }, [isVisible, id, displayName, logger])
+    logger.info(`[useEffect] visible: ${isVisible}`)
+  }, [isVisible, logger])
 
   useEffect(() => {
     // 因为 useXTerm hook 保证了 terminal 实例的稳定，
@@ -70,8 +60,7 @@ export function IntegratedTerminal({
     // 在 terminal 实例准备好后，加载插件
     terminal.loadAddon(fitAddon)
 
-    const debug = getDebugInfo()
-    logger.info(`Initializing connection, displayName: ${debug.displayName}`)
+    logger.info('Initializing connection')
 
     // --- WebSocket 连接和数据流绑定 ---
     const ws = new WebSocket(websocketUrl)
@@ -126,7 +115,7 @@ export function IntegratedTerminal({
       ws.close()
       // window.removeEventListener('resize', handleResize)
     }
-  }, [websocketUrl, terminal, fitAddon, ref, logger, getDebugInfo])
+  }, [websocketUrl, terminal, fitAddon, ref, logger])
 
   // 独立的effect：专门处理尺寸监听
   useEffect(() => {
@@ -134,7 +123,6 @@ export function IntegratedTerminal({
     if (!terminal || !ref.current || !isVisible) return
 
     const terminalContainer = ref.current
-    const debug = getDebugInfo()
 
     // 创建ResizeObserver
     const resizeObserver = new ResizeObserver(() => {
@@ -144,7 +132,8 @@ export function IntegratedTerminal({
           fitAddon.fit()
           const dims = fitAddon.proposeDimensions()
           logger.info(
-            `[ResizeObserver]FitAddon resize, rows: ${dims?.rows}, cols: ${dims?.cols}, displayName: ${debug.displayName}`
+            `[ResizeObserver]FitAddon resize, rows: ${dims?.rows}, cols: ${dims?.cols}`,
+            { upload: true }
           )
         } catch (e) {
           logger.warn('[ResizeObserver]FitAddon resize failed:', e)
@@ -154,18 +143,14 @@ export function IntegratedTerminal({
 
     // 开始监听
     resizeObserver.observe(terminalContainer)
-    logger.info(
-      `[ResizeObserver]start observe, displayName: ${debug.displayName}`
-    )
+    logger.info(`[ResizeObserver]start observe`)
 
     // 清理函数：停止监听
     return () => {
       resizeObserver.unobserve(terminalContainer)
-      logger.info(
-        `[ResizeObserver]stop observe, displayName: ${debug.displayName}`
-      )
+      logger.info(`[ResizeObserver]stop observe`)
     }
-  }, [terminal, ref, isVisible, fitAddon, getDebugInfo, logger])
+  }, [terminal, ref, isVisible, fitAddon, logger])
 
   useEffect(() => {
     // 当组件从隐藏变为可见时，我们强制进行一次尺寸重计算
@@ -179,7 +164,7 @@ export function IntegratedTerminal({
             terminal.focus()
             const dims = fitAddon.proposeDimensions()
             logger.info(
-              `[useEffect]FitAddon resize, rows: ${dims?.rows}, cols: ${dims?.cols}, displayName: ${getDebugInfo().displayName}`
+              `[useEffect]FitAddon resize, rows: ${dims?.rows}, cols: ${dims?.cols}`
             )
           } catch (e) {
             logger.warn('FitAddon resize failed:', e)
@@ -190,7 +175,7 @@ export function IntegratedTerminal({
 
       return () => clearTimeout(timer)
     }
-  }, [isVisible, terminal, fitAddon, getDebugInfo, logger])
+  }, [isVisible, terminal, fitAddon, logger])
 
   return (
     // 我们将 ref 附加到这个 div 上，它将作为 xterm 的挂载点和被 ResizeObserver 监视的目标
