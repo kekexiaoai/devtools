@@ -163,10 +163,16 @@ export function TerminalView({
             className="absolute inset-0 h-full w-full"
           >
             <div
-              className={`h-full w-full ${activeTerminalId === session.id ? 'block' : 'hidden'}`}
+              // 避免 display: none，改为 visibility: hidden 或 absolute + hidden
+              // 有时 xterm 渲染容器不能完全隐藏
+              // display: none 会让 clientWidth 为 0，导致 fit() 计算出错。
+              // className={`h-full w-full ${activeTerminalId === session.id ? 'block' : 'hidden'}`}
+              className={`h-full w-full ${activeTerminalId === session.id ? 'relative visible' : 'absolute invisible pointer-events-none'}`}
             >
               <IntegratedTerminal
                 websocketUrl={session.url}
+                id={session.id}
+                displayName={session.displayName}
                 isVisible={isActive && activeTerminalId === session.id}
               />
             </div>
@@ -176,3 +182,44 @@ export function TerminalView({
     </Tabs>
   )
 }
+
+// debug 日志 1
+// 使用 className={`h-full w-full ${activeTerminalId === session.id ? 'block' : 'hidden'}`}
+
+// 第一次点击按钮，新增了 tab 'local'
+// IntegratedTerminal.tsx:30 [useEffect]isVisible, id: e1e1362f-20ec-4e19-8e86-ed40cc414296, displayName: local, visible: true
+// IntegratedTerminal.tsx:30 [useEffect]isVisible, id: e1e1362f-20ec-4e19-8e86-ed40cc414296, displayName: local, visible: true
+// IntegratedTerminal.tsx:96 [ResizeObserver]FitAddon resize, id: e1e1362f-20ec-4e19-8e86-ed40cc414296, displayName: local, visible: true, rows: 45, cols: 138
+// IntegratedTerminal.tsx:126 [useEffect]FitAddon resize, id: e1e1362f-20ec-4e19-8e86-ed40cc414296, displayName: local, visible: true, rows: 45, cols: 138
+// IntegratedTerminal.tsx:50 Terminal WebSocket connected.
+
+// 第二次点击按钮，新增了 tab 'local(2)'
+// 可以看到，在 className={`h-full w-full ${activeTerminalId === session.id ? 'block' : 'hidden'}`}，
+// 会触发 'local' 这个 tab fit，变为  rows: 6, cols: 11，因为 xterm 并没有完全隐藏 ResizeObserver 观察到了变化 所以会触发 fitAddon.fit()，此时 visible 是 ture？，证明 xterm 是可见的？
+// IntegratedTerminal.tsx:30 [useEffect]isVisible, id: e1e1362f-20ec-4e19-8e86-ed40cc414296, displayName: local, visible: false
+// IntegratedTerminal.tsx:30 [useEffect]isVisible, id: 2d04cce5-87be-4238-9d4f-d023ea6d4528, displayName: local (2), visible: true
+// IntegratedTerminal.tsx:30 [useEffect]isVisible, id: 2d04cce5-87be-4238-9d4f-d023ea6d4528, displayName: local (2), visible: true
+// IntegratedTerminal.tsx:96 [ResizeObserver]FitAddon resize, id: e1e1362f-20ec-4e19-8e86-ed40cc414296, displayName: local, visible: true, rows: 6, cols: 11
+// IntegratedTerminal.tsx:96 [ResizeObserver]FitAddon resize, id: 2d04cce5-87be-4238-9d4f-d023ea6d4528, displayName: local (2), visible: true, rows: 45, cols: 138
+// IntegratedTerminal.tsx:50 Terminal WebSocket connected.
+// IntegratedTerminal.tsx:126 [useEffect]FitAddon resize, id: 2d04cce5-87be-4238-9d4f-d023ea6d4528, displayName: local (2), visible: true, rows: 45, cols: 138
+
+// debug 日志 2
+// 使用 className={`h-full w-full ${activeTerminalId === session.id ? 'block' : 'absolute invisible'}`}
+
+// 第一次点击按钮，新增了 tab 'local'
+// IntegratedTerminal.tsx:30 [useEffect]isVisible, id: 90ec7ad7-c0f5-41eb-8290-36d481d9ccc1, displayName: local, visible: true
+// IntegratedTerminal.tsx:30 [useEffect]isVisible, id: 90ec7ad7-c0f5-41eb-8290-36d481d9ccc1, displayName: local, visible: true
+// IntegratedTerminal.tsx:96 [ResizeObserver]FitAddon resize, id: 90ec7ad7-c0f5-41eb-8290-36d481d9ccc1, displayName: local, visible: true, rows: 45, cols: 138
+// IntegratedTerminal.tsx:50 Terminal WebSocket connected.
+// IntegratedTerminal.tsx:126 [useEffect]FitAddon resize, id: 90ec7ad7-c0f5-41eb-8290-36d481d9ccc1, displayName: local, visible: true, rows: 45, cols: 138
+
+// 第二次点击按钮，新增了 tab 'local(2)'
+// 对比使用 hidden 的日志情况，明显观察到缺少了 IntegratedTerminal.tsx:96 [ResizeObserver]FitAddon resize, id: e1e1362f-20ec-4e19-8e86-ed40cc414296, displayName: local, visible: true, rows: 6, cols: 11
+// 可以证明 使用 absolute invisible 完全隐藏了 xterm, 可以避免 fitAddon.fit() 触发
+// IntegratedTerminal.tsx:30 [useEffect]isVisible, id: 90ec7ad7-c0f5-41eb-8290-36d481d9ccc1, displayName: local, visible: false
+// IntegratedTerminal.tsx:30 [useEffect]isVisible, id: 9346eb92-1cd1-4157-9d70-8a190ab85fb3, displayName: local (2), visible: true
+// IntegratedTerminal.tsx:30 [useEffect]isVisible, id: 9346eb92-1cd1-4157-9d70-8a190ab85fb3, displayName: local (2), visible: true
+// IntegratedTerminal.tsx:96 [ResizeObserver]FitAddon resize, id: 9346eb92-1cd1-4157-9d70-8a190ab85fb3, displayName: local (2), visible: true, rows: 45, cols: 138
+// IntegratedTerminal.tsx:50 Terminal WebSocket connected.
+// IntegratedTerminal.tsx:126 [useEffect]FitAddon resize, id: 9346eb92-1cd1-4157-9d70-8a190ab85fb3, displayName: local (2), visible: true, rows: 45, cols: 138
