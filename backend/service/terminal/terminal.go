@@ -270,8 +270,14 @@ func (s *Service) cleanupSession(sessionID string) {
 	defer s.mu.Unlock()
 
 	if session, ok := s.sessions[sessionID]; ok {
-		session.sshSession.Close()
-		session.sshConn.Close()
+		if session != nil {
+			if session.sshSession != nil {
+				session.sshSession.Close()
+			}
+			if session.sshConn != nil {
+				session.sshConn.Close()
+			}
+		}
 		delete(s.sessions, sessionID)
 		log.Printf("Cleaned up terminal session %s", sessionID)
 	}
