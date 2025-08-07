@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { DialogProvider } from './components/providers/DialogProvider'
 import { Sidebar } from './components/Sidebar'
 import { JsonToolsView } from './views/JsonToolsView'
@@ -37,12 +37,7 @@ export type TerminalSession = types.TerminalSessionInfo & {
   displayName: string
 }
 
-const toolComponents = [
-  { id: 'FileSyncer', component: FileSyncerView },
-  { id: 'JsonTools', component: JsonToolsView },
-  { id: 'SSHGate', component: SSHGateView },
-  { id: 'Terminal', component: TerminalView },
-]
+const toolIds = ['FileSyncer', 'JsonTools', 'SSHGate', 'Terminal'] as const
 
 function App() {
   const [activeTool, setActiveTool] = useState('FileSyncer')
@@ -263,6 +258,41 @@ function App() {
     )
   }, [])
 
+  const toolViews = useMemo(() => {
+    // useMemo 会“记住”这个对象的计算结果。
+    // 只有当它的依赖项（如 activeTool, terminalSessions 等）发生变化时，
+    // 它才会重新计算这个对象，从而避免不必要的组件创建。
+    return {
+      FileSyncer: <FileSyncerView isActive={activeTool === 'FileSyncer'} />,
+      JsonTools: <JsonToolsView />,
+      SSHGate: (
+        <SSHGateView
+          isActive={activeTool === 'SSHGate'}
+          onOpenTerminal={openTerminal}
+        />
+      ),
+      Terminal: (
+        <TerminalView
+          isActive={activeTool === 'Terminal'}
+          terminalSessions={terminalSessions}
+          onCloseTerminal={closeTerminal}
+          onRenameTerminal={renameTerminal}
+          activeTerminalId={activeTerminalId}
+          onOpenTerminal={addTerminalSession}
+          onActiveTerminalChange={setActiveTerminalId}
+        />
+      ),
+    }
+  }, [
+    activeTool,
+    terminalSessions,
+    activeTerminalId,
+    openTerminal,
+    closeTerminal,
+    renameTerminal,
+    addTerminalSession,
+  ])
+
   return (
     <DialogProvider>
       <div id="App" className="w-screen h-screen bg-transparent">
@@ -276,44 +306,13 @@ function App() {
           <div className="flex flex-grow overflow-hidden">
             <Sidebar activeTool={activeTool} onToolChange={setActiveTool} />
             <main className="flex-1 flex flex-col overflow-hidden relative">
-              {toolComponents.map(({ id }) => (
+              {toolIds.map((id) => (
                 <div
                   key={id}
                   className={`absolute inset-0 h-full w-full ${activeTool === id ? 'block' : 'hidden'}`}
                 >
-                  {/* 我们在这里用一个 switch (或 if/else) 来为每个组件提供它专属的 props */}
-                  {(() => {
-                    const isActive = activeTool === id
-                    // 我们现在为每一种情况都返回一个明确的组件
-                    switch (id) {
-                      case 'FileSyncer':
-                        return <FileSyncerView isActive={isActive} />
-                      case 'JsonTools':
-                        return <JsonToolsView />
-                      case 'SSHGate':
-                        return (
-                          <SSHGateView
-                            isActive={isActive}
-                            onOpenTerminal={openTerminal}
-                          />
-                        )
-                      case 'Terminal':
-                        return (
-                          <TerminalView
-                            isActive={isActive}
-                            onOpenTerminal={addTerminalSession}
-                            terminalSessions={terminalSessions}
-                            onCloseTerminal={closeTerminal}
-                            onRenameTerminal={renameTerminal}
-                            currentTerminalId={activeTerminalId}
-                            // onActiveTerminalChange={setActiveTerminalId}
-                          />
-                        )
-                      // default 分支现在只用于处理意外情况
-                      default:
-                        return null
-                    }
-                  })()}
+                  {/* 我们在这里只是简单地通过 ID 从“清单”中取出已准备好的组件 */}
+                  {toolViews[id]}
                 </div>
               ))}
             </main>
