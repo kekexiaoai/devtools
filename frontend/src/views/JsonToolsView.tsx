@@ -134,7 +134,7 @@ export function JsonToolsView() {
   }
 
   return (
-    <div className="h-full flex flex-col p-4 space-y-4 bg-background">
+    <div className="h-full flex flex-col p-2 space-y-4 bg-background">
       {/* 顶部操作按钮栏 */}
       <div className="flex-shrink-0 flex items-center gap-x-2">
         <Button onClick={formatAndValidate}>
@@ -219,7 +219,7 @@ export function JsonToolsView() {
           <label className="mb-1 text-sm font-semibold text-foreground">
             Output
           </label>
-          <div className="w-full flex-grow p-4 bg-muted/50 rounded-md border overflow-auto">
+          <div className="w-full flex-grow p-2 bg-muted/50 rounded-md border overflow-auto">
             {Object.keys(outputObject).length > 0 ? (
               <ReactJson
                 src={outputObject}
