@@ -17,7 +17,6 @@ taskLogger.error('Failed', new Error('oops'))
 // 高级日志
 const advancedLogger = createAdvancedLogger('Main', {
   level: 'info',
-  reportToServer: true,
 })
 
 const advancedTaskLogger = advancedLogger.withPrefix('Task')
@@ -37,6 +36,7 @@ const advancedTaskLogger1 = advancedWorkerLogger.withPrefix('Task')
 advancedLogger1.info('App started')
 advancedWorkerLogger.warn('Something might be wrong')
 advancedTaskLogger1.error('Task failed', { id: 42 })
+taskLogger.error('Task failed', { id: 2 }, { upload: true }) // 仅此条上传
 
 // 输出
 // [App] App started
