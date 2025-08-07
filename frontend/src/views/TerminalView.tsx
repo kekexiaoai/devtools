@@ -97,36 +97,43 @@ export function TerminalView({
             <TabsTrigger
               key={session.id}
               value={session.id}
+              // 1. 添加 asChild 属性, 解决<button>嵌套的问题
+              // 因为ShadCN 的 TabsTrigger，它底层是：declare const Trigger: React.ForwardRefExoticComponent<TabsTriggerProps & React.RefAttributes<HTMLButtonElement>>
+              // 不能再在里面嵌套 <button>，否则违反 HTML 规范。
+              asChild
               className="relative pr-8"
               onDoubleClick={() => handleStartRename(session)}
             >
-              {editingTabId === session.id ? (
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  onBlur={() => handleCommitRename(session.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleCommitRename(session.id)
-                    if (e.key === 'Escape') setEditingTabId(null)
+              {/* 2. 用一个 div 或 span 包裹所有内容，这个 div 现在会扮演“按钮”的角色 */}
+              <div className="flex items-center">
+                {editingTabId === session.id ? (
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onBlur={() => handleCommitRename(session.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleCommitRename(session.id)
+                      if (e.key === 'Escape') setEditingTabId(null)
+                    }}
+                    className="bg-transparent outline-none ring-0"
+                  />
+                ) : (
+                  session.displayName
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5 rounded-full"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onCloseTerminal(session.id)
                   }}
-                  className="bg-transparent outline-none ring-0"
-                />
-              ) : (
-                session.displayName
-              )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5 rounded-full"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onCloseTerminal(session.id)
-                }}
-              >
-                <XIcon className="h-3 w-3" />
-              </Button>
+                >
+                  <XIcon className="h-3 w-3" />
+                </Button>
+              </div>
             </TabsTrigger>
           ))}
         </TabsList>
