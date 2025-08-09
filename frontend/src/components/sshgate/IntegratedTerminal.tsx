@@ -1,23 +1,20 @@
-import React, {
-  RefObject,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useXTerm } from 'react-xtermjs'
 import { FitAddon } from '@xterm/addon-fit'
+import { useDependencyTracer } from '@/hooks/useDependencyTracer'
 
 interface IntegratedTerminalProps {
   websocketUrl: string
   id: string
   displayName: string
-  isVisible: boolean // 用户组件可见时触发尺寸重新计算
+  isVisible: boolean // Triggers resize when the component becomes visible
 }
 
-import { AdvancedLogger, createAdvancedLogger } from '@/utils/logger'
+import { createAdvancedLogger } from '@/utils/logger'
 import { Terminal } from '@xterm/xterm'
-const advancedLogger = createAdvancedLogger('Terminal')
+const advancedLogger = createAdvancedLogger('Terminal', {
+  level: 'debug',
+})
 
 // 扩展Terminal类型以解决类型定义问题（如果类型文件缺失）
 interface ExtendedTerminal extends Terminal {
@@ -31,22 +28,7 @@ export function IntegratedTerminal({
   displayName,
   isVisible,
 }: IntegratedTerminalProps) {
-  // 存储依赖项的上一次值，用于对比变化
-  const prevDepsRef = useRef<{
-    websocketUrl: string | null
-    terminal: Terminal | null
-    fitAddon: FitAddon | null
-    ref: RefObject<HTMLDivElement | null> | null
-    logger: AdvancedLogger | null
-  }>({
-    websocketUrl: null,
-    terminal: null,
-    fitAddon: null,
-    ref: null,
-    logger: null,
-  })
-
-  // 1. 用 useMemo 缓存终端配置，确保引用稳定
+  // 用 useMemo 缓存终端配置，确保引用稳定
   const terminalOptions = useMemo(
     () => ({
       cursorBlink: true,
@@ -80,49 +62,17 @@ export function IntegratedTerminal({
     [id, displayName]
   )
 
+  // 使用useDependencyTracer替代手动依赖追踪
+  useDependencyTracer(
+    { websocketUrl, terminal, fitAddon, ref, logger, isVisible },
+    logger,
+    'Terminal Dependencies'
+  )
+
   // debug
   useEffect(() => {
     logger.info(`[useEffect] visible: ${isVisible}`)
   }, [isVisible, logger])
-
-  // 监控所有依赖项的变化（无any类型）
-  useEffect(() => {
-    // 对比每个依赖项是否变化
-    if (prevDepsRef.current.websocketUrl !== websocketUrl) {
-      logger.info(
-        `websocketUrl 变化: 旧值=${prevDepsRef.current.websocketUrl}, 新值=${websocketUrl}`
-      )
-      prevDepsRef.current.websocketUrl = websocketUrl
-    }
-
-    if (prevDepsRef.current.terminal !== terminal) {
-      logger.info(
-        `terminal 实例变化: 旧实例=${prevDepsRef.current.terminal ? '存在' : '不存在'}, 新实例=${terminal ? '存在' : '不存在'}`
-      )
-      prevDepsRef.current.terminal = terminal
-    }
-
-    if (prevDepsRef.current.fitAddon !== fitAddon) {
-      logger.info(
-        `fitAddon 实例变化: 旧实例=${prevDepsRef.current.fitAddon ? '存在' : '不存在'}, 新实例=${fitAddon ? '存在' : '不存在'}`
-      )
-      prevDepsRef.current.fitAddon = fitAddon
-    }
-
-    if (prevDepsRef.current.ref !== ref) {
-      logger.info(
-        `ref 变化: 旧ref=${prevDepsRef.current.ref ? '存在' : '不存在'}, 新ref=${ref ? '存在' : '不存在'}`
-      )
-      prevDepsRef.current.ref = ref
-    }
-
-    if (prevDepsRef.current.logger !== logger) {
-      logger.info(
-        `logger 实例变化: 旧实例=${prevDepsRef.current.logger ? '存在' : '不存在'}, 新实例=${logger ? '存在' : '不存在'}`
-      )
-      prevDepsRef.current.logger = logger
-    }
-  }, [websocketUrl, terminal, fitAddon, ref, logger])
 
   // 状态跟踪引用
   const hasFocusRef = useRef(false) // 跟踪终端焦点状态
@@ -130,7 +80,7 @@ export function IntegratedTerminal({
   const resizeObserverRef = useRef<ResizeObserver | null>(null) // 尺寸监控实例
   const terminalContainerRef = ref
 
-  // 3. 核心尺寸调整函数
+  // 核心尺寸调整函数
   const adjustTerminalSize = useCallback(async () => {
     if (!terminal || !terminalContainerRef.current || !isVisible) return
 
@@ -150,7 +100,9 @@ export function IntegratedTerminal({
 
       // 记录调整后的尺寸
       const dims = fitAddon.proposeDimensions()
-      logger.info(`终端尺寸调整: ${dims?.cols}列 x ${dims?.rows}行`)
+      logger.info(
+        `Terminal size adjusted: ${dims?.cols} columns x ${dims?.rows} rows`
+      )
       sizeAdjustedRef.current = true
 
       // 激活状态下自动聚焦
@@ -158,12 +110,12 @@ export function IntegratedTerminal({
         terminal.focus() // focus()会触发onFocus事件，其中会设置 hasFocusRef.current
       }
     } catch (error) {
-      logger.error('尺寸调整失败:', error)
+      logger.error('Failed to adjust terminal size', error)
       sizeAdjustedRef.current = false
     }
   }, [terminal, terminalContainerRef, isVisible, fitAddon, logger])
 
-  // 4. 恢复ResizeObserver监控容器尺寸变化
+  // 恢复ResizeObserver监控容器尺寸变化
   useEffect(() => {
     if (!terminalContainerRef.current || !terminal) return
 
@@ -180,7 +132,7 @@ export function IntegratedTerminal({
     if (container) {
       resizeObserverRef.current.observe(container)
     }
-    logger.info('ResizeObserver已启动监控容器尺寸')
+    logger.info('ResizeObserver started monitoring container size')
 
     // 清理逻辑
     return () => {
@@ -189,11 +141,11 @@ export function IntegratedTerminal({
         resizeObserverRef.current.unobserve(container)
       }
       resizeObserverRef.current = null
-      logger.info('ResizeObserver已停止监控')
+      logger.info('ResizeObserver stopped monitoring')
     }
   }, [terminal, adjustTerminalSize, isVisible, logger, terminalContainerRef])
 
-  // 5. 可见性变化时的尺寸调整
+  // 可见性变化时的尺寸调整
   useEffect(() => {
     if (isVisible) {
       // 双重调整解决Tab切换时的尺寸偏差
@@ -215,7 +167,7 @@ export function IntegratedTerminal({
     }
   }, [isVisible, adjustTerminalSize])
 
-  // 6. 窗口全局尺寸变化时调整
+  // 窗口全局尺寸变化时调整
   useEffect(() => {
     const handleWindowResize = () => {
       if (isVisible && sizeAdjustedRef.current) {
@@ -234,19 +186,19 @@ export function IntegratedTerminal({
     }
 
     extendedTerminal.loadAddon(fitAddon)
-    logger.info('终端初始化完成, 准备连接WebSocket')
+    logger.info('Terminal initialized, ready to connect WebSocket')
 
     const ws = new WebSocket(websocketUrl)
 
     ws.onopen = () => {
-      logger.info('WebSocket连接成功')
+      logger.info('WebSocket connection successful')
       // 连接成功后，立即将前端终端的当前尺寸发送给后端 PTY，
       // 这是解决尺寸不匹配问题的关键。
       if (ws.readyState === WebSocket.OPEN) {
         const { cols, rows } = extendedTerminal
         const resizeMsg = JSON.stringify({ type: 'resize', cols, rows })
         ws.send(resizeMsg)
-        logger.info(`发送初始尺寸到后端: ${cols}x${rows}`)
+        logger.info(`Send initial size to backend: ${cols}x${rows}`)
       }
     }
 
@@ -262,20 +214,20 @@ export function IntegratedTerminal({
       if (ws.readyState === WebSocket.OPEN) {
         const resizeMsg = JSON.stringify({ type: 'resize', cols, rows })
         ws.send(resizeMsg)
-        logger.info(`同步尺寸到后端: ${cols}x${rows}`)
+        logger.info(`Sync size to backend: ${cols}x${rows}`)
       } else {
-        logger.warn('WebSocket尚未连接，无法同步尺寸')
+        logger.warn('WebSocket not connected, cannot sync size')
       }
     })
 
     // 焦点事件处理（兼容不同版本的xterm API）
     const handleFocus = () => {
       hasFocusRef.current = true
-      logger.debug('终端获得焦点')
+      logger.debug('Terminal gained focus')
     }
     const handleBlur = () => {
       hasFocusRef.current = false
-      logger.debug('终端失去焦点')
+      logger.debug('Terminal lost focus')
     }
 
     // 兼容处理：根据终端实例是否有on方法选择注册方式
@@ -295,14 +247,16 @@ export function IntegratedTerminal({
 
     // 错误处理
     ws.onerror = (error) => {
-      logger.error('WebSocket错误:', error)
-      extendedTerminal.write('\r\n\x1b[31m连接错误，请检查网络\x1b[0m\r\n')
+      logger.error('WebSocket error:', error)
+      extendedTerminal.write(
+        '\r\n\x1b[31mConnection error, please check network\x1b[0m\r\n'
+      )
     }
 
     // 关闭处理
     ws.onclose = () => {
-      logger.warn('WebSocket连接已关闭')
-      extendedTerminal.write('\r\n\x1b[33m连接已关闭\x1b[0m\r\n')
+      logger.warn('WebSocket connection closed')
+      extendedTerminal.write('\r\n\x1b[33mConnection closed\x1b[0m\r\n')
     }
 
     // 清理函数
@@ -314,7 +268,7 @@ export function IntegratedTerminal({
         extendedTerminal.off('focus', handleFocus)
         extendedTerminal.off('blur', handleBlur)
       }
-      ws.close(1000, '终端组件卸载')
+      ws.close(1000, 'Terminal component unmounted')
     }
   }, [websocketUrl, extendedTerminal, fitAddon, logger, terminalContainerRef])
 
