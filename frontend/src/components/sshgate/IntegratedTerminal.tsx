@@ -56,11 +56,21 @@ export function IntegratedTerminal({
   // useMemo 确保它只在组件首次渲染时被创建
   const fitAddon = useMemo(() => new FitAddon(), [])
 
-  // 创建带上下文的日志实例（包含当前终端ID，便于区分多个终端）
-  const logger = useMemo(
-    () => advancedLogger.withPrefix(`${id}<${displayName}>`),
-    [id, displayName]
-  )
+  // --- Logger Setup ---
+  // Ref to hold the latest displayName, preventing it from being a dependency
+  // for effects that should not re-run on rename.
+  const displayNameRef = useRef(displayName)
+  useEffect(() => {
+    displayNameRef.current = displayName
+  }, [displayName])
+
+  // Create a stable logger instance using useMemo.
+  // This logger's methods close over the displayNameRef, so they always use the
+  // latest displayName without making the logger object itself a dependency of it.
+  const logger = useMemo(() => {
+    const getPrefix = () => `[${id}]<${displayNameRef.current}>`
+    return advancedLogger.withPrefix(getPrefix())
+  }, [id])
 
   // 使用useDependencyTracer替代手动依赖追踪
   useDependencyTracer(
