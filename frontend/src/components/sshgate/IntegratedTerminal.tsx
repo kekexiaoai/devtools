@@ -240,12 +240,31 @@ export function IntegratedTerminal({
 
     ws.onopen = () => {
       logger.info('WebSocket连接成功')
+      // 连接成功后，立即将前端终端的当前尺寸发送给后端 PTY，
+      // 这是解决尺寸不匹配问题的关键。
+      if (ws.readyState === WebSocket.OPEN) {
+        const { cols, rows } = extendedTerminal
+        const resizeMsg = JSON.stringify({ type: 'resize', cols, rows })
+        ws.send(resizeMsg)
+        logger.info(`发送初始尺寸到后端: ${cols}x${rows}`)
+      }
     }
 
     // 终端输入转发到WebSocket
     const onDataDisposable = extendedTerminal.onData((data) => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(data)
+      }
+    })
+
+    // 监听前端终端的尺寸变化，并同步到后端 PTY
+    const onResizeDisposable = extendedTerminal.onResize(({ cols, rows }) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        const resizeMsg = JSON.stringify({ type: 'resize', cols, rows })
+        ws.send(resizeMsg)
+        logger.info(`同步尺寸到后端: ${cols}x${rows}`)
+      } else {
+        logger.warn('WebSocket尚未连接，无法同步尺寸')
       }
     })
 
@@ -289,6 +308,7 @@ export function IntegratedTerminal({
     // 清理函数
     return () => {
       onDataDisposable.dispose()
+      onResizeDisposable.dispose()
       // 移除事件监听（兼容处理）
       if (extendedTerminal.off) {
         extendedTerminal.off('focus', handleFocus)
