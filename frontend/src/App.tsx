@@ -199,20 +199,8 @@ function App() {
 
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null)
 
-  const addTerminalSession = useCallback(
-    (session: TerminalSession) => {
-      setTerminalSessions((prev) => [...prev, session])
-      setActiveTerminalId(session.id)
-      // 确保视图是激活的
-      if (activeTool !== 'Terminal') {
-        setActiveTool('Terminal')
-      }
-    },
-    [activeTool]
-  )
-
-  const openTerminal = useCallback(
-    (sessionInfo: TerminalSession) => {
+  const createNewTerminalSession = useCallback(
+    (sessionInfo: types.TerminalSessionInfo) => {
       const baseName = sessionInfo.alias
       let displayName = baseName
       let counter = 1
@@ -222,18 +210,17 @@ function App() {
         displayName = `${baseName} (${counter})`
       }
 
-      const newSession: TerminalSession = {
-        ...sessionInfo,
-        displayName: displayName,
-      }
+      const newSession: TerminalSession = { ...sessionInfo, displayName }
 
       setTerminalSessions((prev) => [...prev, newSession])
       // 打开新终端后，立即将其设为激活状态
       setActiveTerminalId(newSession.id)
       // 切换到 Terminal 工具视图
-      setActiveTool('Terminal')
+      if (activeTool !== 'Terminal') {
+        setActiveTool('Terminal')
+      }
     },
-    [terminalSessions]
+    [terminalSessions, activeTool]
   ) // 依赖 terminalSessions 来正确计算序号
 
   useEffect(() => {
@@ -282,7 +269,7 @@ function App() {
       SSHGate: (
         <SSHGateView
           isActive={activeTool === 'SSHGate'}
-          onOpenTerminal={openTerminal}
+          onOpenTerminal={createNewTerminalSession}
         />
       ),
       Terminal: (
@@ -292,19 +279,18 @@ function App() {
           onCloseTerminal={closeTerminal}
           onRenameTerminal={renameTerminal}
           activeTerminalId={activeTerminalId}
-          onOpenTerminal={addTerminalSession}
+          onOpenTerminal={createNewTerminalSession}
           onActiveTerminalChange={setActiveTerminalId}
         />
       ),
     }
   }, [
     activeTool,
+    createNewTerminalSession,
     terminalSessions,
-    activeTerminalId,
-    openTerminal,
     closeTerminal,
     renameTerminal,
-    addTerminalSession,
+    activeTerminalId,
   ])
 
   return (

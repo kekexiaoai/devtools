@@ -6,12 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Plus, XIcon } from 'lucide-react'
 import { useDialog } from '@/hooks/useDialog'
 import { StartLocalSession as StartLocalTerminalSession } from '@wailsjs/go/terminal/Service'
+import { types } from '@wailsjs/go/models'
 
 interface TerminalViewProps {
   terminalSessions: TerminalSession[]
   onCloseTerminal: (sessionId: string) => void
   onRenameTerminal: (sessionId: string, newName: string) => void
-  onOpenTerminal: (session: TerminalSession) => void // 这是 addTerminalSession
+  onOpenTerminal: (sessionInfo: types.TerminalSessionInfo) => void
   activeTerminalId: string | null
   onActiveTerminalChange: (sessionId: string | null) => void // 这是 setActiveTerminalId
   isActive: boolean
@@ -54,14 +55,7 @@ export function TerminalView({
   const handleOpenLocalTerminal = async () => {
     try {
       const sessionInfo = await StartLocalTerminalSession()
-      const baseName = sessionInfo.alias
-      let displayName = baseName
-      let counter = 1
-      while (terminalSessions.some((s) => s.displayName === displayName)) {
-        counter++
-        displayName = `${baseName} (${counter})`
-      }
-      onOpenTerminal({ ...sessionInfo, displayName })
+      onOpenTerminal(sessionInfo)
     } catch (error) {
       await showDialog({
         title: 'Error',
@@ -91,8 +85,7 @@ export function TerminalView({
       className="h-full flex flex-col"
     >
       <div className="flex items-center pl-2 pr-2">
-        {/* 标签列表 - 添加横向滚动和 flex-shrink: 1 */}
-        <TabsList className="flex-shrink-1 overflow-x-auto m-0 mr-2">
+        <TabsList className="flex-shrink overflow-x-auto m-0 mr-2">
           {terminalSessions.map((session) => (
             <TabsTrigger
               key={session.id}
