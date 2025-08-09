@@ -74,13 +74,11 @@ export function IntegratedTerminal({
     logger.info(`[useEffect] visible: ${isVisible}`)
   }, [isVisible, logger])
 
-  // 状态跟踪引用
-  const hasFocusRef = useRef(false) // 跟踪终端焦点状态
+  // 状态跟踪引用 (Refs for state tracking)
   const sizeAdjustedRef = useRef(false) // 跟踪尺寸是否已正确调整
   const resizeObserverRef = useRef<ResizeObserver | null>(null) // 尺寸监控实例
   const terminalContainerRef = ref
 
-  // 核心尺寸调整函数
   const adjustTerminalSize = useCallback(async () => {
     if (!terminal || !terminalContainerRef.current || !isVisible) return
 
@@ -104,40 +102,29 @@ export function IntegratedTerminal({
         `Terminal size adjusted: ${dims?.cols} columns x ${dims?.rows} rows`
       )
       sizeAdjustedRef.current = true
-
-      // 激活状态下自动聚焦
-      if (isVisible && !hasFocusRef.current) {
-        terminal.focus() // focus()会触发onFocus事件，其中会设置 hasFocusRef.current
-      }
     } catch (error) {
       logger.error('Failed to adjust terminal size', error)
       sizeAdjustedRef.current = false
     }
   }, [terminal, terminalContainerRef, isVisible, fitAddon, logger])
 
-  // 恢复ResizeObserver监控容器尺寸变化
   useEffect(() => {
     if (!terminalContainerRef.current || !terminal) return
 
-    // 创建ResizeObserver实例
     resizeObserverRef.current = new ResizeObserver((entries) => {
       if (isVisible && entries.length > 0) {
         void adjustTerminalSize()
       }
     })
 
-    // 保存当前ref值到局部变量
     const container = terminalContainerRef.current
-    // 使用局部变量进行监控
     if (container) {
       resizeObserverRef.current.observe(container)
     }
     logger.info('ResizeObserver started monitoring container size')
 
-    // 清理逻辑
     return () => {
       if (resizeObserverRef.current && container) {
-        // 使用保存的局部变量进行清理
         resizeObserverRef.current.unobserve(container)
       }
       resizeObserverRef.current = null
@@ -145,39 +132,25 @@ export function IntegratedTerminal({
     }
   }, [terminal, adjustTerminalSize, isVisible, logger, terminalContainerRef])
 
-  // 可见性变化时的尺寸调整
+  // Adjust size and focus when visibility changes
   useEffect(() => {
     if (isVisible) {
-      // 双重调整解决Tab切换时的尺寸偏差
-      const timer1 = setTimeout(() => {
-        void adjustTerminalSize().then(() => {
-          // 第一次调整后延迟100ms再次调整，确保动画/过渡完成
-          const timer2 = setTimeout(() => {
-            void adjustTerminalSize()
-          }, 100)
-          return () => clearTimeout(timer2)
-        })
-      }, 0)
-
-      return () => clearTimeout(timer1)
-    } else {
-      // 隐藏时重置状态
-      sizeAdjustedRef.current = false
-      hasFocusRef.current = false // 确保在隐藏时重置焦点状态
-    }
-  }, [isVisible, adjustTerminalSize])
-
-  // 窗口全局尺寸变化时调整
-  useEffect(() => {
-    const handleWindowResize = () => {
-      if (isVisible && sizeAdjustedRef.current) {
+      // When the terminal becomes visible, its container's dimensions might not be
+      // immediately available in the same render cycle. A small delay ensures the
+      // fit calculation and focus run after the layout has stabilized.
+      const timer = setTimeout(() => {
         void adjustTerminalSize()
-      }
-    }
+        if (terminal) {
+          terminal.focus()
+        }
+      }, 50) // A small delay is often sufficient.
 
-    window.addEventListener('resize', handleWindowResize)
-    return () => window.removeEventListener('resize', handleWindowResize)
-  }, [isVisible, adjustTerminalSize])
+      return () => clearTimeout(timer)
+    } else {
+      // When hidden, reset the size-adjusted flag.
+      sizeAdjustedRef.current = false
+    }
+  }, [isVisible, adjustTerminalSize, terminal])
 
   // WebSocket连接与终端事件处理
   useEffect(() => {
@@ -220,22 +193,6 @@ export function IntegratedTerminal({
       }
     })
 
-    // 焦点事件处理（兼容不同版本的xterm API）
-    const handleFocus = () => {
-      hasFocusRef.current = true
-      logger.debug('Terminal gained focus')
-    }
-    const handleBlur = () => {
-      hasFocusRef.current = false
-      logger.debug('Terminal lost focus')
-    }
-
-    // 兼容处理：根据终端实例是否有on方法选择注册方式
-    if (extendedTerminal.on) {
-      extendedTerminal.on('focus', handleFocus)
-      extendedTerminal.on('blur', handleBlur)
-    }
-
     // 接收WebSocket消息并写入终端
     ws.onmessage = (event) => {
       if (typeof event.data === 'string') {
@@ -263,11 +220,6 @@ export function IntegratedTerminal({
     return () => {
       onDataDisposable.dispose()
       onResizeDisposable.dispose()
-      // 移除事件监听（兼容处理）
-      if (extendedTerminal.off) {
-        extendedTerminal.off('focus', handleFocus)
-        extendedTerminal.off('blur', handleBlur)
-      }
       ws.close(1000, 'Terminal component unmounted')
     }
   }, [websocketUrl, extendedTerminal, fitAddon, logger, terminalContainerRef])
@@ -275,22 +227,20 @@ export function IntegratedTerminal({
   // 鼠标点击处理
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      // 仅阻止事件冒泡，让浏览器自然地处理聚焦行为，
-      // 这将触发下面的 onFocus 事件处理器。
+      // Stop propagation to prevent parent elements from handling the click.
+      // The browser will naturally focus the div, which then triggers `handleContainerFocus`.
       e.stopPropagation()
     },
     [] // 无依赖
   )
 
-  // 容器焦点处理
+  // When the container div gets focus (from a click or tab), pass it to the xterm instance.
   const handleContainerFocus = useCallback(() => {
-    // 无论何时容器获得焦点（通过点击或Tab键），
-    // 都无条件地尝试将焦点传递给xterm实例。
-    // xterm内部会处理是否真的需要改变焦点，而我们的逻辑保持了清晰和一致。
     if (extendedTerminal && isVisible) {
+      logger.debug('Container focused, passing focus to xterm.')
       extendedTerminal.focus()
     }
-  }, [extendedTerminal, isVisible])
+  }, [extendedTerminal, isVisible, logger])
 
   return (
     <div
