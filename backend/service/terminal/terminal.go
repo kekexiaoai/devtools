@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -31,6 +32,7 @@ type Session struct {
 	ptyIn      io.WriteCloser
 	ptyOut     io.Reader
 	localCmd   *exec.Cmd
+	ptmx       *os.File // For local sessions, to handle resize
 }
 
 // Service 负责管理所有活动的终端会话
@@ -88,7 +90,8 @@ func (s *Service) StartLocalSession() (*types.TerminalSessionInfo, error) {
 		// ptyIn 和 ptyOut 现在直接就是 ptmx
 		ptyIn:    ptmx,
 		ptyOut:   ptmx,
-		localCmd: cmd, // 保存cmd到session中
+		localCmd: cmd,  // 保存cmd到session中
+		ptmx:     ptmx, // 保存 ptmx 以便调整大小
 	}
 
 	s.mu.Lock()
@@ -236,16 +239,46 @@ func (s *Service) handleConnection(w http.ResponseWriter, r *http.Request) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	// Goroutine 1: 将 WebSocket 的输入 (用户键盘敲击) 转发到 PTY (保持不变)
+	// Goroutine 1: 将 WebSocket 的输入 (用户键盘敲击和尺寸调整命令) 转发到 PTY
 	go func() {
 		defer wg.Done()
 		defer s.cleanupSession(sessionID)
+
+		// 定义一个结构体来解码 resize 消息
+		type resizeMessage struct {
+			Type string `json:"type"`
+			Cols uint16 `json:"cols"`
+			Rows uint16 `json:"rows"`
+		}
+
 		for {
 			_, message, err := conn.ReadMessage()
 			if err != nil {
 				log.Printf("Error reading from websocket for session %s: %v", sessionID, err)
 				return
 			}
+
+			// 尝试将消息解码为 resize 命令
+			var resizeMsg resizeMessage
+			if err := json.Unmarshal(message, &resizeMsg); err == nil && resizeMsg.Type == "resize" {
+				// 这是一个 resize 命令
+				log.Printf("Resizing session %s to %dx%d", sessionID, resizeMsg.Cols, resizeMsg.Rows)
+
+				if session.ptmx != nil {
+					// 处理本地 PTY 的尺寸调整
+					if err := pty.Setsize(session.ptmx, &pty.Winsize{Rows: resizeMsg.Rows, Cols: resizeMsg.Cols}); err != nil {
+						log.Printf("Error resizing local pty for session %s: %v", sessionID, err)
+					}
+				} else if session.sshSession != nil {
+					// 处理远程 SSH 会话的尺寸调整
+					if err := session.sshSession.WindowChange(int(resizeMsg.Rows), int(resizeMsg.Cols)); err != nil {
+						log.Printf("Error resizing remote ssh session %s: %v", sessionID, err)
+					}
+				}
+				continue // 消息已处理，继续下一个循环
+			}
+
+			// 如果不是 resize 命令，则视为原始输入数据
 			if _, err := session.ptyIn.Write(message); err != nil {
 				log.Printf("Error writing to pty for session %s: %v", sessionID, err)
 				return
