@@ -2,15 +2,11 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import type { types } from '@wailsjs/go/models'
 import {
   GetSSHHosts,
-  ConnectInTerminal,
   DeleteSSHHost,
   GetSSHConfigFileContent,
   SaveSSHConfigFileContent,
-  ConnectInTerminalWithPassword,
-  ConnectInTerminalAndTrustHost,
 } from '@wailsjs/go/sshgate/Service'
 import { useDialog } from '@/hooks/useDialog'
-import { toast } from 'sonner'
 
 // --- UI 组件导入 ---
 import { Button } from '@/components/ui/button'
@@ -25,19 +21,21 @@ import { HostList } from '@/components/sshgate/HostList'
 import { HostDetail } from '@/components/sshgate/HostDetail'
 import { Save } from 'lucide-react'
 import { useOnVisible } from '@/hooks/useOnVisible'
-import { StartSession as StartTerminalSession } from '@wailsjs/go/terminal/Service'
-import { TerminalSession } from '@/App'
 
 // #############################################################################
 // #  主视图组件 (Main View Component)
 // #############################################################################
 
-interface SSHGateViewProps {
+interface SshGateViewProps {
   isActive: boolean
-  onOpenTerminal: (host: TerminalSession) => void
+  onConnect: (
+    alias: string,
+    type: 'local' | 'remote',
+    strategy: 'internal' | 'external'
+  ) => void
 }
 
-export function SSHGateView({ isActive, onOpenTerminal }: SSHGateViewProps) {
+export function SshGateView({ isActive, onConnect }: SshGateViewProps) {
   // 这个 state 用于在两个 Tab 之间同步数据刷新
   // 当 RawEditor 保存了文件，或 VisualEditor 增删改了主机，
   // 我们就增加 dataVersion 的值，这会强制两个 Tab 都重新获取数据
@@ -80,7 +78,7 @@ export function SSHGateView({ isActive, onOpenTerminal }: SSHGateViewProps) {
           <VisualEditor
             key={dataVersion}
             onDataChange={refreshData}
-            onOpenTerminal={onOpenTerminal}
+            onConnect={onConnect}
           />
         </TabsContent>
 
@@ -98,10 +96,14 @@ export function SSHGateView({ isActive, onOpenTerminal }: SSHGateViewProps) {
 // #############################################################################
 function VisualEditor({
   onDataChange,
-  onOpenTerminal,
+  onConnect,
 }: {
   onDataChange: () => void
-  onOpenTerminal: (session: TerminalSession) => void
+  onConnect: (
+    alias: string,
+    type: 'local' | 'remote',
+    strategy: 'internal' | 'external'
+  ) => void
 }) {
   const [hosts, setHosts] = useState<types.SSHHost[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -179,177 +181,12 @@ function VisualEditor({
     }
   }
 
-  const handleConnectionAttempt = useCallback(
-    (alias: string, strategy: 'internal' | 'external') => {
-      const connectionPromise = new Promise<string>((resolve, reject) => {
-        // 使用 void 来明确告知 linter 我们有意不 await 这个 IIFE
-        void (async () => {
-          let currentPassword = ''
-          let savePassword = false
-
-          let trustHost = false
-
-          const dryRun = strategy === 'internal'
-
-          // 使用一个循环来处理多步骤的交互式对话
-          while (true) {
-            try {
-              let result: types.ConnectionResult | null = null
-
-              // 根据 trustHost 状态，决定调用哪个函数
-              if (trustHost) {
-                result = await ConnectInTerminalAndTrustHost(
-                  alias,
-                  currentPassword,
-                  savePassword,
-                  dryRun
-                )
-                trustHost = false // 重置信任标志，只用一次
-              } else {
-                result = currentPassword
-                  ? await ConnectInTerminalWithPassword(
-                      alias,
-                      currentPassword,
-                      savePassword,
-                      dryRun
-                    )
-                  : await ConnectInTerminal(alias, dryRun)
-              }
-
-              if (result.success) {
-                // 预检成功后，根据“策略”执行最终动作
-                if (strategy === 'internal') {
-                  const sessionInfo = await StartTerminalSession(
-                    alias,
-                    currentPassword
-                  )
-                  // 调用从 App 组件传下来的 onOpenTerminal 函数
-                  console.log(`Connecting ws ${sessionInfo.url} ...`)
-
-                  onOpenTerminal({
-                    id: sessionInfo.id,
-                    alias,
-                    url: sessionInfo.url,
-                    displayName: alias,
-                  }) // 使用 url 作为唯一 ID
-
-                  console.log(`Connection for ${alias} opened successfully.`)
-                  resolve(`Terminal for ${alias} is ready.`)
-                } else {
-                  console.log('Connection successful!')
-                  resolve(`Terminal for ${alias} launched.`)
-                }
-
-                return
-              }
-
-              if (result.passwordRequired) {
-                const dialogResult = await showDialog({
-                  type: 'confirm',
-                  title: `Password Required for ${alias}`,
-                  message: result.errorMessage
-                    ? `${result.errorMessage}\nPlease enter the password.`
-                    : `Please enter the password to connect.`,
-                  prompt: { label: 'Password', type: 'password' },
-                  checkboxes: [
-                    {
-                      label: 'Save password to system keychain',
-                      value: 'save',
-                    },
-                  ],
-                  buttons: [
-                    { text: 'Cancel', variant: 'outline', value: 'cancel' },
-                    { text: 'Connect', variant: 'default', value: 'connect' },
-                  ],
-                })
-
-                if (
-                  dialogResult.buttonValue === 'connect' &&
-                  dialogResult.inputValue
-                ) {
-                  currentPassword = dialogResult.inputValue
-                  savePassword =
-                    dialogResult.checkedValues?.includes('save') || false
-                  continue // 继续下一次循环，这次会带着密码
-                } else {
-                  reject(new Error('Connection cancelled by user.')) // 用户取消，Promise 失败
-                  return // 用户取消，使用 return 终止
-                }
-              } else if (result.hostKeyVerificationRequired) {
-                const { Fingerprint, HostAddress } =
-                  result.hostKeyVerificationRequired
-                const choice = await showDialog({
-                  type: 'confirm',
-                  title: `Host Key Verification for ${alias}`,
-                  message: `The authenticity of host '${HostAddress}' can't be established.\n\nFingerprint: ${Fingerprint}\n\nAre you sure you want to continue connecting?`,
-                  buttons: [
-                    { text: 'Cancel', variant: 'outline', value: 'cancel' },
-                    {
-                      text: 'Yes, Trust Host',
-                      variant: 'default',
-                      value: 'yes',
-                    },
-                  ],
-                })
-
-                if (choice.buttonValue === 'yes') {
-                  trustHost = true // 设置信任标志
-                  continue // 继续下一次循环，这次会信任主机
-                } else {
-                  reject(new Error('Connection cancelled by user.')) // 用户取消，Promise 失败
-                  return // 用户取消，使用 return 终止
-                }
-              } else if (result.errorMessage) {
-                await showDialog({
-                  type: 'error',
-                  title: 'Connection Failed',
-                  message: result.errorMessage,
-                })
-                reject(new Error(result.errorMessage))
-                return // 出现未知错误，使用 return 终止
-              } else {
-                await showDialog({
-                  type: 'error',
-                  title: 'Error',
-                  message: 'An unknown connection error occurred.',
-                })
-                reject(new Error('An unknown connection error occurred.'))
-                return // 出现未知错误，使用 return 终止
-              }
-            } catch (systemError) {
-              // toast.error('System Error', {
-              //   id: toastId,
-              //   description: `A critical error occurred: ${String(systemError)}`,
-              // })
-              await showDialog({
-                type: 'error',
-                title: 'System Error',
-                message: `A critical error occurred: ${String(systemError)}`,
-              })
-              reject(systemError as Error) // 系统级错误，Promise 失败
-              return // 系统级错误，使用 return 终止
-            }
-          }
-        })()
-      })
-
-      toast.promise(connectionPromise, {
-        loading: `Connecting to ${alias}...`,
-        duration: 1000, // 自动关闭时间（1000毫秒）
-        success: (successMessage) => {
-          return successMessage
-        },
-        // 在 error 回调中添加类型检查
-        error: (error: unknown) => {
-          if (error instanceof Error) {
-            return error.message // 安全地访问 .message
-          }
-          return 'An unknown error occurred.'
-        },
-      })
-    },
-    [showDialog, onOpenTerminal]
-  )
+  const handleConnect = (
+    alias: string,
+    strategy: 'internal' | 'external' = 'external'
+  ) => {
+    void onConnect(alias, 'remote', strategy)
+  }
 
   const selectedHost = useMemo(() => {
     if (!selectedAlias) return null
@@ -379,10 +216,10 @@ function VisualEditor({
             onEdit={() => void handleOpenEdit(selectedHost)}
             onDelete={() => void handleDelete(selectedHost.alias)}
             onConnectExternal={() =>
-              void handleConnectionAttempt(selectedHost.alias, 'external')
+              void handleConnect(selectedHost.alias, 'external')
             }
             onConnectInternal={() =>
-              void handleConnectionAttempt(selectedHost.alias, 'internal')
+              void handleConnect(selectedHost.alias, 'internal')
             }
           />
         ) : (

@@ -1,13 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useXTerm } from 'react-xtermjs'
 import { FitAddon } from '@xterm/addon-fit'
 import { useDependencyTracer } from '@/hooks/useDependencyTracer'
+import { Button } from '@/components/ui/button'
+import { AlertTriangle, RefreshCw } from 'lucide-react'
 
 interface IntegratedTerminalProps {
   websocketUrl: string
   id: string
   displayName: string
   isVisible: boolean // Triggers resize when the component becomes visible
+  sessionType: 'local' | 'remote'
+  onReconnect: () => void
 }
 
 import { createAdvancedLogger } from '@/utils/logger'
@@ -27,6 +31,8 @@ export function IntegratedTerminal({
   id,
   displayName,
   isVisible,
+  sessionType,
+  onReconnect,
 }: IntegratedTerminalProps) {
   // 用 useMemo 缓存终端配置，确保引用稳定
   const terminalOptions = useMemo(
@@ -162,6 +168,11 @@ export function IntegratedTerminal({
     }
   }, [isVisible, adjustTerminalSize, terminal])
 
+  // --- Connection State Management ---
+  type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
+  const [connectionStatus, setConnectionStatus] =
+    useState<ConnectionStatus>('connecting')
+
   // WebSocket连接与终端事件处理
   useEffect(() => {
     if (!extendedTerminal || !terminalContainerRef.current) {
@@ -171,10 +182,12 @@ export function IntegratedTerminal({
     extendedTerminal.loadAddon(fitAddon)
     logger.info('Terminal initialized, ready to connect WebSocket')
 
+    setConnectionStatus('connecting')
     const ws = new WebSocket(websocketUrl)
 
     ws.onopen = () => {
       logger.info('WebSocket connection successful')
+      setConnectionStatus('connected')
       // 连接成功后，立即将前端终端的当前尺寸发送给后端 PTY，
       // 这是解决尺寸不匹配问题的关键。
       if (ws.readyState === WebSocket.OPEN) {
@@ -215,15 +228,22 @@ export function IntegratedTerminal({
     // 错误处理
     ws.onerror = (error) => {
       logger.error('WebSocket error:', error)
+      setConnectionStatus('disconnected')
       extendedTerminal.write(
         '\r\n\x1b[31mConnection error, please check network\x1b[0m\r\n'
       )
     }
 
     // 关闭处理
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       logger.warn('WebSocket connection closed')
-      extendedTerminal.write('\r\n\x1b[33mConnection closed\x1b[0m\r\n')
+      setConnectionStatus('disconnected')
+      // 1000 是正常关闭，不显示错误信息
+      if (event.code !== 1000) {
+        extendedTerminal.write(
+          '\r\n\x1b[33mConnection closed unexpectedly.\x1b[0m\r\n'
+        )
+      }
     }
 
     // 清理函数
@@ -233,6 +253,21 @@ export function IntegratedTerminal({
       ws.close(1000, 'Terminal component unmounted')
     }
   }, [websocketUrl, extendedTerminal, fitAddon, logger, terminalContainerRef])
+
+  // 自动重连本地会话
+  useEffect(() => {
+    if (
+      sessionType === 'local' &&
+      connectionStatus === 'disconnected' &&
+      isVisible
+    ) {
+      logger.info(
+        'Local terminal disconnected, attempting to auto-reconnect...'
+      )
+      const timer = setTimeout(onReconnect, 1000) // 延迟1秒后自动重连
+      return () => clearTimeout(timer)
+    }
+  }, [sessionType, connectionStatus, isVisible, onReconnect, logger])
 
   // 鼠标点击处理
   const handleMouseDown = useCallback(
@@ -253,13 +288,33 @@ export function IntegratedTerminal({
   }, [extendedTerminal, isVisible, logger])
 
   return (
-    <div
-      className="h-full w-full bg-gray-900 rounded-md overflow-hidden"
-      ref={terminalContainerRef}
-      onMouseDown={handleMouseDown}
-      onFocus={handleContainerFocus}
-      tabIndex={isVisible ? 0 : -1}
-      style={{ outline: 'none' }}
-    />
+    <div className="h-full w-full bg-gray-900 rounded-md overflow-hidden relative">
+      <div
+        className="h-full w-full"
+        ref={terminalContainerRef}
+        onMouseDown={handleMouseDown}
+        onFocus={handleContainerFocus}
+        tabIndex={isVisible ? 0 : -1}
+        style={{ outline: 'none' }}
+      />
+      {/* --- 重连遮罩层 --- */}
+      {connectionStatus === 'disconnected' &&
+        sessionType === 'remote' &&
+        isVisible && (
+          <div className="absolute inset-0 bg-black bg-opacity-0 flex flex-col items-center justify-center text-white z-20">
+            <div className="flex items-center mb-4">
+              <AlertTriangle className="h-6 w-6 text-yellow-400 mr-2" />
+              <h3 className="text-xl font-semibold">Connection Lost</h3>
+            </div>
+            <p className="text-muted-foreground mb-6">
+              The connection to the remote host was lost.
+            </p>
+            <Button onClick={onReconnect}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Reconnect
+            </Button>
+          </div>
+        )}
+    </div>
   )
 }

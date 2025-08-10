@@ -3,7 +3,7 @@ import { DialogProvider } from './components/providers/DialogProvider'
 import { Sidebar } from './components/Sidebar'
 import { JsonToolsView } from './views/JsonToolsView'
 import { FileSyncerView } from './views/FileSyncerView'
-import { SSHGateView } from './views/SSHGateView'
+import { SshGateView } from './views/SshGateView'
 import { TerminalView } from './views/TerminalView'
 import { TitleBar } from '@/components/TitleBar'
 import {
@@ -32,14 +32,20 @@ import { AlertTriangle } from 'lucide-react'
 import { useThemeDetector } from './hooks/useThemeDetector'
 import { Toaster } from 'sonner'
 import { types } from '@wailsjs/go/models'
+import { useSshConnection } from './hooks/useSshConnection'
+import { useDialog } from './hooks/useDialog'
 
 export type TerminalSession = types.TerminalSessionInfo & {
   displayName: string
 }
 
-const toolIds = ['FileSyncer', 'JsonTools', 'SSHGate', 'Terminal'] as const
+const toolIds = ['FileSyncer', 'JsonTools', 'SshGate', 'Terminal'] as const
 
-function App() {
+/**
+ * AppContent contains the main application logic. It's wrapped in DialogProvider
+ * so that hooks like useDialog and useSshAuth can be used within it.
+ */
+function AppContent() {
   const [activeTool, setActiveTool] = useState('FileSyncer')
 
   const [uiScale, setUiScale] = useState<UiScale>('default')
@@ -195,26 +201,42 @@ function App() {
     await ForceQuit() // 调用后端函数，真正退出
   }
 
-  // --- 现在由 App 组件提供管理终端会话的函数 ---
-
+  // --- App 组件提供管理终端会话的函数 ---
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null)
 
   const createNewTerminalSession = useCallback(
     (sessionInfo: types.TerminalSessionInfo) => {
-      const baseName = sessionInfo.alias
-      let displayName = baseName
-      let counter = 1
-      // 检查是否已存在同名的 displayName
-      while (terminalSessions.some((s) => s.displayName === displayName)) {
-        counter++
-        displayName = `${baseName} (${counter})`
+      // 检查这是否是一个已存在会话的重连
+      const existingSession = terminalSessions.find(
+        (s) => s.id === sessionInfo.id
+      )
+      if (existingSession) {
+        // This is a reconnect. We append a timestamp to the URL to make it unique.
+        // This forces the useEffect hook in IntegratedTerminal to re-run, as it
+        // sees a new prop value.
+        const newSession: TerminalSession = {
+          ...sessionInfo, // url from backend does not have query params
+          url: `${sessionInfo.url}?_reconnect=${Date.now()}`,
+          displayName: existingSession.displayName,
+        }
+        setTerminalSessions((prev) =>
+          prev.map((s) => (s.id === sessionInfo.id ? newSession : s))
+        )
+      } else {
+        // 是一个全新的会话：为其生成一个唯一的 displayName
+        const baseName = sessionInfo.alias
+        let displayName = baseName
+        let counter = 1
+        while (terminalSessions.some((s) => s.displayName === displayName)) {
+          counter++
+          displayName = `${baseName} (${counter})`
+        }
+        const newSession: TerminalSession = { ...sessionInfo, displayName }
+        setTerminalSessions((prev) => [...prev, newSession])
       }
 
-      const newSession: TerminalSession = { ...sessionInfo, displayName }
-
-      setTerminalSessions((prev) => [...prev, newSession])
       // 打开新终端后，立即将其设为激活状态
-      setActiveTerminalId(newSession.id)
+      setActiveTerminalId(sessionInfo.id)
       // 切换到 Terminal 工具视图
       if (activeTool !== 'Terminal') {
         setActiveTool('Terminal')
@@ -243,7 +265,7 @@ function App() {
     setTerminalSessions((prev) => {
       const newSessions = prev.filter((s) => s.id !== sessionId)
       // if (newSessions.length === 0) {
-      //   setActiveTool('SSHGate')
+      //   setActiveTool('SshGate')
       // }
       return newSessions
     })
@@ -259,6 +281,38 @@ function App() {
     )
   }, [])
 
+  const { showDialog } = useDialog()
+
+  const { connect } = useSshConnection({
+    showDialog,
+    onOpenTerminal: createNewTerminalSession,
+  })
+
+  const reconnectTerminal = useCallback(
+    (sessionId: string) => {
+      const session = terminalSessions.find((s) => s.id === sessionId)
+      if (!session) return
+      connect(
+        session.alias,
+        session.type as 'local' | 'remote',
+        session.id,
+        'internal'
+      )
+    },
+    [connect, terminalSessions]
+  )
+
+  const handleTerminalConnect = useCallback(
+    (
+      alias: string,
+      type: 'local' | 'remote' = 'local',
+      strategy: 'internal' | 'external' = 'external'
+    ) => {
+      connect(alias, type, '', strategy)
+    },
+    [connect]
+  )
+
   const toolViews = useMemo(() => {
     // useMemo 会“记住”这个对象的计算结果。
     // 只有当它的依赖项（如 activeTool, terminalSessions 等）发生变化时，
@@ -266,10 +320,10 @@ function App() {
     return {
       FileSyncer: <FileSyncerView isActive={activeTool === 'FileSyncer'} />,
       JsonTools: <JsonToolsView />,
-      SSHGate: (
-        <SSHGateView
-          isActive={activeTool === 'SSHGate'}
-          onOpenTerminal={createNewTerminalSession}
+      SshGate: (
+        <SshGateView
+          isActive={activeTool === 'SshGate'}
+          onConnect={handleTerminalConnect}
         />
       ),
       Terminal: (
@@ -279,22 +333,24 @@ function App() {
           onCloseTerminal={closeTerminal}
           onRenameTerminal={renameTerminal}
           activeTerminalId={activeTerminalId}
-          onOpenTerminal={createNewTerminalSession}
           onActiveTerminalChange={setActiveTerminalId}
+          onReconnectTerminal={reconnectTerminal}
+          onConnect={handleTerminalConnect}
         />
       ),
     }
   }, [
     activeTool,
-    createNewTerminalSession,
     terminalSessions,
     closeTerminal,
     renameTerminal,
     activeTerminalId,
+    handleTerminalConnect,
+    reconnectTerminal,
   ])
 
   return (
-    <DialogProvider>
+    <>
       <div id="App" className="w-screen h-screen bg-transparent">
         <div className="w-full h-full flex flex-col rounded-lg overflow-hidden bg-background text-foreground">
           {/* 当不处于全屏状态时，才显示我们的自定义标题栏 */}
@@ -351,8 +407,15 @@ function App() {
       </AlertDialog>
       {/* 信息停靠站 */}
       <Toaster />
-    </DialogProvider>
+    </>
   )
 }
 
+function App() {
+  return (
+    <DialogProvider>
+      <AppContent />
+    </DialogProvider>
+  )
+}
 export default App

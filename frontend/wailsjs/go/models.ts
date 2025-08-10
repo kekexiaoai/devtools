@@ -277,6 +277,7 @@ export namespace types {
 	    id: string;
 	    alias: string;
 	    url: string;
+	    type: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new TerminalSessionInfo(source);
@@ -287,6 +288,7 @@ export namespace types {
 	        this.id = source["id"];
 	        this.alias = source["alias"];
 	        this.url = source["url"];
+	        this.type = source["type"];
 	    }
 	}
 
