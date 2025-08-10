@@ -35,8 +35,11 @@ import { types } from '@wailsjs/go/models'
 import { useSshConnection } from './hooks/useSshConnection'
 import { useDialog } from './hooks/useDialog'
 
+export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
+
 export type TerminalSession = types.TerminalSessionInfo & {
   displayName: string
+  status: ConnectionStatus
 }
 
 const toolIds = ['FileSyncer', 'JsonTools', 'SshGate', 'Terminal'] as const
@@ -218,6 +221,7 @@ function AppContent() {
           ...sessionInfo, // url from backend does not have query params
           url: `${sessionInfo.url}?_reconnect=${Date.now()}`,
           displayName: existingSession.displayName,
+          status: 'connecting', // 重置状态为连接中
         }
         setTerminalSessions((prev) =>
           prev.map((s) => (s.id === sessionInfo.id ? newSession : s))
@@ -231,7 +235,11 @@ function AppContent() {
           counter++
           displayName = `${baseName} (${counter})`
         }
-        const newSession: TerminalSession = { ...sessionInfo, displayName }
+        const newSession: TerminalSession = {
+          ...sessionInfo,
+          displayName,
+          status: 'connecting', // 初始化状态为连接中
+        }
         setTerminalSessions((prev) => [...prev, newSession])
       }
 
@@ -280,6 +288,15 @@ function AppContent() {
       )
     )
   }, [])
+
+  const updateTerminalStatus = useCallback(
+    (sessionId: string, status: ConnectionStatus) => {
+      setTerminalSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, status } : s))
+      )
+    },
+    []
+  )
 
   const { showDialog } = useDialog()
 
@@ -336,6 +353,7 @@ function AppContent() {
           onActiveTerminalChange={setActiveTerminalId}
           onReconnectTerminal={reconnectTerminal}
           onConnect={handleTerminalConnect}
+          onStatusChange={updateTerminalStatus}
         />
       ),
     }
@@ -347,6 +365,7 @@ function AppContent() {
     activeTerminalId,
     handleTerminalConnect,
     reconnectTerminal,
+    updateTerminalStatus,
   ])
 
   return (

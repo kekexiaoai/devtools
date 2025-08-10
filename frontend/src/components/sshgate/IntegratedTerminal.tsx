@@ -3,6 +3,7 @@ import { useXTerm } from 'react-xtermjs'
 import { FitAddon } from '@xterm/addon-fit'
 import { useDependencyTracer } from '@/hooks/useDependencyTracer'
 import { Button } from '@/components/ui/button'
+import type { ConnectionStatus } from '@/App'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { useWebSocketTerminal } from '@/hooks/useWebSocketTerminal'
 
@@ -13,6 +14,7 @@ interface IntegratedTerminalProps {
   isVisible: boolean // Triggers resize when the component becomes visible
   sessionType: 'local' | 'remote'
   onReconnect: () => void
+  onStatusChange: (sessionId: string, status: ConnectionStatus) => void
 }
 
 import { createAdvancedLogger } from '@/utils/logger'
@@ -34,6 +36,7 @@ export function IntegratedTerminal({
   isVisible,
   sessionType,
   onReconnect,
+  onStatusChange,
 }: IntegratedTerminalProps) {
   // 用 useMemo 缓存终端配置，确保引用稳定
   const terminalOptions = useMemo(
@@ -169,6 +172,11 @@ export function IntegratedTerminal({
     terminal: extendedTerminal,
     logger,
   })
+
+  // Report status changes to the parent component
+  useEffect(() => {
+    onStatusChange(id, connectionStatus)
+  }, [id, connectionStatus, onStatusChange])
 
   // Load addons when terminal is ready
   useEffect(() => {

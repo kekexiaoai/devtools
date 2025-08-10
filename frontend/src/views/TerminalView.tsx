@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { IntegratedTerminal } from '@/components/sshgate/IntegratedTerminal'
-import type { TerminalSession } from '@/App'
+import type { ConnectionStatus, TerminalSession } from '@/App'
 import { Button } from '@/components/ui/button'
 import { Plus, XIcon } from 'lucide-react'
 
@@ -17,6 +17,7 @@ interface TerminalViewProps {
   ) => void
   onReconnectTerminal: (sessionId: string) => void
   onActiveTerminalChange: (sessionId: string | null) => void // 这是 setActiveTerminalId
+  onStatusChange: (sessionId: string, status: ConnectionStatus) => void
   isActive: boolean
 }
 export function TerminalView({
@@ -27,6 +28,7 @@ export function TerminalView({
   onConnect,
   onReconnectTerminal,
   onActiveTerminalChange,
+  onStatusChange,
   isActive,
 }: TerminalViewProps) {
   // 新增 state，用于追踪哪个 Tab 正在被编辑
@@ -57,6 +59,19 @@ export function TerminalView({
     onConnect('local', 'local', 'internal')
   }
 
+  const getStatusIndicatorClass = (status: ConnectionStatus) => {
+    switch (status) {
+      case 'connected':
+        return 'bg-green-500'
+      case 'connecting':
+        return 'bg-yellow-500 animate-pulse'
+      case 'disconnected':
+        return 'bg-red-500'
+      default:
+        return 'bg-gray-400'
+    }
+  }
+
   // 如果没有活动的终端会话，我们显示一个欢迎界面，并提供“新建”按钮
   if (terminalSessions.length === 0) {
     return (
@@ -83,9 +98,13 @@ export function TerminalView({
             <TabsTrigger
               key={session.id}
               value={session.id}
-              className="relative pr-8"
+              className="relative pr-8 flex items-center gap-2"
               onDoubleClick={() => handleStartRename(session)}
             >
+              <span
+                className={`h-2 w-2 rounded-full flex-shrink-0 ${getStatusIndicatorClass(session.status)}`}
+                aria-label={`Status: ${session.status}`}
+              />
               {editingTabId === session.id ? (
                 <input
                   ref={inputRef}
@@ -156,6 +175,10 @@ export function TerminalView({
               isVisible={isActive && activeTerminalId === session.id}
               sessionType={session.alias === 'local' ? 'local' : 'remote'}
               onReconnect={() => onReconnectTerminal(session.id)}
+              onStatusChange={onStatusChange}
+              // 在 `TerminalView` 中为 `onStatusChange` prop 创建内联箭头函数，导致传递给 `IntegratedTerminal` 的函数引用在每次渲染时都发生变化。
+              // 这触发了 `IntegratedTerminal` 内部依赖该 prop 的 `useEffect`，从而引发了状态更新和组件重渲染的死循环。
+              // onStatusChange={(status) => onStatusChange(session.id, status)}
             />
           </TabsContent>
         ))}
