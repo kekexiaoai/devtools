@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useXTerm } from 'react-xtermjs'
 import { FitAddon } from '@xterm/addon-fit'
 import { useDependencyTracer } from '@/hooks/useDependencyTracer'
 import { Button } from '@/components/ui/button'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
+import { useWebSocketTerminal } from '@/hooks/useWebSocketTerminal'
 
 interface IntegratedTerminalProps {
   websocketUrl: string
@@ -169,90 +170,19 @@ export function IntegratedTerminal({
   }, [isVisible, adjustTerminalSize, terminal])
 
   // --- Connection State Management ---
-  type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
-  const [connectionStatus, setConnectionStatus] =
-    useState<ConnectionStatus>('connecting')
+  const { connectionStatus } = useWebSocketTerminal({
+    websocketUrl,
+    terminal: extendedTerminal,
+    logger,
+  })
 
-  // WebSocket连接与终端事件处理
+  // Load addons when terminal is ready
   useEffect(() => {
-    if (!extendedTerminal || !terminalContainerRef.current) {
-      return
+    if (extendedTerminal) {
+      extendedTerminal.loadAddon(fitAddon)
+      logger.info('FitAddon loaded.')
     }
-
-    extendedTerminal.loadAddon(fitAddon)
-    logger.info('Terminal initialized, ready to connect WebSocket')
-
-    setConnectionStatus('connecting')
-    const ws = new WebSocket(websocketUrl)
-
-    ws.onopen = () => {
-      logger.info('WebSocket connection successful')
-      setConnectionStatus('connected')
-      // 连接成功后，立即将前端终端的当前尺寸发送给后端 PTY，
-      // 这是解决尺寸不匹配问题的关键。
-      if (ws.readyState === WebSocket.OPEN) {
-        const { cols, rows } = extendedTerminal
-        const resizeMsg = JSON.stringify({ type: 'resize', cols, rows })
-        ws.send(resizeMsg)
-        logger.info(`Send initial size to backend: ${cols}x${rows}`)
-      }
-    }
-
-    // 终端输入转发到WebSocket
-    const onDataDisposable = extendedTerminal.onData((data) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(data)
-      }
-    })
-
-    // 监听前端终端的尺寸变化，并同步到后端 PTY
-    const onResizeDisposable = extendedTerminal.onResize(({ cols, rows }) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        const resizeMsg = JSON.stringify({ type: 'resize', cols, rows })
-        ws.send(resizeMsg)
-        logger.info(`Sync size to backend: ${cols}x${rows}`)
-      } else {
-        logger.warn('WebSocket not connected, cannot sync size')
-      }
-    })
-
-    // 接收WebSocket消息并写入终端
-    ws.onmessage = (event) => {
-      if (typeof event.data === 'string') {
-        extendedTerminal.write(event.data)
-      } else if (event.data instanceof Blob) {
-        void event.data.text().then((text) => extendedTerminal.write(text))
-      }
-    }
-
-    // 错误处理
-    ws.onerror = (error) => {
-      logger.error('WebSocket error:', error)
-      setConnectionStatus('disconnected')
-      extendedTerminal.write(
-        '\r\n\x1b[31mConnection error, please check network\x1b[0m\r\n'
-      )
-    }
-
-    // 关闭处理
-    ws.onclose = (event) => {
-      logger.warn('WebSocket connection closed')
-      setConnectionStatus('disconnected')
-      // 1000 是正常关闭，不显示错误信息
-      if (event.code !== 1000) {
-        extendedTerminal.write(
-          '\r\n\x1b[33mConnection closed unexpectedly.\x1b[0m\r\n'
-        )
-      }
-    }
-
-    // 清理函数
-    return () => {
-      onDataDisposable.dispose()
-      onResizeDisposable.dispose()
-      ws.close(1000, 'Terminal component unmounted')
-    }
-  }, [websocketUrl, extendedTerminal, fitAddon, logger, terminalContainerRef])
+  }, [extendedTerminal, fitAddon, logger])
 
   // 自动重连本地会话
   useEffect(() => {
