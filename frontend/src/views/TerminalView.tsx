@@ -226,7 +226,7 @@ export function TerminalView({
         </Select>
       </div>
 
-      <div className="flex-grow relative ml-1 mr-1 mb-2">
+      <div className="flex-grow relative">
         {terminalSessions.map((session) => (
           // 添加 forceMount 属性！
           // 这会强制 shadcn/ui 始终渲染所有的 Tab 内容，
