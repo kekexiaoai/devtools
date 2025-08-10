@@ -3,7 +3,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { IntegratedTerminal } from '@/components/sshgate/IntegratedTerminal'
 import type { ConnectionStatus, TerminalSession } from '@/App'
 import { Button } from '@/components/ui/button'
-import { Plus, XIcon } from 'lucide-react'
+import { Palette, Plus, XIcon } from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from '@/components/ui/select'
+import {
+  oneDarkTheme,
+  solarizedLightTheme,
+  draculaTheme,
+  githubDarkTheme,
+} from '@/themes/terminalThemes'
+import type { ITheme } from '@xterm/xterm'
 
 interface TerminalViewProps {
   terminalSessions: TerminalSession[]
@@ -20,6 +33,18 @@ interface TerminalViewProps {
   onStatusChange: (sessionId: string, status: ConnectionStatus) => void
   isActive: boolean
 }
+
+const defaultDarkTheme = oneDarkTheme
+const defaultLightTheme = solarizedLightTheme
+
+const availableThemes: { name: string; theme: ITheme | null }[] = [
+  { name: 'System Default', theme: null },
+  { name: 'One Dark', theme: oneDarkTheme },
+  { name: 'Dracula', theme: draculaTheme },
+  { name: 'GitHub Dark', theme: githubDarkTheme },
+  { name: 'Solarized Light', theme: solarizedLightTheme },
+]
+
 export function TerminalView({
   terminalSessions,
   onCloseTerminal,
@@ -35,6 +60,35 @@ export function TerminalView({
   const [editingTabId, setEditingTabId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const [selectedThemeName, setSelectedThemeName] = useState<string>(
+    availableThemes[0].name
+  )
+  const [currentTheme, setCurrentTheme] = useState<ITheme>(defaultDarkTheme)
+
+  // 主题切换处理函数
+  const handleThemeChange = (themeName: string) => {
+    setSelectedThemeName(themeName)
+  }
+
+  // Effect to handle all theme updates, including system theme changes
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    const updateThemeForSystem = () => {
+      setCurrentTheme(mediaQuery.matches ? defaultDarkTheme : defaultLightTheme)
+    }
+
+    if (selectedThemeName === 'System Default') {
+      updateThemeForSystem()
+      mediaQuery.addEventListener('change', updateThemeForSystem)
+      return () =>
+        mediaQuery.removeEventListener('change', updateThemeForSystem)
+    } else {
+      const selected = availableThemes.find((t) => t.name === selectedThemeName)
+      if (selected?.theme) {
+        setCurrentTheme(selected.theme)
+      }
+    }
+  }, [selectedThemeName])
 
   useEffect(() => {
     if (editingTabId && inputRef.current) {
@@ -154,6 +208,22 @@ export function TerminalView({
         >
           <Plus className="h-4 w-4" />
         </Button>
+        {/* 主题选择器 */}
+        <Select onValueChange={handleThemeChange} value={selectedThemeName}>
+          <SelectTrigger
+            className="w-auto ml-2 flex-shrink-0 px-2"
+            title="Change terminal theme"
+          >
+            <Palette className="h-4 w-4" />
+          </SelectTrigger>
+          <SelectContent>
+            {availableThemes.map((t) => (
+              <SelectItem key={t.name} value={t.name}>
+                {t.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="flex-grow relative ml-1 mr-1 mb-2">
@@ -176,6 +246,7 @@ export function TerminalView({
               sessionType={session.alias === 'local' ? 'local' : 'remote'}
               onReconnect={() => onReconnectTerminal(session.id)}
               onStatusChange={onStatusChange}
+              theme={currentTheme}
               // 在 `TerminalView` 中为 `onStatusChange` prop 创建内联箭头函数，导致传递给 `IntegratedTerminal` 的函数引用在每次渲染时都发生变化。
               // 这触发了 `IntegratedTerminal` 内部依赖该 prop 的 `useEffect`，从而引发了状态更新和组件重渲染的死循环。
               // onStatusChange={(status) => onStatusChange(session.id, status)}
