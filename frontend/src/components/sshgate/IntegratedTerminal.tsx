@@ -163,6 +163,7 @@ export function IntegratedTerminal({
   // 状态跟踪引用 (Refs for state tracking)
   const resizeObserverRef = useRef<ResizeObserver | null>(null) // 尺寸监控实例
   const terminalContainerRef = ref
+  const settingsContainerRef = useRef<HTMLDivElement>(null)
 
   const adjustTerminalSize = useCallback(async () => {
     if (!terminal || !terminalContainerRef.current || !isVisible) return
@@ -301,25 +302,36 @@ export function IntegratedTerminal({
   // 鼠标点击处理
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      // Stop propagation to prevent parent elements from handling the click.
-      // The browser will naturally focus the div, which then triggers `handleContainerFocus`.
-      e.stopPropagation()
+      // If the click is on the settings area, do nothing.
+      // Let the event propagate so the Popover can handle it.
+      if (
+        settingsContainerRef.current &&
+        settingsContainerRef.current.contains(e.target as Node)
+      ) {
+        return
+      }
+
+      // If the click is on the terminal area itself,
+      // prevent the default browser behavior (like text selection outside the terminal)
+      // and programmatically focus the terminal instance.
+      e.preventDefault()
+      if (extendedTerminal) {
+        extendedTerminal.focus()
+        logger.debug('Terminal area clicked, focusing xterm.')
+      }
     },
-    [] // 无依赖
+    [extendedTerminal, logger]
   )
 
-  // When the container div gets focus (from a click or tab), pass it to the xterm instance.
-  const handleContainerFocus = useCallback(() => {
-    if (extendedTerminal && isVisible) {
-      logger.debug('Container focused, passing focus to xterm.')
-      extendedTerminal.focus()
-    }
-  }, [extendedTerminal, isVisible, logger])
-
   return (
-    <div className="h-full w-full rounded-md overflow-hidden relative">
+    <div
+      className="h-full w-full rounded-md overflow-hidden relative"
+      ref={terminalContainerRef}
+      onMouseDown={handleMouseDown}
+      style={{ outline: 'none' }}
+    >
       {/* --- 设置面板 --- */}
-      <div className="absolute top-2 right-2 z-30">
+      <div className="absolute top-2 right-2 z-30" ref={settingsContainerRef}>
         <Popover>
           <PopoverTrigger asChild>
             <Button
@@ -339,9 +351,37 @@ export function IntegratedTerminal({
                   Adjust settings for this terminal session.
                 </p>
               </div>
-              <div className="grid gap-2">
-                <div className="grid grid-cols-[1fr,2fr,auto] items-center gap-4">
-                  <Label htmlFor="font-size">Font Size</Label>
+              <div className="grid gap-4 pt-2">
+                {/* Font Size */}
+                <div className="grid grid-cols-[auto,1fr] items-center gap-4">
+                  <div
+                    className="group flex cursor-pointer items-center gap-1.5 justify-self-end"
+                    onClick={(e) => {
+                      if (localFontSize !== null) {
+                        // Prevent default mousedown behavior which can cause focus shifts
+                        // and trigger the popover to close.
+                        e.preventDefault()
+                        setTimeout(() => setLocalFontSize(null), 0)
+                      }
+                    }}
+                  >
+                    <Label
+                      htmlFor="font-size"
+                      className="cursor-pointer"
+                      title={
+                        localFontSize !== null ? 'Reset to default' : undefined
+                      }
+                    >
+                      Font Size
+                    </Label>
+                    <RotateCcw
+                      className={`h-3 w-3 text-muted-foreground transition-opacity ${
+                        localFontSize !== null
+                          ? 'opacity-50 group-hover:opacity-100 cursor-pointer'
+                          : 'opacity-0'
+                      }`}
+                    />
+                  </div>
                   <Slider
                     id="font-size"
                     min={8}
@@ -351,28 +391,47 @@ export function IntegratedTerminal({
                     onValueChange={(value: number[]) =>
                       setLocalFontSize(value[0])
                     }
-                    className="col-span-1"
                   />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => setLocalFontSize(null)}
-                    disabled={localFontSize === null}
-                    title="Reset to default"
-                  >
-                    <RotateCcw className="h-3 w-3" />
-                  </Button>
                 </div>
-                <div className="grid grid-cols-[1fr,2fr,auto] items-center gap-4">
-                  <Label htmlFor="font-family">Font Family</Label>
+                {/* Font Family */}
+                <div className="grid grid-cols-[auto,1fr] items-center gap-4">
+                  <div
+                    className="group flex cursor-pointer items-center gap-1.5 justify-self-end"
+                    onClick={(e) => {
+                      if (localFontFamilyKey !== null) {
+                        // Prevent default mousedown behavior which can cause focus shifts
+                        // and trigger the popover to close.
+                        e.preventDefault()
+                        setTimeout(() => setLocalFontFamilyKey(null), 0)
+                      }
+                    }}
+                  >
+                    <Label
+                      htmlFor="font-family"
+                      className="cursor-pointer"
+                      title={
+                        localFontFamilyKey !== null
+                          ? 'Reset to default'
+                          : undefined
+                      }
+                    >
+                      Font Family
+                    </Label>
+                    <RotateCcw
+                      className={`h-3 w-3 text-muted-foreground transition-opacity ${
+                        localFontFamilyKey !== null
+                          ? 'opacity-50 group-hover:opacity-100 cursor-pointer'
+                          : 'opacity-0'
+                      }`}
+                    />
+                  </div>
                   <Select
                     value={localFontFamilyKey ?? 'default'}
                     onValueChange={(key) =>
                       setLocalFontFamilyKey(key === 'default' ? null : key)
                     }
                   >
-                    <SelectTrigger className="col-span-1">
+                    <SelectTrigger id="font-family">
                       <SelectValue placeholder="Select font" />
                     </SelectTrigger>
                     <SelectContent>
@@ -383,26 +442,44 @@ export function IntegratedTerminal({
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => setLocalFontFamilyKey(null)}
-                    disabled={localFontFamilyKey === null}
-                    title="Reset to default"
-                  >
-                    <RotateCcw className="h-3 w-3" />
-                  </Button>
                 </div>
-                <div className="grid grid-cols-[1fr,2fr,auto] items-center gap-4">
-                  <Label htmlFor="theme">Theme</Label>
+                {/* Theme */}
+                <div className="grid grid-cols-[auto,1fr] items-center gap-4">
+                  <div
+                    className="group flex cursor-pointer items-center gap-1.5 justify-self-end"
+                    onClick={(e) => {
+                      if (localThemeKey !== null) {
+                        // Prevent default mousedown behavior which can cause focus shifts
+                        // and trigger the popover to close.
+                        e.preventDefault()
+                        setTimeout(() => setLocalThemeKey(null), 0)
+                      }
+                    }}
+                  >
+                    <Label
+                      htmlFor="theme"
+                      className="cursor-pointer"
+                      title={
+                        localThemeKey !== null ? 'Reset to default' : undefined
+                      }
+                    >
+                      Theme
+                    </Label>
+                    <RotateCcw
+                      className={`h-3 w-3 text-muted-foreground transition-opacity ${
+                        localThemeKey !== null
+                          ? 'opacity-50 group-hover:opacity-100 cursor-pointer'
+                          : 'opacity-0'
+                      }`}
+                    />
+                  </div>
                   <Select
                     value={localThemeKey ?? 'default'}
                     onValueChange={(key) =>
                       setLocalThemeKey(key === 'default' ? null : key)
                     }
                   >
-                    <SelectTrigger className="col-span-1">
+                    <SelectTrigger id="theme">
                       <SelectValue placeholder="Select theme" />
                     </SelectTrigger>
                     <SelectContent>
@@ -414,30 +491,12 @@ export function IntegratedTerminal({
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => setLocalThemeKey(null)}
-                    disabled={localThemeKey === null}
-                    title="Reset to default"
-                  >
-                    <RotateCcw className="h-3 w-3" />
-                  </Button>
                 </div>
               </div>
             </div>
           </PopoverContent>
         </Popover>
       </div>
-      <div
-        className="h-full w-full"
-        ref={terminalContainerRef}
-        onMouseDown={handleMouseDown}
-        onFocus={handleContainerFocus}
-        tabIndex={isVisible ? 0 : -1}
-        style={{ outline: 'none' }}
-      />
       {/* --- 重连遮罩层 --- */}
       {connectionStatus === 'disconnected' &&
         sessionType === 'remote' &&
