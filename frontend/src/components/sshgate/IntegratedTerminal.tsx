@@ -15,10 +15,11 @@ interface IntegratedTerminalProps {
   sessionType: 'local' | 'remote'
   onReconnect: () => void
   onStatusChange: (sessionId: string, status: ConnectionStatus) => void
+  theme: ITheme
 }
 
 import { createAdvancedLogger } from '@/utils/logger'
-import { Terminal } from '@xterm/xterm'
+import { Terminal, type ITheme } from '@xterm/xterm'
 const advancedLogger = createAdvancedLogger('Terminal', {
   level: 'debug',
 })
@@ -36,6 +37,7 @@ export function IntegratedTerminal({
   isVisible,
   sessionType,
   onReconnect,
+  theme,
   onStatusChange,
 }: IntegratedTerminalProps) {
   // 用 useMemo 缓存终端配置，确保引用稳定
@@ -44,11 +46,8 @@ export function IntegratedTerminal({
       cursorBlink: true,
       fontSize: 12,
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-      theme: {
-        background: '#000000',
-        foreground: '#ffffff',
-      },
       scrollback: 1000,
+      copyOnSelect: true, // 选中即复制
     }),
     []
   ) // 空依赖数组：配置不变时，引用永远不变
@@ -165,6 +164,14 @@ export function IntegratedTerminal({
       return () => clearTimeout(timer)
     }
   }, [isVisible, adjustTerminalSize, terminal])
+
+  // --- 主题应用 ---
+  // 这个 Effect 会在 terminal 实例创建后，或 theme prop 变化时运行
+  useEffect(() => {
+    if (terminal && theme) {
+      terminal.options.theme = theme
+    }
+  }, [terminal, theme, logger])
 
   // --- Connection State Management ---
   const { connectionStatus } = useWebSocketTerminal({
