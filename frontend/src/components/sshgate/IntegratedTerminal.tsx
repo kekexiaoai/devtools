@@ -92,7 +92,6 @@ export function IntegratedTerminal({
   }, [isVisible, logger])
 
   // 状态跟踪引用 (Refs for state tracking)
-  const sizeAdjustedRef = useRef(false) // 跟踪尺寸是否已正确调整
   const resizeObserverRef = useRef<ResizeObserver | null>(null) // 尺寸监控实例
   const terminalContainerRef = ref
 
@@ -118,10 +117,8 @@ export function IntegratedTerminal({
       logger.info(
         `Terminal size adjusted: ${dims?.cols} columns x ${dims?.rows} rows`
       )
-      sizeAdjustedRef.current = true
     } catch (error) {
       logger.error('Failed to adjust terminal size', error)
-      sizeAdjustedRef.current = false
     }
   }, [terminal, terminalContainerRef, isVisible, fitAddon, logger])
 
@@ -163,9 +160,6 @@ export function IntegratedTerminal({
       }, 50) // A small delay is often sufficient.
 
       return () => clearTimeout(timer)
-    } else {
-      // When hidden, reset the size-adjusted flag.
-      sizeAdjustedRef.current = false
     }
   }, [isVisible, adjustTerminalSize, terminal])
 
