@@ -4,16 +4,18 @@ import { IntegratedTerminal } from '@/components/sshgate/IntegratedTerminal'
 import type { TerminalSession } from '@/App'
 import { Button } from '@/components/ui/button'
 import { Plus, XIcon } from 'lucide-react'
-import { useDialog } from '@/hooks/useDialog'
-import { StartLocalSession as StartLocalTerminalSession } from '@wailsjs/go/terminal/Service'
-import { types } from '@wailsjs/go/models'
 
 interface TerminalViewProps {
   terminalSessions: TerminalSession[]
   onCloseTerminal: (sessionId: string) => void
   onRenameTerminal: (sessionId: string, newName: string) => void
-  onOpenTerminal: (sessionInfo: types.TerminalSessionInfo) => void
   activeTerminalId: string | null
+  onConnect: (
+    alias: string,
+    type: 'local' | 'remote',
+    strategy?: 'internal' | 'external'
+  ) => void
+  onReconnectTerminal: (sessionId: string) => void
   onActiveTerminalChange: (sessionId: string | null) => void // 这是 setActiveTerminalId
   isActive: boolean
 }
@@ -21,8 +23,9 @@ export function TerminalView({
   terminalSessions,
   onCloseTerminal,
   onRenameTerminal,
-  onOpenTerminal,
   activeTerminalId,
+  onConnect,
+  onReconnectTerminal,
   onActiveTerminalChange,
   isActive,
 }: TerminalViewProps) {
@@ -50,18 +53,8 @@ export function TerminalView({
     setEditingTabId(null)
   }
 
-  const { showDialog } = useDialog()
-
-  const handleOpenLocalTerminal = async () => {
-    try {
-      const sessionInfo = await StartLocalTerminalSession()
-      onOpenTerminal(sessionInfo)
-    } catch (error) {
-      await showDialog({
-        title: 'Error',
-        message: `Failed to start local terminal: ${String(error)}`,
-      })
-    }
+  const handleOpenLocalTerminal = () => {
+    onConnect('local', 'local', 'internal')
   }
 
   // 如果没有活动的终端会话，我们显示一个欢迎界面，并提供“新建”按钮
@@ -161,6 +154,8 @@ export function TerminalView({
               id={session.id}
               displayName={session.displayName}
               isVisible={isActive && activeTerminalId === session.id}
+              sessionType={session.alias === 'local' ? 'local' : 'remote'}
+              onReconnect={() => onReconnectTerminal(session.id)}
             />
           </TabsContent>
         ))}

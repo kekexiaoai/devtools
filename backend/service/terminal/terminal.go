@@ -23,6 +23,11 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+const (
+	TypeLocal  = "local"
+	TypeRemote = "remote"
+)
+
 // Session 代表一个活动的终端会话
 type Session struct {
 	ID         string
@@ -59,7 +64,7 @@ func NewService(ctx context.Context, sshMgr *sshmanager.Manager) *Service {
 }
 
 // StartLocalSession 启动一个本地的 shell 会话
-func (s *Service) StartLocalSession() (*types.TerminalSessionInfo, error) {
+func (s *Service) StartLocalSession(sessionID string) (*types.TerminalSessionInfo, error) {
 	// 决定要启动哪个 shell
 	var shell string
 	if runtime.GOOS == "windows" {
@@ -81,7 +86,9 @@ func (s *Service) StartLocalSession() (*types.TerminalSessionInfo, error) {
 		return nil, fmt.Errorf("failed to start local pty: %w", err)
 	}
 
-	sessionID := uuid.NewString()
+	if sessionID == "" {
+		sessionID = uuid.NewString()
+	}
 	session := &Session{
 		ID: sessionID,
 		// 对于本地会话，sshConn 和 sshSession 是 nil
@@ -121,11 +128,12 @@ func (s *Service) StartLocalSession() (*types.TerminalSessionInfo, error) {
 		ID:    sessionID,
 		Alias: "local",
 		URL:   fmt.Sprintf("ws://localhost:45678/ws/terminal/%s", sessionID),
+		Type:  TypeLocal,
 	}, nil
 }
 
 // StartSession 使用 Go 原生 SSH 库创建一个新的终端会话
-func (s *Service) StartSession(alias string, password string) (*types.TerminalSessionInfo, error) {
+func (s *Service) StartRemoteSession(alias, sessionID, password string) (*types.TerminalSessionInfo, error) {
 	// 获取 SSH 配置
 	config, _, err := s.sshManager.GetConnectionConfig(alias, password)
 	if err != nil {
@@ -174,7 +182,9 @@ func (s *Service) StartSession(alias string, password string) (*types.TerminalSe
 		return nil, fmt.Errorf("failed to start shell: %w", err)
 	}
 
-	sessionID := uuid.NewString()
+	if sessionID == "" {
+		sessionID = uuid.NewString()
+	}
 	session := &Session{
 		ID:         sessionID,
 		Alias:      alias,
@@ -200,6 +210,7 @@ func (s *Service) StartSession(alias string, password string) (*types.TerminalSe
 		ID:    sessionID,
 		Alias: alias,
 		URL:   fmt.Sprintf("ws://localhost:45678/ws/terminal/%s", sessionID),
+		Type:  TypeRemote,
 	}, nil
 }
 

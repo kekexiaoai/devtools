@@ -80,4 +80,5 @@ type TerminalSessionInfo struct {
 	ID    string `json:"id"`
 	Alias string `json:"alias"`
 	URL   string `json:"url"`
+	Type  string `json:"type" enums:"local,remote"`
 }

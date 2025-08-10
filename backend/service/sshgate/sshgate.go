@@ -123,9 +123,7 @@ func (a *Service) StartLocalForward(alias string, localPort int, remoteHost stri
 // -----ssh连接-------------------------------------------------
 
 // 辅助函数，用于处理“预检”阶段的错误
-func (a *Service) handleSSHConnectError(host *types.SSHHost, err error) (*types.ConnectionResult, error) {
-	alias := host.Alias
-
+func (a *Service) handleSSHConnectError(alias string, host *types.SSHHost, err error) (*types.ConnectionResult, error) {
 	var hostNotFoundError *sshconfig.HostNotFoundError
 	var passwordRequiredError *types.PasswordRequiredError
 	var authFailedError *types.AuthenticationFailedError
@@ -175,7 +173,7 @@ func (a *Service) ConnectInTerminal(alias string, dryRun bool) (*types.Connectio
 	host, err := a.sshManager.VerifyConnection(alias, "") // password 为空
 	if err != nil {
 		// 如果预检失败，则将特定错误返回给前端
-		return a.handleSSHConnectError(host, err)
+		return a.handleSSHConnectError(alias, host, err)
 	}
 	// 预检通过，执行连接
 	log.Printf("Pre-flight check for '%s' passed. Launching terminal.", alias)
@@ -194,7 +192,7 @@ func (a *Service) ConnectInTerminalWithPassword(alias string, password string, s
 	// 预检：使用用户提供的密码
 	host, err := a.sshManager.VerifyConnection(alias, password)
 	if err != nil {
-		return a.handleSSHConnectError(host, err)
+		return a.handleSSHConnectError(alias, host, err)
 	}
 
 	// 预检通过，执行连接
