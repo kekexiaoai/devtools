@@ -20,6 +20,7 @@ import { HostFormDialog } from '@/components/sshgate/HostFormDialog'
 import { HostList } from '@/components/sshgate/HostList'
 import { HostDetail } from '@/components/sshgate/HostDetail'
 import { Save } from 'lucide-react'
+import { ActiveTunnels } from '@/components/sshgate/ActiveTunnels'
 import { useOnVisible } from '@/hooks/useOnVisible'
 
 // #############################################################################
@@ -69,6 +70,7 @@ export function SshGateView({ isActive, onConnect }: SshGateViewProps) {
             <TabsList>
               <TabsTrigger value="visual">Visual Editor</TabsTrigger>
               <TabsTrigger value="raw">Raw File Editor</TabsTrigger>
+              <TabsTrigger value="tunnels">Active Tunnels</TabsTrigger>
             </TabsList>
           </div>
         </div>
@@ -85,6 +87,11 @@ export function SshGateView({ isActive, onConnect }: SshGateViewProps) {
         {/* 原始文件编辑器 Tab */}
         <TabsContent value="raw" className="flex-1 mt-2 flex flex-col min-h-0">
           <RawEditor key={dataVersion} onDataChange={refreshData} />
+        </TabsContent>
+
+        {/* 活动隧道 Tab */}
+        <TabsContent value="tunnels" className="flex-1 min-h-0">
+          <ActiveTunnels />
         </TabsContent>
       </Tabs>
     </div>
