@@ -132,8 +132,11 @@ export function IntegratedTerminal({
   // This logger's methods close over the displayNameRef, so they always use the
   // latest displayName without making the logger object itself a dependency of it.
   const logger = useMemo(() => {
-    const getPrefix = () => `[${id}]<${displayNameRef.current}>`
-    return advancedLogger.withPrefix(getPrefix())
+    // By passing a function, the prefix is dynamically resolved on each log call,
+    // correctly reading the latest `displayNameRef.current`.
+    // This elegantly solves the stale closure problem described in `react-stale-closure-ref-pattern.md`.
+    const getDynamicPrefix = () => `[${id}]<${displayNameRef.current}>`
+    return advancedLogger.withPrefix(getDynamicPrefix)
   }, [id])
 
   // 使用useDependencyTracer替代手动依赖追踪

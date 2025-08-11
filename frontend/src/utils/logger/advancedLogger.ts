@@ -31,7 +31,7 @@ export interface AdvancedLogger {
   info: LogMethod
   warn: LogMethod
   error: LogMethod
-  withPrefix: (prefix: string) => AdvancedLogger
+  withPrefix: (prefix: string | (() => string)) => AdvancedLogger
 }
 
 export type LogTask = (
@@ -45,7 +45,7 @@ export type LogTask = (
 interface LoggerOptions {
   enabled?: boolean
   level?: LogLevel
-  prefix?: string[]
+  prefix?: (string | (() => string))[]
   useColors?: boolean
   tasks?: LogTask[]
 }
@@ -125,7 +125,10 @@ export const createAdvancedLogger = (
   const formatPrefix = (
     level: LogLevel
   ): { prefix: string; fullPrefix: string } => {
-    const all = [context, ...prefix]
+    const resolvedPrefixes = prefix.map((p) =>
+      typeof p === 'function' ? p() : p
+    )
+    const all = [context, ...resolvedPrefixes]
     const fullPrefix = `[${all.join('][')}]`
     return {
       prefix: fullPrefix,
@@ -166,7 +169,7 @@ export const createAdvancedLogger = (
     info: logFn('info'),
     warn: logFn('warn'),
     error: logFn('error'),
-    withPrefix: (newPrefix: string) =>
+    withPrefix: (newPrefix: string | (() => string)) =>
       createAdvancedLogger(context, {
         enabled,
         level,
