@@ -336,9 +336,9 @@ export function IntegratedTerminal({
               </div>
               <div className="grid gap-4 pt-2">
                 {/* Font Size */}
-                <div className="grid grid-cols-[auto_1fr] items-center gap-4">
+                <div className="grid grid-cols-5 items-center gap-4">
                   <div
-                    className="group flex cursor-pointer items-center gap-1.5"
+                    className="col-span-2 group flex cursor-pointer items-center gap-1.5"
                     onClick={(e) => {
                       if (localFontSize !== null) {
                         // Prevent default mousedown behavior which can cause focus shifts
@@ -374,13 +374,13 @@ export function IntegratedTerminal({
                     onValueChange={(value: number[]) =>
                       setLocalFontSize(value[0])
                     }
-                    className="h-full"
+                    className="col-span-3 h-full"
                   />
                 </div>
                 {/* Font Family */}
-                <div className="grid grid-cols-[auto_1fr] items-center gap-4">
+                <div className="grid grid-cols-5 items-center gap-4">
                   <div
-                    className="group flex cursor-pointer items-center gap-1.5"
+                    className="col-span-2 group flex cursor-pointer items-center gap-1.5"
                     onClick={(e) => {
                       if (localFontFamilyKey !== null) {
                         // Prevent default mousedown behavior which can cause focus shifts
@@ -415,7 +415,7 @@ export function IntegratedTerminal({
                       setLocalFontFamilyKey(key === 'default' ? null : key)
                     }
                   >
-                    <SelectTrigger id="font-family">
+                    <SelectTrigger id="font-family" className="col-span-3">
                       <SelectValue placeholder="Select font" />
                     </SelectTrigger>
                     <SelectContent>
@@ -428,9 +428,9 @@ export function IntegratedTerminal({
                   </Select>
                 </div>
                 {/* Theme */}
-                <div className="grid grid-cols-[auto_1fr] items-center gap-4">
+                <div className="grid grid-cols-5 items-center gap-4">
                   <div
-                    className="group flex cursor-pointer items-center gap-1.5"
+                    className="col-span-2 group flex cursor-pointer items-center gap-1.5"
                     onClick={(e) => {
                       if (localThemeKey !== null) {
                         // Prevent default mousedown behavior which can cause focus shifts
@@ -463,7 +463,7 @@ export function IntegratedTerminal({
                       setLocalThemeKey(key === 'default' ? null : key)
                     }
                   >
-                    <SelectTrigger id="theme">
+                    <SelectTrigger id="theme" className="col-span-3">
                       <SelectValue placeholder="Select theme" />
                     </SelectTrigger>
                     <SelectContent>
