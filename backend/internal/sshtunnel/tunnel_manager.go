@@ -99,6 +99,8 @@ func (m *Manager) StartLocalForward(alias string, localPort int, remoteHost stri
 	ctx, cancel := context.WithCancel(m.appCtx)
 	tunnel := &Tunnel{
 		ID:         tunnelID,
+		Alias:      alias,
+		Type:       "local", // -L
 		LocalAddr:  localAddr,
 		RemoteAddr: fmt.Sprintf("%s:%d", remoteHost, remotePort),
 		sshClient:  sshClient,
