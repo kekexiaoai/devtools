@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 
 	"devtools/backend/internal/sshmanager"
 	"devtools/backend/internal/sshtunnel"
@@ -47,6 +48,24 @@ func (a *Service) GetSSHHosts() ([]types.SSHHost, error) {
 
 // SaveSSHHost 保存（新增或更新）一个 SSH 主机配置
 func (a *Service) SaveSSHHost(host types.SSHHost) error {
+	host.Alias = strings.TrimSpace(host.Alias)
+	if host.Alias == "" {
+		return errors.New("alias is required")
+	}
+	if strings.Contains(host.Alias, " ") {
+		return errors.New("alias cannot contain space")
+	}
+	host.HostName = strings.TrimSpace(host.HostName)
+	if host.HostName == "" {
+		return errors.New("hostName is required")
+	}
+	host.User = strings.TrimSpace(host.User)
+	if host.User == "" {
+		return errors.New("user is required")
+	}
+	host.Port = strings.TrimSpace(host.Port)
+	host.IdentityFile = strings.TrimSpace(host.IdentityFile)
+
 	// 我们的 sshmanager 期望的是一个包含所有参数的 map
 	// 我们需要将 types.SSHHost 转换为它需要的格式
 	params := make(map[string]string)
