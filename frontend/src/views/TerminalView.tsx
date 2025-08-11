@@ -3,20 +3,29 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { IntegratedTerminal } from '@/components/sshgate/IntegratedTerminal'
 import type { ConnectionStatus, TerminalSession } from '@/App'
 import { Button } from '@/components/ui/button'
-import { Palette, Plus, XIcon } from 'lucide-react'
+import { Plus, Settings, XIcon } from 'lucide-react'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import {
   oneDarkTheme,
   solarizedLightTheme,
   draculaTheme,
   githubDarkTheme,
+  FONT_FAMILIES,
 } from '@/themes/terminalThemes'
 import type { ITheme } from '@xterm/xterm'
+import { Slider } from '@/components/ui/slider'
+import { Label } from '@/components/ui/label'
 
 interface TerminalViewProps {
   terminalSessions: TerminalSession[]
@@ -64,6 +73,11 @@ export function TerminalView({
     availableThemes[0].name
   )
   const [currentTheme, setCurrentTheme] = useState<ITheme>(defaultDarkTheme)
+
+  // Add new state for global font settings
+  const [globalFontSize, setGlobalFontSize] = useState(12)
+  const [globalFontFamilyKey, setGlobalFontFamilyKey] = useState('default')
+  const globalFontFamily = FONT_FAMILIES[globalFontFamilyKey].value
 
   // 主题切换处理函数
   const handleThemeChange = (themeName: string) => {
@@ -146,7 +160,7 @@ export function TerminalView({
       onValueChange={onActiveTerminalChange}
       className="h-full flex flex-col"
     >
-      <div className="flex items-center pl-2 pr-2">
+      <div className="flex items-center pl-2 pr-2 border-b">
         <TabsList className="flex-shrink overflow-x-auto m-0 mr-2">
           {terminalSessions.map((session) => (
             <TabsTrigger
@@ -198,32 +212,96 @@ export function TerminalView({
             </TabsTrigger>
           ))}
         </TabsList>
-        {/* 在 Tab 列表旁边，始终显示“新建”按钮 */}
-        {/* 新建按钮 - 使用 ml-auto 固定在右侧 */}
-        <Button
-          onClick={() => void handleOpenLocalTerminal()}
-          variant="ghost"
-          size="icon"
-          className="ml-auto flex-shrink-0"
-        >
-          <Plus className="h-4 w-4" />
-        </Button>
-        {/* 主题选择器 */}
-        <Select onValueChange={handleThemeChange} value={selectedThemeName}>
-          <SelectTrigger
-            className="w-auto ml-2 flex-shrink-0 px-2"
-            title="Change terminal theme"
+        <div className="ml-auto flex items-center gap-2 p-1 flex-shrink-0">
+          {/* New Terminal Button */}
+          <Button
+            onClick={() => void handleOpenLocalTerminal()}
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            title="New Local Terminal"
           >
-            <Palette className="h-4 w-4" />
-          </SelectTrigger>
-          <SelectContent>
-            {availableThemes.map((t) => (
-              <SelectItem key={t.name} value={t.name}>
-                {t.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            <Plus className="h-4 w-4" />
+          </Button>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                title="Global Terminal Settings"
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80" align="end">
+              <div className="grid gap-4">
+                <div className="space-y-2">
+                  <h4 className="font-medium leading-none">Global Settings</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Default appearance for all terminals.
+                  </p>
+                </div>
+                <div className="grid gap-4">
+                  <div className="grid grid-cols-3 items-center gap-4">
+                    <Label htmlFor="global-font-size">Font Size</Label>
+                    <Slider
+                      id="global-font-size"
+                      min={8}
+                      max={24}
+                      step={1}
+                      value={[globalFontSize]}
+                      onValueChange={(value) => setGlobalFontSize(value[0])}
+                      className="col-span-2 h-full"
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 items-center gap-4">
+                    <Label htmlFor="global-font-family">Font Family</Label>
+                    <Select
+                      value={globalFontFamilyKey}
+                      onValueChange={setGlobalFontFamilyKey}
+                    >
+                      <SelectTrigger
+                        id="global-font-family"
+                        className="col-span-2"
+                      >
+                        <SelectValue placeholder="Select font" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(FONT_FAMILIES).map(
+                          ([key, { name }]) => (
+                            <SelectItem key={key} value={key}>
+                              {name}
+                            </SelectItem>
+                          )
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-3 items-center gap-4">
+                    <Label htmlFor="global-theme">Theme</Label>
+                    <Select
+                      onValueChange={handleThemeChange}
+                      value={selectedThemeName}
+                    >
+                      <SelectTrigger id="global-theme" className="col-span-2">
+                        <SelectValue placeholder="Select theme" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableThemes.map((t) => (
+                          <SelectItem key={t.name} value={t.name}>
+                            {t.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
 
       <div className="flex-grow relative">
@@ -246,10 +324,12 @@ export function TerminalView({
               sessionType={session.alias === 'local' ? 'local' : 'remote'}
               onReconnect={() => onReconnectTerminal(session.id)}
               onStatusChange={onStatusChange}
-              theme={currentTheme}
               // 在 `TerminalView` 中为 `onStatusChange` prop 创建内联箭头函数，导致传递给 `IntegratedTerminal` 的函数引用在每次渲染时都发生变化。
               // 这触发了 `IntegratedTerminal` 内部依赖该 prop 的 `useEffect`，从而引发了状态更新和组件重渲染的死循环。
               // onStatusChange={(status) => onStatusChange(session.id, status)}
+              theme={currentTheme}
+              fontSize={globalFontSize}
+              fontFamily={globalFontFamily}
             />
           </TabsContent>
         ))}

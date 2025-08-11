@@ -42,6 +42,7 @@ const advancedLogger = createAdvancedLogger('Terminal', {
 
 // --- 复用全局主题定义 ---
 import * as termThemes from '@/themes/terminalThemes'
+import { FONT_FAMILIES } from '@/themes/terminalThemes'
 
 const NAMED_THEMES: Record<string, { name: string; theme: ITheme }> = {
   'one-dark': { name: 'One Dark', theme: termThemes.oneDarkTheme },
@@ -51,24 +52,6 @@ const NAMED_THEMES: Record<string, { name: string; theme: ITheme }> = {
     name: 'Solarized Light',
     theme: termThemes.solarizedLightTheme,
   },
-}
-
-// --- 字体系列定义 ---
-const FONT_FAMILIES: Record<string, { name: string; value: string }> = {
-  default: {
-    name: 'Default',
-    value: 'Menlo, Monaco, "Courier New", monospace',
-  },
-  'fira-code': { name: 'Fira Code', value: '"Fira Code", monospace' },
-  'jetbrains-mono': {
-    name: 'JetBrains Mono',
-    value: '"JetBrains Mono", monospace',
-  },
-  'source-code-pro': {
-    name: 'Source Code Pro',
-    value: '"Source Code Pro", monospace',
-  },
-  consolas: { name: 'Consolas', value: 'Consolas, "Courier New", monospace' },
 }
 
 // 扩展Terminal类型以解决类型定义问题（如果类型文件缺失）
