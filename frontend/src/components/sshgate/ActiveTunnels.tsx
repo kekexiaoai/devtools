@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { sshtunnel } from '@wailsjs/go/models'
+import { toast } from 'sonner'
 import { GetActiveTunnels, StopForward } from '@wailsjs/go/sshgate/Service'
 import { useDialog } from '@/hooks/useDialog'
 import { Button } from '@/components/ui/button'
@@ -64,10 +65,19 @@ export function ActiveTunnels() {
 
   const handleStopTunnel = useCallback(
     async (tunnelId: string) => {
+      // 停止隧道前找到它的信息，以便在通知中使用
+      const tunnelToStop = tunnels.find((t) => t.id === tunnelId)
       try {
         await StopForward(tunnelId)
-        // 乐观更新：立即从列表中移除，或重新获取以保证数据一致性
+        // 重新获取列表保证数据一致性
         await fetchTunnels()
+        if (tunnelToStop) {
+          toast.success('Tunnel Stoped', {
+            description: `Stopped forwarding form ${tunnelToStop.localAddr}`,
+          })
+        } else {
+          toast.success('Tunnel stopped successfully.')
+        }
       } catch (error) {
         await showDialog({
           type: 'error',
@@ -76,7 +86,7 @@ export function ActiveTunnels() {
         })
       }
     },
-    [fetchTunnels, showDialog]
+    [fetchTunnels, showDialog, tunnels]
   )
 
   return (
