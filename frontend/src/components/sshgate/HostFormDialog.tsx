@@ -69,6 +69,13 @@ export function HostFormDialog(props: HostFormDialogProps) {
       validateAlias(value)
     }
   }
+  // 添加对话框关闭时的错误重置处理
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      setErrors({})
+    }
+    onOpenChange(open)
+  }
 
   const handleSave = async () => {
     const errors = []
@@ -113,7 +120,7 @@ export function HostFormDialog(props: HostFormDialogProps) {
     }
   }
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
