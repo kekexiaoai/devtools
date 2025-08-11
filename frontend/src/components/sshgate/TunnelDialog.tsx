@@ -17,7 +17,7 @@ import { Label } from '../ui/label'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { Loader2 } from 'lucide-react'
-import { createAdvancedLogger } from '@/utils/logger'
+import { appLogger } from '@/lib/logger'
 
 interface TunnelDialProps {
   host: types.SSHHost
@@ -25,22 +25,10 @@ interface TunnelDialProps {
   onOpenChange: (isOpen: boolean) => void
 }
 
-// 只执行一次，不会重复生成：
-// 因为它位于 TunnelDial 组件函数的外部，处于模块的顶层作用域。
-// 这意味着 createAdvancedLogger 只会在您的应用加载这个 TunnelDialog.tsx 文件时被调用一次。
-// 之后无论 TunnelDial 组件因为 props 或 state 变化而重新渲染多少次，这个 advancedLogger 实例都是同一个，绝对不会被重新创建。
-//
-// 性能高效：
-// 这避免了在每次渲染时都重新生成一个新实例，从而杜绝了不必要的性能开销和内存占用。
-const advancedLogger = createAdvancedLogger('TunnelDial', {
-  level: 'debug',
-})
-
 export function TunnelDial(props: TunnelDialProps) {
   const { host, isOpen, onOpenChange } = props
 
   const { showDialog } = useDialog()
-
   const [localForwardForm, setLocalForwardForm] = useState({
     localPort: '',
     remotePort: '',
@@ -56,8 +44,8 @@ export function TunnelDial(props: TunnelDialProps) {
   }, [host.alias])
 
   const logger = useMemo(() => {
-    const getPrefix = () => `[${aliasRef.current}]`
-    return advancedLogger.withPrefix(getPrefix)
+    const getDynamicPrefix = () => `[${aliasRef.current}]`
+    return appLogger.withPrefix('TunnelDial').withPrefix(getDynamicPrefix)
   }, [])
 
   const handleStartLocalForward = async () => {

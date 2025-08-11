@@ -36,11 +36,8 @@ interface IntegratedTerminalProps {
   copyOnSelect?: boolean
 }
 
-import { createAdvancedLogger } from '@/utils/logger'
+import { appLogger } from '@/lib/logger'
 import { Terminal, type ITheme } from '@xterm/xterm'
-const advancedLogger = createAdvancedLogger('Terminal', {
-  level: 'debug',
-})
 
 // --- 复用全局主题定义 ---
 import * as termThemes from '@/themes/terminalThemes'
@@ -135,8 +132,11 @@ export function IntegratedTerminal({
     // By passing a function, the prefix is dynamically resolved on each log call,
     // correctly reading the latest `displayNameRef.current`.
     // This elegantly solves the stale closure problem described in `react-stale-closure-ref-pattern.md`.
-    const getDynamicPrefix = () => `[${id}]<${displayNameRef.current}>`
-    return advancedLogger.withPrefix(getDynamicPrefix)
+    const getDynamicPrefix = () => `<${displayNameRef.current}>`
+    return appLogger
+      .withPrefix('Terminal')
+      .withPrefix(id)
+      .withPrefix(getDynamicPrefix)
   }, [id])
 
   // 使用useDependencyTracer替代手动依赖追踪
