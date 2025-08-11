@@ -54,11 +54,24 @@ export function HostFormDialog(props: HostFormDialogProps) {
   }
 
   const handleSave = async () => {
-    if (!formData.alias || !formData.hostName || !formData.user) {
+    const errors = []
+    if (!formData.alias) {
+      errors.push('Alias is required.')
+    } else if (/\s/.test(formData.alias)) {
+      errors.push('Alias cannot contain spaces.')
+    }
+    if (!formData.hostName) {
+      errors.push('HostName is required.')
+    }
+    if (!formData.user) {
+      errors.push('User is required.')
+    }
+
+    if (errors.length > 0) {
       await showDialog({
         type: 'error',
         title: 'Validation Error',
-        message: 'Alias, HostName, and User are required.',
+        message: errors.join('\n'),
       })
       return
     }
