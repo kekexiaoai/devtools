@@ -95,3 +95,21 @@ export const githubDarkTheme: ITheme = {
   brightCyan: '#56d4dd',
   brightWhite: '#f0f6fc',
 }
+
+// --- 字体系列定义 ---
+export const FONT_FAMILIES: Record<string, { name: string; value: string }> = {
+  default: {
+    name: 'Default',
+    value: 'Menlo, Monaco, "Courier New", monospace',
+  },
+  'fira-code': { name: 'Fira Code', value: '"Fira Code", monospace' },
+  'jetbrains-mono': {
+    name: 'JetBrains Mono',
+    value: '"JetBrains Mono", monospace',
+  },
+  'source-code-pro': {
+    name: 'Source Code Pro',
+    value: '"Source Code Pro", monospace',
+  },
+  consolas: { name: 'Consolas', value: 'Consolas, "Courier New", monospace' },
+}
