@@ -78,7 +78,13 @@ const toServerLevel = (level: LogLevel): ServerLogLevel | null => {
 }
 
 // 默认任务：上报到 Wails 后端
-const wailsReportTask: LogTask = async (level, prefix, message, rest, meta) => {
+export const wailsReportTask: LogTask = async (
+  level,
+  prefix,
+  message,
+  rest,
+  meta
+) => {
   if (!meta?.upload) return
   const serverLevel = toServerLevel(level)
   if (!serverLevel || !window.go || !LogFromFrontend || !types.LogEntry) return
