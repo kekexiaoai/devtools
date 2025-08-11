@@ -19,6 +19,7 @@ export function HostFormDialog(props: HostFormDialogProps) {
   const { host, isOpen, onOpenChange, onSave } = props
   const { showDialog } = useDialog()
   const [formData, setFormData] = useState<types.SSHHost>({} as types.SSHHost)
+  const [errors, setErrors] = useState<Record<string, string>>({})
 
   const [password, setPassword] = useState('')
   const [savePassword, setSavePassword] = useState(true)
@@ -41,6 +42,17 @@ export function HostFormDialog(props: HostFormDialogProps) {
     }
   }, [isOpen, host])
 
+  const validateAlias = (value: string) => {
+    let error = ''
+    if (!value) {
+      error = 'Alias is required'
+    } else if (/\s/.test(value)) {
+      error = 'Alias cannot contain spaces'
+    }
+    setErrors((prev) => ({ ...prev, alias: error }))
+    return !error
+  }
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     // 直接使用当前状态更新，可能获取到旧的状态值
@@ -51,6 +63,11 @@ export function HostFormDialog(props: HostFormDialogProps) {
 
     // 使用函数式更新，确保使用最新的状态值
     setFormData((prev) => ({ ...prev, [name]: value }))
+
+    // Real-time validation for alias field
+    if (name === 'alias') {
+      validateAlias(value)
+    }
   }
 
   const handleSave = async () => {
@@ -108,17 +125,22 @@ export function HostFormDialog(props: HostFormDialogProps) {
             <Label htmlFor="alias" className="justify-self-end">
               Alias
             </Label>
-            <Input
-              id="alias"
-              name="alias"
-              value={formData.alias}
-              onChange={handleInputChange}
-              className="col-span-3 normal-case"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              disabled={!!host}
-            ></Input>
+            <div className="col-span-3 space-y-1">
+              <Input
+                id="alias"
+                name="alias"
+                value={formData.alias}
+                onChange={handleInputChange}
+                className={`col-span-3 normal-case ${errors.alias ? 'border-red-5' : ''}`}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                disabled={!!host}
+              ></Input>
+              {errors.alias && (
+                <p className="text-sm text-red-500">{errors.alias}</p>
+              )}
+            </div>
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="hostName" className="justify-self-end">
