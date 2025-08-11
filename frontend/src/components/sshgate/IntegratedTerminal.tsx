@@ -152,6 +152,7 @@ export function IntegratedTerminal({
   const resizeObserverRef = useRef<ResizeObserver | null>(null) // 尺寸监控实例
   const terminalContainerRef = ref
   const settingsContainerRef = useRef<HTMLDivElement>(null)
+  const popoverContentRef = useRef<HTMLDivElement>(null)
 
   const adjustTerminalSize = useCallback(async () => {
     if (!terminal || !terminalContainerRef.current || !isVisible) return
@@ -315,9 +316,12 @@ export function IntegratedTerminal({
     (e: React.MouseEvent) => {
       // If the click is on the settings area, do nothing.
       // Let the event propagate so the Popover can handle it.
+      // We check both the trigger area and the portaled content area.
       if (
-        settingsContainerRef.current &&
-        settingsContainerRef.current.contains(e.target as Node)
+        (settingsContainerRef.current &&
+          settingsContainerRef.current.contains(e.target as Node)) ||
+        (popoverContentRef.current &&
+          popoverContentRef.current.contains(e.target as Node))
       ) {
         return
       }
@@ -354,11 +358,7 @@ export function IntegratedTerminal({
               <Settings className="h-4 w-4" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent
-            className="w-90"
-            align="end"
-            // onMouseDown={(e) => e.preventDefault()}
-          >
+          <PopoverContent ref={popoverContentRef} className="w-90" align="end">
             <div className="grid gap-4">
               <div className="space-y-2">
                 <h4 className="font-medium leading-none">Appearance</h4>
