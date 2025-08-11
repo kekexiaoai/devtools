@@ -1,7 +1,8 @@
 import { useDialog } from '@/hooks/useDialog'
 import { StartLocalForward } from '@wailsjs/go/sshgate/Service'
+import { toast } from 'sonner'
 import { types } from '@wailsjs/go/models'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -16,12 +17,17 @@ import { Label } from '../ui/label'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { Loader2 } from 'lucide-react'
+import { createAdvancedLogger } from '@/utils/logger'
 
 interface TunnelDialProps {
   host: types.SSHHost
   isOpen: boolean
   onOpenChange: (isOpen: boolean) => void
 }
+
+const advancedLogger = createAdvancedLogger('Tunnel', {
+  level: 'debug',
+})
 
 export function TunnelDial(props: TunnelDialProps) {
   const { host, isOpen, onOpenChange } = props
@@ -36,6 +42,11 @@ export function TunnelDial(props: TunnelDialProps) {
   })
 
   const [isStartingTunnel, setIsStartingTunnel] = useState(false)
+
+  const logger = useMemo(() => {
+    const getPrefix = () => `[${host.alias}]`
+    return advancedLogger.withPrefix(getPrefix())
+  }, [host.alias])
 
   const handleStartLocalForward = async () => {
     // input validate
@@ -62,15 +73,17 @@ export function TunnelDial(props: TunnelDialProps) {
         localForwardForm.remoteHost,
         remotePortNum,
         localForwardForm.password,
-        true
+        true // TODO: This should be tied to a UI checkbox for "Save Password"
       )
-      await showDialog({
-        type: 'success',
-        title: 'Success',
-        message: `Local forward tunnel started successfully!\n\nTunnel ID: ${tunnelId}\nForwarding: 127.0.0.1:${localPortNum} -> ${localForwardForm.remoteHost}:${remotePortNum}`,
+      toast.success('Tunnel Started', {
+        description: `Forwarding 127.0.0.1:${localPortNum} -> ${localForwardForm.remoteHost}:${remotePortNum}`,
       })
       onOpenChange(false) // 关闭模态框
+      logger.info(
+        `Local forward tunnel started successfully!\n\nTunnel ID: ${tunnelId}\nForwarding: 127.0.0.1:${localPortNum} -> ${localForwardForm.remoteHost}:${remotePortNum}`
+      )
     } catch (error) {
+      logger.warn(`Failed to start local forward tunnel: ${String(error)}`)
       await showDialog({
         type: 'error',
         title: 'Error',
