@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
+import { Switch } from '@/components/ui/switch'
 interface IntegratedTerminalProps {
   websocketUrl: string
   id: string
@@ -32,6 +33,7 @@ interface IntegratedTerminalProps {
   theme: ITheme
   fontSize?: number
   fontFamily?: string
+  copyOnSelect?: boolean
 }
 
 import { createAdvancedLogger } from '@/utils/logger'
@@ -71,12 +73,16 @@ export function IntegratedTerminal({
   onStatusChange,
   fontSize,
   fontFamily,
+  copyOnSelect,
 }: IntegratedTerminalProps) {
   // --- 动态设置的状态管理 (本地覆盖) ---
   // null 表示使用从 props 传入的全局设置
   const [localFontSize, setLocalFontSize] = useState<number | null>(null)
   const [localThemeKey, setLocalThemeKey] = useState<string | null>(null)
   const [localFontFamilyKey, setLocalFontFamilyKey] = useState<string | null>(
+    null
+  )
+  const [localCopyOnSelect, setLocalCopyOnSelect] = useState<boolean | null>(
     null
   )
 
@@ -88,6 +94,7 @@ export function IntegratedTerminal({
   const effectiveFontFamily = localFontFamilyKey
     ? FONT_FAMILIES[localFontFamilyKey]?.value
     : (fontFamily ?? FONT_FAMILIES.default.value)
+  const effectiveCopyOnSelect = localCopyOnSelect ?? copyOnSelect ?? true
 
   // 调用 Hook，获取 terminal 实例和 ref
   // 关键修复：useXTerm 的 options 只在首次创建时使用，且不包含动态变化的设置
@@ -97,7 +104,6 @@ export function IntegratedTerminal({
       () => ({
         cursorBlink: true,
         scrollback: 1000,
-        copyOnSelect: true,
         // 初始值从 props 设置
         fontSize,
         fontFamily,
@@ -107,7 +113,6 @@ export function IntegratedTerminal({
       [] // 空依赖数组确保 options 引用永不改变
     ),
   })
-  // const { instance: terminal, ref } = useXTerm()
 
   const extendedTerminal = terminal as ExtendedTerminal | undefined
 
@@ -247,6 +252,29 @@ export function IntegratedTerminal({
     adjustTerminalSize,
   ])
 
+  // --- Implement Copy on Select functionality ---
+  useEffect(() => {
+    if (!terminal) {
+      return
+    }
+
+    // This handler will be called whenever the selection changes.
+    const handleSelectionChange = () => {
+      if (effectiveCopyOnSelect && terminal.hasSelection()) {
+        const selection = terminal.getSelection()
+        if (selection) {
+          navigator.clipboard.writeText(selection).catch((err) => {
+            logger.error('Failed to copy to clipboard:', err)
+          })
+        }
+      }
+    }
+
+    const disposable = terminal.onSelectionChange(handleSelectionChange)
+
+    return () => disposable.dispose()
+  }, [terminal, effectiveCopyOnSelect, logger]) // Re-run if terminal or the setting changes
+
   // --- Connection State Management ---
   const { connectionStatus } = useWebSocketTerminal({
     websocketUrl,
@@ -297,7 +325,7 @@ export function IntegratedTerminal({
       // If the click is on the terminal area itself,
       // prevent the default browser behavior (like text selection outside the terminal)
       // and programmatically focus the terminal instance.
-      e.preventDefault()
+      // e.preventDefault() // This was preventing copyOnSelect from working.
       if (extendedTerminal) {
         extendedTerminal.focus()
         logger.debug('Terminal area clicked, focusing xterm.')
@@ -326,7 +354,11 @@ export function IntegratedTerminal({
               <Settings className="h-4 w-4" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-80" align="end">
+          <PopoverContent
+            className="w-90"
+            align="end"
+            // onMouseDown={(e) => e.preventDefault()}
+          >
             <div className="grid gap-4">
               <div className="space-y-2">
                 <h4 className="font-medium leading-none">Appearance</h4>
@@ -475,6 +507,46 @@ export function IntegratedTerminal({
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                {/* Copy on Select */}
+                <div className="grid grid-cols-5 items-center gap-4">
+                  <div
+                    className="col-span-2 group flex cursor-pointer items-center gap-1.5"
+                    onClick={(e) => {
+                      if (localCopyOnSelect !== null) {
+                        e.preventDefault()
+                        setTimeout(() => setLocalCopyOnSelect(null), 0)
+                      }
+                    }}
+                  >
+                    <Label
+                      htmlFor="copy-on-select"
+                      className="cursor-pointer"
+                      title={
+                        localCopyOnSelect !== null
+                          ? 'Reset to default'
+                          : undefined
+                      }
+                    >
+                      Copy on Select
+                    </Label>
+                    <RotateCcw
+                      className={`h-3 w-3 text-muted-foreground transition-opacity ${
+                        localCopyOnSelect !== null
+                          ? 'opacity-50 group-hover:opacity-100 cursor-pointer'
+                          : 'opacity-0'
+                      }`}
+                    />
+                  </div>
+                  <div className="col-span-3">
+                    <Switch
+                      id="copy-on-select"
+                      checked={effectiveCopyOnSelect}
+                      onCheckedChange={(checked) =>
+                        setLocalCopyOnSelect(checked)
+                      }
+                    />
+                  </div>
                 </div>
               </div>
             </div>

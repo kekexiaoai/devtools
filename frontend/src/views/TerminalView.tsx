@@ -26,6 +26,7 @@ import {
 import type { ITheme } from '@xterm/xterm'
 import { Slider } from '@/components/ui/slider'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 
 interface TerminalViewProps {
   terminalSessions: TerminalSession[]
@@ -77,6 +78,7 @@ export function TerminalView({
   // Add new state for global font settings
   const [globalFontSize, setGlobalFontSize] = useState(12)
   const [globalFontFamilyKey, setGlobalFontFamilyKey] = useState('default')
+  const [globalCopyOnSelect, setGlobalCopyOnSelect] = useState(true)
   const globalFontFamily = FONT_FAMILIES[globalFontFamilyKey].value
 
   // 主题切换处理函数
@@ -235,7 +237,7 @@ export function TerminalView({
                 <Settings className="h-4 w-4" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-80" align="end">
+            <PopoverContent className="w-90" align="end">
               <div className="grid gap-4">
                 <div className="space-y-2">
                   <h4 className="font-medium leading-none">Global Settings</h4>
@@ -244,8 +246,10 @@ export function TerminalView({
                   </p>
                 </div>
                 <div className="grid gap-4">
-                  <div className="grid grid-cols-3 items-center gap-4">
-                    <Label htmlFor="global-font-size">Font Size</Label>
+                  <div className="grid grid-cols-5 items-center gap-4">
+                    <Label htmlFor="global-font-size" className="col-span-2">
+                      Font Size
+                    </Label>
                     <Slider
                       id="global-font-size"
                       min={8}
@@ -253,18 +257,20 @@ export function TerminalView({
                       step={1}
                       value={[globalFontSize]}
                       onValueChange={(value) => setGlobalFontSize(value[0])}
-                      className="col-span-2 h-full"
+                      className="col-span-3 h-full"
                     />
                   </div>
-                  <div className="grid grid-cols-3 items-center gap-4">
-                    <Label htmlFor="global-font-family">Font Family</Label>
+                  <div className="grid grid-cols-5 items-center gap-4">
+                    <Label htmlFor="global-font-family" className="col-span-2">
+                      Font Family
+                    </Label>
                     <Select
                       value={globalFontFamilyKey}
                       onValueChange={setGlobalFontFamilyKey}
                     >
                       <SelectTrigger
                         id="global-font-family"
-                        className="col-span-2"
+                        className="col-span-3"
                       >
                         <SelectValue placeholder="Select font" />
                       </SelectTrigger>
@@ -279,13 +285,15 @@ export function TerminalView({
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="grid grid-cols-3 items-center gap-4">
-                    <Label htmlFor="global-theme">Theme</Label>
+                  <div className="grid grid-cols-5 items-center gap-4">
+                    <Label htmlFor="global-theme" className="col-span-2">
+                      Theme
+                    </Label>
                     <Select
                       onValueChange={handleThemeChange}
                       value={selectedThemeName}
                     >
-                      <SelectTrigger id="global-theme" className="col-span-2">
+                      <SelectTrigger id="global-theme" className="col-span-3">
                         <SelectValue placeholder="Select theme" />
                       </SelectTrigger>
                       <SelectContent>
@@ -296,6 +304,21 @@ export function TerminalView({
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="grid grid-cols-5 items-center gap-4">
+                    <Label
+                      htmlFor="global-copy-on-select"
+                      className="col-span-2"
+                    >
+                      Copy on Select
+                    </Label>
+                    <div className="col-span-3">
+                      <Switch
+                        id="global-copy-on-select"
+                        checked={globalCopyOnSelect}
+                        onCheckedChange={setGlobalCopyOnSelect}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -330,6 +353,7 @@ export function TerminalView({
               theme={currentTheme}
               fontSize={globalFontSize}
               fontFamily={globalFontFamily}
+              copyOnSelect={globalCopyOnSelect}
             />
           </TabsContent>
         ))}
