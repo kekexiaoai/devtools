@@ -336,9 +336,9 @@ export function IntegratedTerminal({
               </div>
               <div className="grid gap-4 pt-2">
                 {/* Font Size */}
-                <div className="grid grid-cols-[auto,1fr] items-center gap-4">
+                <div className="grid grid-cols-[auto_1fr] items-center gap-4">
                   <div
-                    className="group flex cursor-pointer items-center gap-1.5 justify-self-end"
+                    className="group flex cursor-pointer items-center gap-1.5"
                     onClick={(e) => {
                       if (localFontSize !== null) {
                         // Prevent default mousedown behavior which can cause focus shifts
@@ -374,12 +374,13 @@ export function IntegratedTerminal({
                     onValueChange={(value: number[]) =>
                       setLocalFontSize(value[0])
                     }
+                    className="h-full"
                   />
                 </div>
                 {/* Font Family */}
-                <div className="grid grid-cols-[auto,1fr] items-center gap-4">
+                <div className="grid grid-cols-[auto_1fr] items-center gap-4">
                   <div
-                    className="group flex cursor-pointer items-center gap-1.5 justify-self-end"
+                    className="group flex cursor-pointer items-center gap-1.5"
                     onClick={(e) => {
                       if (localFontFamilyKey !== null) {
                         // Prevent default mousedown behavior which can cause focus shifts
@@ -427,9 +428,9 @@ export function IntegratedTerminal({
                   </Select>
                 </div>
                 {/* Theme */}
-                <div className="grid grid-cols-[auto,1fr] items-center gap-4">
+                <div className="grid grid-cols-[auto_1fr] items-center gap-4">
                   <div
-                    className="group flex cursor-pointer items-center gap-1.5 justify-self-end"
+                    className="group flex cursor-pointer items-center gap-1.5"
                     onClick={(e) => {
                       if (localThemeKey !== null) {
                         // Prevent default mousedown behavior which can cause focus shifts
