@@ -309,7 +309,7 @@ function AppContent() {
     (sessionId: string) => {
       const session = terminalSessions.find((s) => s.id === sessionId)
       if (!session) return
-      connect(
+      void connect(
         session.alias,
         session.type as 'local' | 'remote',
         session.id,
@@ -325,7 +325,7 @@ function AppContent() {
       type: 'local' | 'remote' = 'local',
       strategy: 'internal' | 'external' = 'external'
     ) => {
-      connect(alias, type, '', strategy)
+      void connect(alias, type, '', strategy)
     },
     [connect]
   )

@@ -26,6 +26,7 @@ import {
   Sheet,
   SheetContent,
 } from '@/components/ui/sheet'
+import { useSshConnection } from '@/hooks/useSshConnection'
 
 interface TunnelDialProps {
   host: types.SSHHost
@@ -117,16 +118,20 @@ export function TunnelDial(props: TunnelDialProps) {
   const { host, isOpen, onOpenChange } = props
 
   const { showDialog } = useDialog()
+
+  const { connect: verifyConnection } = useSshConnection({
+    showDialog,
+    onOpenTerminal: () => {}, // 在 'verify' 模式下不会被调用
+  })
+
   const [localForwardForm, setLocalForwardForm] = useState({
     localPort: '',
     remotePort: '',
     remoteHost: 'localhost',
-    password: '',
   })
 
   const [dynamicForwardForm, setDynamicForwardForm] = useState({
     localPort: '1080',
-    password: '',
   })
 
   const [activeTab, setActiveTab] = useState('local')
@@ -145,6 +150,12 @@ export function TunnelDial(props: TunnelDialProps) {
     return appLogger.withPrefix('TunnelDial').withPrefix(getDynamicPrefix)
   }, [])
 
+  // A small helper for input fields
+  const commonInputProps: React.InputHTMLAttributes<HTMLInputElement> = {
+    autoComplete: 'off',
+    spellCheck: false,
+  }
+
   const handleStartLocalForward = async () => {
     // input validate
     const localPortNum = parseInt(localForwardForm.localPort, 10)
@@ -162,38 +173,47 @@ export function TunnelDial(props: TunnelDialProps) {
     }
 
     setIsStartingTunnel(true) // 进入加载状态
+    // 直接使用async函数作为promise源，无需手动new Promise
+    const promise = (async (): Promise<string> => {
+      // 调用hook进行验证
+      const password = await verifyConnection(
+        host.alias,
+        'remote',
+        undefined,
+        'verify'
+      )
 
-    try {
+      if (password === null) {
+        // 用户取消了操作
+        throw new Error('Tunnel creation cancelled.')
+      }
+
       const tunnelId = await StartLocalForward(
         host.alias,
         localPortNum,
         localForwardForm.remoteHost,
         remotePortNum,
-        localForwardForm.password,
-        true // TODO: This should be tied to a UI checkbox for "Save Password"
+        password
       )
-      toast.success('Tunnel Started', {
-        description: `Forwarding 127.0.0.1:${localPortNum} -> ${localForwardForm.remoteHost}:${remotePortNum}`,
-      })
+
       onOpenChange(false) // 关闭模态框
       logger.info(
-        `Local forward tunnel started successfully!\n\nTunnel ID: ${tunnelId}\nForwarding: 127.0.0.1:${localPortNum} -> ${localForwardForm.remoteHost}:${remotePortNum}`
+        `Local forward tunnel started successfully!\n\nTunnel ID: ${tunnelId}`
       )
-    } catch (error) {
-      logger.warn(`Failed to start local forward tunnel: ${String(error)}`)
-      await showDialog({
-        type: 'error',
-        title: 'Error',
-        message: `Failed to start local forward tunnel: ${String(error)}`,
-      })
-    } finally {
-      setIsStartingTunnel(false) // 结束加载状态
-    }
-  }
-  // A small helper for input fields
-  const commonInputProps: React.InputHTMLAttributes<HTMLInputElement> = {
-    autoComplete: 'off',
-    spellCheck: false,
+
+      return `Forwarding 127.0.0.1:${localPortNum} -> ${localForwardForm.remoteHost}:${remotePortNum}`
+    })()
+
+    // 使用toast.promise处理状态反馈
+    toast.promise(promise, {
+      loading: `Verifying connection to ${host.alias}...`,
+      success: (msg) => `Tunnel Started: ${msg}`,
+      error: (err: Error) =>
+        err.message.includes('cancelled')
+          ? 'Tunnel creation cancelled.'
+          : `Failed to start tunnel: ${err.message}`,
+      finally: () => setIsStartingTunnel(false),
+    })
   }
 
   const handleStartDynamicForward = async () => {
@@ -207,30 +227,41 @@ export function TunnelDial(props: TunnelDialProps) {
     }
 
     setIsStartingTunnel(true)
-    try {
+    const promise = (async (): Promise<string> => {
+      // 1. 调用 hook 进行验证
+      const password = await verifyConnection(
+        host.alias,
+        'remote',
+        undefined,
+        'verify'
+      )
+      if (password === null) {
+        throw new Error('Proxy creation cancelled.')
+      }
+
       const tunnelId = await StartDynamicForward(
         host.alias,
         localPortNum,
-        dynamicForwardForm.password,
-        true // TODO: Add a "Save Password" checkbox
+        password
       )
-      toast.success('SOCKS Proxy Started', {
-        description: `SOCKS5 proxy is listening on 127.0.0.1:${localPortNum}`,
-      })
-      onOpenChange(false)
+      onOpenChange(false) // 成功后关闭模态框
+
       logger.info(
-        `Dynamic forward tunnel started successfully!\n\nTunnel ID: ${tunnelId}\nSOCKS5 Proxy on: 127.0.0.1:${localPortNum}`
+        `Dynamic forward tunnel started successfully!\n\nTunnel ID: ${tunnelId}`
       )
-    } catch (error) {
-      logger.warn(`Failed to start dynamic forward tunnel: ${String(error)}`)
-      await showDialog({
-        type: 'error',
-        title: 'Error',
-        message: `Failed to start dynamic forward tunnel: ${String(error)}`,
-      })
-    } finally {
-      setIsStartingTunnel(false)
-    }
+
+      return `SOCKS5 proxy is listening on 127.0.0.1:${localPortNum}`
+    })()
+
+    toast.promise(promise, {
+      loading: `Verifying connection to ${host.alias}...`,
+      success: (msg) => `SOCKS Proxy Started: ${msg}`,
+      error: (err: Error) =>
+        err.message.includes('cancelled')
+          ? 'Proxy creation cancelled.'
+          : `Failed to start proxy: ${err.message}`,
+      finally: () => setIsStartingTunnel(false),
+    })
   }
 
   const handleStartTunnel = async (tab: string) => {
@@ -340,25 +371,6 @@ export function TunnelDial(props: TunnelDialProps) {
                   className="col-span-3"
                 />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="password" className="justify-self-end">
-                  Password
-                </Label>
-                <Input
-                  {...commonInputProps}
-                  id="password"
-                  type="password"
-                  placeholder="(Optional) Enter if no key file"
-                  value={localForwardForm.password}
-                  onChange={(e) =>
-                    setLocalForwardForm({
-                      ...localForwardForm,
-                      password: e.target.value,
-                    })
-                  }
-                  className="col-span-3"
-                />
-              </div>
             </div>
           </TabsContent>
           <TabsContent value="dynamic">
@@ -393,25 +405,6 @@ export function TunnelDial(props: TunnelDialProps) {
                     setDynamicForwardForm({
                       ...dynamicForwardForm,
                       localPort: e.target.value,
-                    })
-                  }
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="dynamic-password" className="justify-self-end">
-                  Password
-                </Label>
-                <Input
-                  {...commonInputProps}
-                  id="dynamic-password"
-                  type="password"
-                  placeholder="(Optional) Enter if no key file"
-                  value={dynamicForwardForm.password}
-                  onChange={(e) =>
-                    setDynamicForwardForm({
-                      ...dynamicForwardForm,
-                      password: e.target.value,
                     })
                   }
                   className="col-span-3"
