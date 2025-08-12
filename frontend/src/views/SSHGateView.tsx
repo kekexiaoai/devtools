@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import type { types } from '@wailsjs/go/models'
+import type { types, sshtunnel } from '@wailsjs/go/models'
 import {
   GetSSHHosts,
   DeleteSSHHost,
   GetSSHConfigFileContent,
   SaveSSHConfigFileContent,
+  GetActiveTunnels,
 } from '@wailsjs/go/sshgate/Service'
 import { useDialog } from '@/hooks/useDialog'
 
@@ -22,6 +23,7 @@ import { HostDetail } from '@/components/sshgate/HostDetail'
 import { Save } from 'lucide-react'
 import { ActiveTunnels } from '@/components/sshgate/ActiveTunnels'
 import { useOnVisible } from '@/hooks/useOnVisible'
+import { EventsOn } from '@wailsjs/runtime'
 
 // #############################################################################
 // #  主视图组件 (Main View Component)
@@ -45,6 +47,41 @@ export function SshGateView({ isActive, onConnect }: SshGateViewProps) {
   const [activeTab, setActiveTab] = useState('visual')
 
   // 使用Hook，告诉 useOnVisible: 当这个组件可见时，执行 refreshData 函数
+  const [activeTunnels, setActiveTunnels] = useState<
+    sshtunnel.ActiveTunnelInfo[]
+  >([])
+  const [isLoadingTunnels, setIsLoadingTunnels] = useState(true)
+
+  const fetchTunnels = useCallback(async () => {
+    // For background refresh, we don't always set loading to true
+    // setIsLoadingTunnels(true);
+    try {
+      const tunnels = await GetActiveTunnels()
+      setActiveTunnels(tunnels)
+    } catch (error) {
+      // Errors are handled in the component that needs to show them,
+      // or we could use a global toast here.
+      console.error(`Failed to fetch active tunnels: ${String(error)}`)
+    } finally {
+      setIsLoadingTunnels(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void fetchTunnels()
+    const handleFocus = () => void fetchTunnels()
+    const interval = setInterval(() => void fetchTunnels(), 30000)
+    const cleanupTunnelChangedEvent = EventsOn(
+      'tunnels:changed',
+      () => void fetchTunnels()
+    )
+    window.addEventListener('focus', handleFocus)
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      clearInterval(interval)
+      cleanupTunnelChangedEvent()
+    }
+  }, [fetchTunnels])
   useOnVisible(refreshData, isActive)
   console.log('ssh gate, data version:', dataVersion)
 
@@ -81,6 +118,7 @@ export function SshGateView({ isActive, onConnect }: SshGateViewProps) {
             key={dataVersion}
             onDataChange={refreshData}
             onConnect={onConnect}
+            activeTunnels={activeTunnels}
           />
         </TabsContent>
 
@@ -91,7 +129,11 @@ export function SshGateView({ isActive, onConnect }: SshGateViewProps) {
 
         {/* 活动隧道 Tab */}
         <TabsContent value="tunnels" className="flex-1 min-h-0">
-          <ActiveTunnels />
+          <ActiveTunnels
+            tunnels={activeTunnels}
+            isLoading={isLoadingTunnels}
+            onRefresh={() => void fetchTunnels()}
+          />
         </TabsContent>
       </Tabs>
     </div>
@@ -104,6 +146,7 @@ export function SshGateView({ isActive, onConnect }: SshGateViewProps) {
 function VisualEditor({
   onDataChange,
   onConnect,
+  activeTunnels,
 }: {
   onDataChange: () => void
   onConnect: (
@@ -111,6 +154,7 @@ function VisualEditor({
     type: 'local' | 'remote',
     strategy: 'internal' | 'external'
   ) => void
+  activeTunnels: sshtunnel.ActiveTunnelInfo[]
 }) {
   const [hosts, setHosts] = useState<types.SSHHost[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -225,6 +269,7 @@ function VisualEditor({
             onConnectExternal={() =>
               void handleConnect(selectedHost.alias, 'external')
             }
+            activeTunnels={activeTunnels}
             onConnectInternal={() =>
               void handleConnect(selectedHost.alias, 'internal')
             }

@@ -1,5 +1,6 @@
-import type { types } from '@wailsjs/go/models'
+import type { types, sshtunnel } from '@wailsjs/go/models'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   Card,
   CardContent,
@@ -14,7 +15,7 @@ import {
   Trash2,
   TrainFrontTunnel,
 } from 'lucide-react'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { TunnelDial } from './TunnelDialog'
 
 interface HostDetailProps {
@@ -23,6 +24,7 @@ interface HostDetailProps {
   onDelete: (alias: string) => void
   onConnectExternal: (alias: string) => void
   onConnectInternal: (alias: string) => void
+  activeTunnels: sshtunnel.ActiveTunnelInfo[]
 }
 
 interface SSHStatusEventDetail {
@@ -39,11 +41,18 @@ export function HostDetail({
   onDelete,
   onConnectExternal,
   onConnectInternal,
+  activeTunnels,
 }: HostDetailProps) {
   const [isTunnelModalOpen, setIsTunnelModalOpen] = useState(false)
   // === 连接状态管理 ===
   const [connecting, setConnecting] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
+
+  const tunnelCount = useMemo(() => {
+    if (!activeTunnels) return 0
+    return activeTunnels.filter((t) => t.alias === host.alias).length
+  }, [activeTunnels, host.alias])
+
   useEffect(() => {
     // 事件处理函数直接接收后端传递的 detail 对象
     const onSSHStatus = (detail: SSHStatusEventDetail) => {
@@ -123,14 +132,24 @@ export function HostDetail({
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
-              <Button
-                onClick={() => setIsTunnelModalOpen(true)}
-                variant="ghost"
-                size="icon"
-                title="Configure Tunnels"
-              >
-                <TrainFrontTunnel className="h-5 w-5" />
-              </Button>
+              <div className="relative">
+                <Button
+                  onClick={() => setIsTunnelModalOpen(true)}
+                  variant="ghost"
+                  size="icon"
+                  title="Configure Tunnels"
+                >
+                  <TrainFrontTunnel className="h-5 w-5" />
+                </Button>
+                {tunnelCount > 0 && (
+                  <Badge
+                    variant="destructive"
+                    className="absolute -top-1 -right-2 h-5 w-5 p-0 flex items-center justify-center pointer-events-none"
+                  >
+                    {tunnelCount}
+                  </Badge>
+                )}
+              </div>
             </div>
           </div>
         </CardHeader>

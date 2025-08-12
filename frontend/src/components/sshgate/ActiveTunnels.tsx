@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useCallback } from 'react'
 import { sshtunnel } from '@wailsjs/go/models'
 import { toast } from 'sonner'
-import { GetActiveTunnels, StopForward } from '@wailsjs/go/sshgate/Service'
+import { StopForward } from '@wailsjs/go/sshgate/Service'
 import { useDialog } from '@/hooks/useDialog'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,7 +13,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { RefreshCw, Trash2 } from 'lucide-react'
-import { EventsOn } from '@wailsjs/runtime/runtime'
 
 const getTunnelTypeLabel = (type: string): string => {
   switch (type.toLowerCase()) {
@@ -28,51 +27,18 @@ const getTunnelTypeLabel = (type: string): string => {
   }
 }
 
-export function ActiveTunnels() {
-  const [tunnels, setTunnels] = useState<sshtunnel.ActiveTunnelInfo[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+interface ActiveTunnelsProps {
+  tunnels: sshtunnel.ActiveTunnelInfo[]
+  isLoading: boolean
+  onRefresh: () => void
+}
+
+export function ActiveTunnels({
+  tunnels,
+  isLoading,
+  onRefresh,
+}: ActiveTunnelsProps) {
   const { showDialog } = useDialog()
-
-  const fetchTunnels = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      const activeTunnels = await GetActiveTunnels()
-      setTunnels(activeTunnels)
-    } catch (error) {
-      await showDialog({
-        type: 'error',
-        title: 'Error',
-        message: `Failed to fetch active tunnels: ${String(error)}`,
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }, [showDialog])
-
-  useEffect(() => {
-    void fetchTunnels()
-    // 当窗口获得焦点时刷新，这比固定间隔轮询体验更好
-    const handleFocus = () => void fetchTunnels()
-
-    // 同时保留一个轮询作为备用
-    const interval = setInterval(() => void fetchTunnels(), 30000)
-
-    // 监听隧道变化的全局事件
-    const cleanupTunnelChangedEvent = EventsOn(
-      'tunnels:changed',
-      () => void fetchTunnels()
-    )
-
-    // 监听窗口焦点事件
-    window.addEventListener('focus', handleFocus)
-
-    return () => {
-      window.removeEventListener('focus', handleFocus)
-      clearInterval(interval)
-      // 组件卸载时，清理事件监听器
-      cleanupTunnelChangedEvent()
-    }
-  }, [fetchTunnels])
 
   const handleStopTunnel = useCallback(
     async (tunnelId: string) => {
@@ -104,7 +70,7 @@ export function ActiveTunnels() {
       <div className="flex justify-between items-center flex-shrink-0">
         <h2 className="text-lg font-semibold">Active SSH Tunnels</h2>
         <Button
-          onClick={() => void fetchTunnels()}
+          onClick={onRefresh}
           variant="outline"
           size="icon"
           disabled={isLoading}
