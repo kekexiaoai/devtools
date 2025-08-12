@@ -13,6 +13,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { RefreshCw, Trash2 } from 'lucide-react'
+import { EventsOn } from '@wailsjs/runtime/runtime'
 
 const getTunnelTypeLabel = (type: string): string => {
   switch (type.toLowerCase()) {
@@ -52,14 +53,24 @@ export function ActiveTunnels() {
     void fetchTunnels()
     // 当窗口获得焦点时刷新，这比固定间隔轮询体验更好
     const handleFocus = () => void fetchTunnels()
-    window.addEventListener('focus', handleFocus)
 
     // 同时保留一个轮询作为备用
-    const interval = setInterval(() => void fetchTunnels(), 5000)
+    const interval = setInterval(() => void fetchTunnels(), 30000)
+
+    // 监听隧道变化的全局事件
+    const cleanupTunnelChangedEvent = EventsOn(
+      'tunnels:changed',
+      () => void fetchTunnels()
+    )
+
+    // 监听窗口焦点事件
+    window.addEventListener('focus', handleFocus)
 
     return () => {
       window.removeEventListener('focus', handleFocus)
       clearInterval(interval)
+      // 组件卸载时，清理事件监听器
+      cleanupTunnelChangedEvent()
     }
   }, [fetchTunnels])
 

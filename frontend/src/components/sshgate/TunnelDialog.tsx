@@ -26,6 +26,7 @@ import {
   Sheet,
   SheetContent,
 } from '@/components/ui/sheet'
+import { EventsEmit } from '@wailsjs/runtime/runtime'
 import { useSshConnection } from '@/hooks/useSshConnection'
 
 interface TunnelDialProps {
@@ -196,6 +197,9 @@ export function TunnelDial(props: TunnelDialProps) {
         password
       )
 
+      // 发送全局事件，通知其他组件（如 ActiveTunnels）数据已变更
+      EventsEmit('tunnels:changed')
+
       onOpenChange(false) // 关闭模态框
       logger.info(
         `Local forward tunnel started successfully!\n\nTunnel ID: ${tunnelId}`
@@ -244,6 +248,9 @@ export function TunnelDial(props: TunnelDialProps) {
         localPortNum,
         password
       )
+      // 发送全局事件，通知其他组件（如 ActiveTunnels）数据已变更
+      EventsEmit('tunnels:changed')
+
       onOpenChange(false) // 成功后关闭模态框
 
       logger.info(
