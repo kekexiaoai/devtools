@@ -139,6 +139,17 @@ func (a *Service) StartLocalForward(alias string, localPort int, remoteHost stri
 	return a.tunnelManager.StartLocalForward(alias, localPort, remoteHost, remotePort, password)
 }
 
+// StartDynamicForward 启动一个动态 SOCKS5 代理隧道
+func (a *Service) StartDynamicForward(alias string, localPort int, password string, savePassword bool) (string, error) {
+	// 如果用户选择保存密码，则先保存
+	if savePassword && password != "" {
+		if err := a.SavePasswordForAlias(alias, password); err != nil {
+			log.Printf("Warning: failed to save password to keychain for host %s: %v", alias, err)
+		}
+	}
+	return a.tunnelManager.StartDynamicForward(alias, localPort, password)
+}
+
 // -----ssh连接-------------------------------------------------
 
 // 辅助函数，用于处理“预检”阶段的错误

@@ -7,7 +7,13 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card'
-import { ExternalLink, Terminal, Pencil, Trash2, Network } from 'lucide-react'
+import {
+  ExternalLink,
+  Terminal,
+  Pencil,
+  Trash2,
+  TrainFrontTunnel,
+} from 'lucide-react'
 import React, { useState, useEffect } from 'react'
 import { TunnelDial } from './TunnelDialog'
 
@@ -123,7 +129,7 @@ export function HostDetail({
                 size="icon"
                 title="Configure Tunnels"
               >
-                <Network className="h-5 w-5" />
+                <TrainFrontTunnel className="h-5 w-5" />
               </Button>
             </div>
           </div>

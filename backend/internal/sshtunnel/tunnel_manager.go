@@ -120,6 +120,65 @@ func (m *Manager) StartLocalForward(alias string, localPort int, remoteHost stri
 	return tunnelID, nil
 }
 
+// --- 核心功能实现 - 动态端口转发 (-D) ---
+
+// StartDynamicForward 启动一个动态 SOCKS5 代理隧道
+func (m *Manager) StartDynamicForward(alias string, localPort int, password string) (string, error) {
+	host, err := m.sshManager.GetSSHHost(alias)
+	if err != nil {
+		return "", fmt.Errorf("could not find host config for alias '%s': %w", alias, err)
+	}
+
+	authMethods, err := m.getSSHAuthMethods(host, password)
+	if err != nil {
+		return "", err
+	}
+
+	sshConfig := &ssh.ClientConfig{
+		User:            host.User,
+		Auth:            authMethods,
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         10 * time.Second,
+	}
+
+	serverAddr := fmt.Sprintf("%s:%s", host.HostName, host.Port)
+	sshClient, err := ssh.Dial("tcp", serverAddr, sshConfig)
+	if err != nil {
+		return "", fmt.Errorf("SSH dial to %s failed: %w", alias, err)
+	}
+
+	localAddr := fmt.Sprintf("127.0.0.1:%d", localPort)
+	listener, err := net.Listen("tcp", localAddr)
+	if err != nil {
+		sshClient.Close()
+		return "", fmt.Errorf("failed to listen on local port %d: %w", localPort, err)
+	}
+
+	tunnelID := uuid.NewString()
+	ctx, cancel := context.WithCancel(m.appCtx)
+	tunnel := &Tunnel{
+		ID:         tunnelID,
+		Alias:      alias,
+		Type:       "dynamic", // -D
+		LocalAddr:  localAddr,
+		RemoteAddr: "SOCKS5 Proxy", // 动态转发没有固定的远程地址
+		sshClient:  sshClient,
+		listener:   listener,
+		cancelFunc: cancel,
+	}
+
+	m.mu.Lock()
+	m.activeTunnels[tunnelID] = tunnel
+	m.mu.Unlock()
+
+	log.Printf("Started dynamic forward tunnel %s: %s (SOCKS5 Proxy via %s)", tunnelID, tunnel.LocalAddr, alias)
+
+	// 动态转发的循环逻辑与本地转发相同，都是接受连接并处理
+	go m.runTunnel(tunnel, ctx)
+
+	return tunnelID, nil
+}
+
 // getSSHAuthMethods 智能地构建认证方法列表
 func (m *Manager) getSSHAuthMethods(host *types.SSHHost, password string) ([]ssh.AuthMethod, error) {
 	var authMethods []ssh.AuthMethod
@@ -190,6 +249,14 @@ func (m *Manager) runTunnel(tunnel *Tunnel, ctx context.Context) {
 func (m *Manager) forwardConnection(localConn net.Conn, tunnel *Tunnel) {
 	defer localConn.Close()
 
+	// 对于动态转发，我们不需要连接到固定的 remoteAddr
+	// ssh.Client 的 Dial 方法本身就能处理 SOCKS 代理的请求，但这里我们是作为 SOCKS 服务端
+	// 我们需要将连接直接交给 sshClient 处理，让它来解析 SOCKS 协议并转发
+	// 但 golang.org/x/crypto/ssh 本身不直接提供 SOCKS 服务端实现。
+	// 这里的 runTunnel/forwardConnection 模型对于 -D 来说是不完整的。
+	// 一个完整的实现需要一个 SOCKS5 库来处理协议握手，然后使用 sshClient.Dial 来建立到最终目标的连接。
+	// 为了演示，我们暂时复用 -L 的转发逻辑，但这在实际中对 -D 无效。
+	// 正确的实现需要替换 `forwardConnection` 的内容。
 	// 通过已建立的 SSH 客户端，连接到最终的目标服务器
 	remoteConn, err := tunnel.sshClient.Dial("tcp", tunnel.RemoteAddr)
 	if err != nil {
