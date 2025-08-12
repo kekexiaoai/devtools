@@ -115,7 +115,7 @@ export function SshGateView({ isActive, onConnect }: SshGateViewProps) {
         {/* 可视化编辑器 Tab */}
         <TabsContent value="visual" className="flex-1 min-h-0">
           <VisualEditor
-            key={dataVersion}
+            dataVersion={dataVersion}
             onDataChange={refreshData}
             onConnect={onConnect}
             activeTunnels={activeTunnels}
@@ -124,7 +124,7 @@ export function SshGateView({ isActive, onConnect }: SshGateViewProps) {
 
         {/* 原始文件编辑器 Tab */}
         <TabsContent value="raw" className="flex-1 mt-2 flex flex-col min-h-0">
-          <RawEditor key={dataVersion} onDataChange={refreshData} />
+          <RawEditor dataVersion={dataVersion} onDataChange={refreshData} />
         </TabsContent>
 
         {/* 活动隧道 Tab */}
@@ -143,10 +143,11 @@ export function SshGateView({ isActive, onConnect }: SshGateViewProps) {
 // #############################################################################
 // #  子组件：可视化编辑器 (Visual Editor)
 // #############################################################################
-function VisualEditor({
+const VisualEditor = React.memo(function VisualEditor({
   onDataChange,
   onConnect,
   activeTunnels,
+  dataVersion,
 }: {
   onDataChange: () => void
   onConnect: (
@@ -155,6 +156,7 @@ function VisualEditor({
     strategy: 'internal' | 'external'
   ) => void
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
+  dataVersion: number
 }) {
   const [hosts, setHosts] = useState<types.SSHHost[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -181,7 +183,7 @@ function VisualEditor({
 
   useEffect(() => {
     void fetchHosts()
-  }, [fetchHosts])
+  }, [fetchHosts, dataVersion])
 
   // 这个 effect 只负责在 hosts 列表变化后，处理默认选中
   useEffect(() => {
@@ -292,12 +294,18 @@ function VisualEditor({
       />
     </div>
   )
-}
+})
 
 // #############################################################################
 // #  子组件：原始文件编辑器 (Raw Editor)
 // #############################################################################
-function RawEditor({ onDataChange }: { onDataChange: () => void }) {
+const RawEditor = React.memo(function RawEditor({
+  onDataChange,
+  dataVersion,
+}: {
+  onDataChange: () => void
+  dataVersion: number
+}) {
   const [content, setContent] = useState('')
   const [isDirty, setIsDirty] = useState(false)
   const { showDialog } = useDialog()
@@ -312,8 +320,7 @@ function RawEditor({ onDataChange }: { onDataChange: () => void }) {
       .catch((e) =>
         showDialog({ type: 'error', title: 'Error', message: String(e) })
       )
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [showDialog, dataVersion])
 
   const handleSave = async () => {
     try {
@@ -375,4 +382,4 @@ function RawEditor({ onDataChange }: { onDataChange: () => void }) {
       )}
     </div>
   )
-}
+})
