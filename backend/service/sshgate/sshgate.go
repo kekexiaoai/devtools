@@ -12,6 +12,7 @@ import (
 	"devtools/backend/internal/types"
 	"devtools/backend/pkg/sshconfig"
 
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 )
@@ -108,7 +109,12 @@ func (a *Service) SaveSSHConfigFileContent(content string) error {
 
 // StopForward 停止一个正在运行的隧道
 func (a *Service) StopForward(tunnelID string) error {
-	return a.tunnelManager.StopForward(tunnelID)
+	err := a.tunnelManager.StopForward(tunnelID)
+	if err == nil {
+		// 成功停止隧道后，发送事件通知前端
+		runtime.EventsEmit(a.ctx, "tunnels:changed")
+	}
+	return err
 }
 
 // GetActiveTunnels 获取当前活动的隧道列表
