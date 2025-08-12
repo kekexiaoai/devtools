@@ -27,6 +27,8 @@ export function SaveSSHConfigFileContent(arg1:string):Promise<void>;
 
 export function SaveSSHHost(arg1:types.SSHHost):Promise<void>;
 
+export function StartDynamicForward(arg1:string,arg2:number,arg3:string,arg4:boolean):Promise<string>;
+
 export function StartLocalForward(arg1:string,arg2:number,arg3:string,arg4:number,arg5:string,arg6:boolean):Promise<string>;
 
 export function StopForward(arg1:string):Promise<void>;
