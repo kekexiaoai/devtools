@@ -128,25 +128,14 @@ func (a *Service) DeletePasswordForAlias(alias string) error {
 
 // StartTunnelWithPassword 接收前端提供的密码来完成隧道创建
 // 注意：我们将原有的 StartLocalForward 函数签名进行扩展
-func (a *Service) StartLocalForward(alias string, localPort int, remoteHost string, remotePort int, password string, savePassword bool) (string, error) {
-	// 如果用户选择保存密码，则先保存
-	if savePassword && password != "" {
-		if err := a.SavePasswordForAlias(alias, password); err != nil {
-			// 记录警告，但继续尝试连接
-			log.Printf("Warning: failed to save password to keychain for host %s: %v", alias, err)
-		}
-	}
+func (a *Service) StartLocalForward(alias string, localPort int, remoteHost string, remotePort int, password string) (string, error) {
+	// 密码保存逻辑已移至前端的 useSshConnection hook 中处理
 	return a.tunnelManager.StartLocalForward(alias, localPort, remoteHost, remotePort, password)
 }
 
 // StartDynamicForward 启动一个动态 SOCKS5 代理隧道
-func (a *Service) StartDynamicForward(alias string, localPort int, password string, savePassword bool) (string, error) {
-	// 如果用户选择保存密码，则先保存
-	if savePassword && password != "" {
-		if err := a.SavePasswordForAlias(alias, password); err != nil {
-			log.Printf("Warning: failed to save password to keychain for host %s: %v", alias, err)
-		}
-	}
+func (a *Service) StartDynamicForward(alias string, localPort int, password string) (string, error) {
+	// 密码保存逻辑已移至前端的 useSshConnection hook 中处理
 	return a.tunnelManager.StartDynamicForward(alias, localPort, password)
 }
 

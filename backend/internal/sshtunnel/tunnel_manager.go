@@ -6,14 +6,9 @@ import (
 	"io"
 	"log"
 	"net"
-	"os"
-	"path/filepath"
-	"strings"
 	"sync"
-	"time"
 
 	"devtools/backend/internal/sshmanager"
-	"devtools/backend/internal/types"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
@@ -61,27 +56,17 @@ func NewManager(ctx context.Context, sshMgr *sshmanager.Manager) *Manager {
 
 // StartLocalForward 启动一个本地端口转发隧道
 func (m *Manager) StartLocalForward(alias string, localPort int, remoteHost string, remotePort int, password string) (string, error) {
-	// 获取主机的 SSH 配置
-	host, err := m.sshManager.GetSSHHost(alias)
+	// 从 sshManager 获取完整的、经过验证的连接配置
+	connConfig, _, err := m.sshManager.GetConnectionConfig(alias, password)
 	if err != nil {
-		return "", fmt.Errorf("could not find host config for alias '%s': %w", alias, err)
+		// 这个错误可能来自密码验证、主机密钥验证等，直接返回给前端
+		return "", fmt.Errorf("failed to get SSH connection config for '%s': %w", alias, err)
 	}
 
-	// 使用新的辅助函数来获取认证方法
-	authMethods, err := m.getSSHAuthMethods(host, password)
-	if err != nil {
-		return "", err
-	}
-
-	sshConfig := &ssh.ClientConfig{
-		User:            host.User,
-		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         10 * time.Second,
-	}
-
-	serverAddr := fmt.Sprintf("%s:%s", host.HostName, host.Port)
-	sshClient, err := ssh.Dial("tcp", serverAddr, sshConfig)
+	// 使用预先配置好的 ClientConfig 进行拨号
+	// 这样可以复用 known_hosts 验证等所有逻辑
+	serverAddr := fmt.Sprintf("%s:%s", connConfig.HostName, connConfig.Port)
+	sshClient, err := ssh.Dial("tcp", serverAddr, connConfig.ClientConfig)
 	if err != nil {
 		return "", fmt.Errorf("SSH dial to %s failed: %w", alias, err)
 	}
@@ -124,25 +109,15 @@ func (m *Manager) StartLocalForward(alias string, localPort int, remoteHost stri
 
 // StartDynamicForward 启动一个动态 SOCKS5 代理隧道
 func (m *Manager) StartDynamicForward(alias string, localPort int, password string) (string, error) {
-	host, err := m.sshManager.GetSSHHost(alias)
+	// 从 sshManager 获取完整的、经过验证的连接配置
+	connConfig, _, err := m.sshManager.GetConnectionConfig(alias, password)
 	if err != nil {
-		return "", fmt.Errorf("could not find host config for alias '%s': %w", alias, err)
+		return "", fmt.Errorf("failed to get SSH connection config for '%s': %w", alias, err)
 	}
 
-	authMethods, err := m.getSSHAuthMethods(host, password)
-	if err != nil {
-		return "", err
-	}
-
-	sshConfig := &ssh.ClientConfig{
-		User:            host.User,
-		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         10 * time.Second,
-	}
-
-	serverAddr := fmt.Sprintf("%s:%s", host.HostName, host.Port)
-	sshClient, err := ssh.Dial("tcp", serverAddr, sshConfig)
+	// 使用预先配置好的 ClientConfig 进行拨号
+	serverAddr := fmt.Sprintf("%s:%s", connConfig.HostName, connConfig.Port)
+	sshClient, err := ssh.Dial("tcp", serverAddr, connConfig.ClientConfig)
 	if err != nil {
 		return "", fmt.Errorf("SSH dial to %s failed: %w", alias, err)
 	}
@@ -177,46 +152,6 @@ func (m *Manager) StartDynamicForward(alias string, localPort int, password stri
 	go m.runTunnel(tunnel, ctx)
 
 	return tunnelID, nil
-}
-
-// getSSHAuthMethods 智能地构建认证方法列表
-func (m *Manager) getSSHAuthMethods(host *types.SSHHost, password string) ([]ssh.AuthMethod, error) {
-	var authMethods []ssh.AuthMethod
-
-	// 如果用户在本次操作中提供了密码，优先使用它
-	if password != "" {
-		authMethods = append(authMethods, ssh.Password(password))
-	}
-
-	// 尝试使用 IdentityFile (密钥文件)
-	if host.IdentityFile != "" {
-		// 展开路径中的 ~
-		identityFilePath := host.IdentityFile
-		if strings.HasPrefix(identityFilePath, "~") {
-			homeDir, err := os.UserHomeDir()
-			if err == nil {
-				identityFilePath = filepath.Join(homeDir, identityFilePath[1:])
-			}
-		}
-
-		key, err := os.ReadFile(identityFilePath)
-		if err == nil {
-			signer, err := ssh.ParsePrivateKey(key)
-			if err == nil {
-				authMethods = append(authMethods, ssh.PublicKeys(signer))
-			} else {
-				log.Printf("Warning: Failed to parse private key %s: %v", host.IdentityFile, err)
-			}
-		} else {
-			log.Printf("Warning: Failed to read private key file %s: %v", host.IdentityFile, err)
-		}
-	}
-
-	if len(authMethods) == 0 {
-		return nil, fmt.Errorf("no valid authentication method available (no password provided and key file is invalid or missing)")
-	}
-
-	return authMethods, nil
 }
 
 // runTunnel 是每个隧道的主循环，负责接受连接并转发数据
