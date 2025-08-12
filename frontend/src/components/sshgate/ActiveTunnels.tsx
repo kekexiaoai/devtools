@@ -80,11 +80,10 @@ export function ActiveTunnels() {
       const tunnelToStop = tunnels.find((t) => t.id === tunnelId)
       try {
         await StopForward(tunnelId)
-        // 重新获取列表保证数据一致性
-        await fetchTunnels()
+        // 刷新列表的逻辑现在由 'tunnels:changed' 事件监听器自动处理
         if (tunnelToStop) {
           toast.success('Tunnel Stoped', {
-            description: `Stopped forwarding form ${tunnelToStop.localAddr}`,
+            description: `Stopped forwarding from ${tunnelToStop.localAddr}`,
           })
         } else {
           toast.success('Tunnel stopped successfully.')
@@ -97,7 +96,7 @@ export function ActiveTunnels() {
         })
       }
     },
-    [fetchTunnels, showDialog, tunnels]
+    [showDialog, tunnels]
   )
 
   return (
