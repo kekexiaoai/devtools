@@ -2,6 +2,7 @@ package sshtunnel
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"log"
@@ -12,6 +13,15 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
+)
+
+// SOCKS5 protocol constants
+const (
+	socks5Version = 0x05
+	cmdConnect    = 0x01
+	atypIPv4      = 0x01
+	atypDomain    = 0x03
+	atypIPv6      = 0x04
 )
 
 // Tunnel 代表一个活动的端口转发隧道
@@ -148,13 +158,11 @@ func (m *Manager) StartDynamicForward(alias string, localPort int, password stri
 
 	log.Printf("Started dynamic forward tunnel %s: %s (SOCKS5 Proxy via %s)", tunnelID, tunnel.LocalAddr, alias)
 
-	// 动态转发的循环逻辑与本地转发相同，都是接受连接并处理
 	go m.runTunnel(tunnel, ctx)
 
 	return tunnelID, nil
 }
 
-// runTunnel 是每个隧道的主循环，负责接受连接并转发数据
 func (m *Manager) runTunnel(tunnel *Tunnel, ctx context.Context) {
 	defer m.cleanupTunnel(tunnel.ID) // 确保隧道退出时被清理
 
@@ -174,24 +182,24 @@ func (m *Manager) runTunnel(tunnel *Tunnel, ctx context.Context) {
 				return
 			}
 
-			// 为每一个进来的连接，在新的 Goroutine 中处理数据转发
-			go m.forwardConnection(localConn, tunnel)
+			// 根据隧道类型，分派到不同的处理器
+			switch tunnel.Type {
+			case "local":
+				go m.forwardLocalConnection(localConn, tunnel)
+			case "dynamic":
+				go m.handleSocks5Connection(localConn, tunnel)
+			default:
+				log.Printf("Unknown tunnel type '%s' for tunnel ID %s. Closing connection.", tunnel.Type, tunnel.ID)
+				localConn.Close()
+			}
 		}
 	}
 }
 
-// forwardConnection 在本地连接和远程SSH通道之间双向复制数据
-func (m *Manager) forwardConnection(localConn net.Conn, tunnel *Tunnel) {
+// forwardLocalConnection 在本地连接和远程SSH通道之间为本地转发(-L)双向复制数据
+func (m *Manager) forwardLocalConnection(localConn net.Conn, tunnel *Tunnel) {
 	defer localConn.Close()
 
-	// 对于动态转发，我们不需要连接到固定的 remoteAddr
-	// ssh.Client 的 Dial 方法本身就能处理 SOCKS 代理的请求，但这里我们是作为 SOCKS 服务端
-	// 我们需要将连接直接交给 sshClient 处理，让它来解析 SOCKS 协议并转发
-	// 但 golang.org/x/crypto/ssh 本身不直接提供 SOCKS 服务端实现。
-	// 这里的 runTunnel/forwardConnection 模型对于 -D 来说是不完整的。
-	// 一个完整的实现需要一个 SOCKS5 库来处理协议握手，然后使用 sshClient.Dial 来建立到最终目标的连接。
-	// 为了演示，我们暂时复用 -L 的转发逻辑，但这在实际中对 -D 无效。
-	// 正确的实现需要替换 `forwardConnection` 的内容。
 	// 通过已建立的 SSH 客户端，连接到最终的目标服务器
 	remoteConn, err := tunnel.sshClient.Dial("tcp", tunnel.RemoteAddr)
 	if err != nil {
@@ -202,22 +210,132 @@ func (m *Manager) forwardConnection(localConn net.Conn, tunnel *Tunnel) {
 
 	log.Printf("Tunnel %s: Forwarding connection for %s", tunnel.ID, localConn.RemoteAddr())
 
-	// 使用两个 Goroutine，双向地、并发地复制数据
+	m.proxyData(localConn, remoteConn)
+}
+
+// handleSocks5Connection 处理一个 SOCKS5 代理请求
+func (m *Manager) handleSocks5Connection(localConn net.Conn, tunnel *Tunnel) {
+	defer localConn.Close()
+
+	// 1. SOCKS5 Greeting
+	buf := make([]byte, 256)
+	// Read VER, NMETHODS
+	if _, err := io.ReadFull(localConn, buf[:2]); err != nil {
+		log.Printf("SOCKS5: failed to read greeting: %v", err)
+		return
+	}
+
+	ver, nMethods := buf[0], buf[1]
+	if ver != socks5Version {
+		log.Printf("SOCKS5: unsupported version: %d", ver)
+		return
+	}
+
+	// Read METHODS
+	if _, err := io.ReadFull(localConn, buf[:nMethods]); err != nil {
+		log.Printf("SOCKS5: failed to read methods: %v", err)
+		return
+	}
+
+	// 2. Server Choice - We only support NO AUTHENTICATION REQUIRED (0x00)
+	if _, err := localConn.Write([]byte{socks5Version, 0x00}); err != nil {
+		log.Printf("SOCKS5: failed to write server choice: %v", err)
+		return
+	}
+
+	// 3. Client Request
+	// Read VER, CMD, RSV, ATYP
+	if _, err := io.ReadFull(localConn, buf[:4]); err != nil {
+		log.Printf("SOCKS5: failed to read request header: %v", err)
+		return
+	}
+
+	if buf[0] != socks5Version {
+		log.Printf("SOCKS5: unsupported version in request: %d", buf[0])
+		return
+	}
+	if buf[1] != cmdConnect {
+		log.Printf("SOCKS5: unsupported command: %d", buf[1])
+		localConn.Write([]byte{0x05, 0x07, 0x00, 0x01, 0, 0, 0, 0, 0, 0}) // Command not supported
+		return
+	}
+
+	var host string
+	switch buf[3] { // ATYP
+	case atypIPv4:
+		if _, err := io.ReadFull(localConn, buf[:4]); err != nil {
+			log.Printf("SOCKS5: failed to read IPv4 address: %v", err)
+			return
+		}
+		host = net.IP(buf[:4]).String()
+	case atypDomain:
+		if _, err := io.ReadFull(localConn, buf[:1]); err != nil {
+			log.Printf("SOCKS5: failed to read domain length: %v", err)
+			return
+		}
+		domainLen := buf[0]
+		if _, err := io.ReadFull(localConn, buf[:domainLen]); err != nil {
+			log.Printf("SOCKS5: failed to read domain: %v", err)
+			return
+		}
+		host = string(buf[:domainLen])
+	case atypIPv6:
+		if _, err := io.ReadFull(localConn, buf[:16]); err != nil {
+			log.Printf("SOCKS5: failed to read IPv6 address: %v", err)
+			return
+		}
+		host = net.IP(buf[:16]).String()
+	default:
+		log.Printf("SOCKS5: unsupported address type: %d", buf[3])
+		localConn.Write([]byte{0x05, 0x08, 0x00, 0x01, 0, 0, 0, 0, 0, 0}) // Address type not supported
+		return
+	}
+
+	// Read port
+	if _, err := io.ReadFull(localConn, buf[:2]); err != nil {
+		log.Printf("SOCKS5: failed to read port: %v", err)
+		return
+	}
+	port := binary.BigEndian.Uint16(buf[:2])
+	destAddr := fmt.Sprintf("%s:%d", host, port)
+
+	// 4. Dial through SSH tunnel
+	remoteConn, err := tunnel.sshClient.Dial("tcp", destAddr)
+	if err != nil {
+		log.Printf("SOCKS5: failed to dial remote addr %s via tunnel %s: %v", destAddr, tunnel.ID, err)
+		localConn.Write([]byte{0x05, 0x04, 0x00, 0x01, 0, 0, 0, 0, 0, 0}) // Host unreachable
+		return
+	}
+	defer remoteConn.Close()
+
+	// 5. Server Reply - Success
+	if _, err := localConn.Write([]byte{0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0}); err != nil {
+		log.Printf("SOCKS5: failed to write success reply: %v", err)
+		return
+	}
+
+	log.Printf("Tunnel %s: SOCKS5 connection established for %s to %s", tunnel.ID, localConn.RemoteAddr(), destAddr)
+
+	// 6. Forward data
+	m.proxyData(localConn, remoteConn)
+}
+
+// proxyData 在两个连接之间双向地、并发地复制数据
+func (m *Manager) proxyData(conn1, conn2 net.Conn) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
 	copier := func(dst io.Writer, src io.Reader) {
 		defer wg.Done()
 		if _, err := io.Copy(dst, src); err != nil {
-			// 正常关闭连接时也会触发 EOF 错误，我们不关心这个
 			if err != io.EOF {
 				log.Printf("io.Copy error: %v", err)
 			}
 		}
 	}
 
-	go copier(remoteConn, localConn)
-	go copier(localConn, remoteConn)
+	go copier(conn1, conn2)
+	go copier(conn2, conn1)
 
 	wg.Wait() // 等待两个方向的数据复制都完成
 }
