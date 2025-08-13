@@ -76,31 +76,26 @@ func NewManager(ctx context.Context, sshMgr *sshmanager.Manager) *Manager {
 	}
 }
 
-// --- 核心功能实现 - 本地端口转发 (-L) ---
-
-// StartLocalForward 启动一个本地端口转发隧道
-func (m *Manager) StartLocalForward(alias string, localPort int, remoteHost string, remotePort int, password string, gatewayPorts bool) (string, error) {
-	// 从 sshManager 获取完整的、经过验证的连接配置
+// createTunnel is a generic helper function to set up the common parts of a tunnel.
+func (m *Manager) createTunnel(alias string, localPort int, password string, gatewayPorts bool, tunnelType, remoteAddr string) (string, error) {
+	// 1. Get connection config
 	connConfig, _, err := m.sshManager.GetConnectionConfig(alias, password)
 	if err != nil {
-		// 这个错误可能来自密码验证、主机密钥验证等，直接返回给前端
 		return "", fmt.Errorf("failed to get SSH connection config for '%s': %w", alias, err)
 	}
 
-	// 使用预先配置好的 ClientConfig 进行拨号
-	// 这样可以复用 known_hosts 验证等所有逻辑
+	// 2. Dial SSH server
 	serverAddr := fmt.Sprintf("%s:%s", connConfig.HostName, connConfig.Port)
 	sshClient, err := ssh.Dial("tcp", serverAddr, connConfig.ClientConfig)
 	if err != nil {
 		return "", fmt.Errorf("SSH dial to %s failed: %w", alias, err)
 	}
 
-	// 根据 gatewayPorts 决定绑定的地址
+	// 3. Create local listener
 	bindAddr := "127.0.0.1"
 	if gatewayPorts {
 		bindAddr = "0.0.0.0"
 	}
-	// 在本地启动一个 TCP 监听器
 	localAddr := fmt.Sprintf("%s:%d", bindAddr, localPort)
 	listener, err := net.Listen("tcp", localAddr)
 	if err != nil {
@@ -108,15 +103,15 @@ func (m *Manager) StartLocalForward(alias string, localPort int, remoteHost stri
 		return "", fmt.Errorf("failed to listen on local port %d: %w", localPort, err)
 	}
 
-	// 创建并注册我们的隧道
+	// 4. Create and register tunnel
 	tunnelID := uuid.NewString()
 	ctx, cancel := context.WithCancel(m.appCtx)
 	tunnel := &Tunnel{
 		ID:         tunnelID,
 		Alias:      alias,
-		Type:       "local", // -L
+		Type:       tunnelType,
 		LocalAddr:  localAddr,
-		RemoteAddr: fmt.Sprintf("%s:%d", remoteHost, remotePort),
+		RemoteAddr: remoteAddr,
 		sshClient:  sshClient,
 		listener:   listener,
 		cancelFunc: cancel,
@@ -126,84 +121,33 @@ func (m *Manager) StartLocalForward(alias string, localPort int, remoteHost stri
 	m.activeTunnels[tunnelID] = tunnel
 	m.mu.Unlock()
 
-	log.Printf("Started local forward tunnel %s: %s -> %s (via %s)", tunnelID, tunnel.LocalAddr, tunnel.RemoteAddr, alias)
+	log.Printf("Started %s forward tunnel %s: %s -> %s (via %s)", tunnelType, tunnelID, tunnel.LocalAddr, tunnel.RemoteAddr, alias)
 
-	// 在一个新的 Goroutine 中启动“数据转发循环”，防止阻塞
+	// 5. Start goroutines
 	go m.runTunnel(tunnel, ctx)
-
-	// 启动一个独立的 Goroutine 来监控底层 SSH 连接的健康状况。
-	// 当连接因任何原因（网络问题、服务器关闭等）断开时，Wait() 会返回。
 	go func() {
 		err := tunnel.sshClient.Wait()
 		log.Printf("SSH connection for tunnel %s (alias: %s) closed: %v. Initiating cleanup.", tunnel.ID, tunnel.Alias, err)
-		// 连接断开后，我们调用 cancelFunc 来优雅地关闭 runTunnel 循环，
-		// 这会触发 defer 中的 cleanupTunnel，从而清理所有资源。
 		tunnel.cancelFunc()
 	}()
 
 	return tunnelID, nil
 }
 
+// --- 核心功能实现 - 本地端口转发 (-L) ---
+
+// StartLocalForward 启动一个本地端口转发隧道
+func (m *Manager) StartLocalForward(alias string, localPort int, remoteHost string, remotePort int, password string, gatewayPorts bool) (string, error) {
+	remoteAddr := fmt.Sprintf("%s:%d", remoteHost, remotePort)
+	return m.createTunnel(alias, localPort, password, gatewayPorts, "local", remoteAddr)
+}
+
 // --- 核心功能实现 - 动态端口转发 (-D) ---
 
 // StartDynamicForward 启动一个动态 SOCKS5 代理隧道
 func (m *Manager) StartDynamicForward(alias string, localPort int, password string, gatewayPorts bool) (string, error) {
-	// 从 sshManager 获取完整的、经过验证的连接配置
-	connConfig, _, err := m.sshManager.GetConnectionConfig(alias, password)
-	if err != nil {
-		return "", fmt.Errorf("failed to get SSH connection config for '%s': %w", alias, err)
-	}
-
-	// 使用预先配置好的 ClientConfig 进行拨号
-	serverAddr := fmt.Sprintf("%s:%s", connConfig.HostName, connConfig.Port)
-	sshClient, err := ssh.Dial("tcp", serverAddr, connConfig.ClientConfig)
-	if err != nil {
-		return "", fmt.Errorf("SSH dial to %s failed: %w", alias, err)
-	}
-
-	// 根据 gatewayPorts 决定绑定的地址
-	bindAddr := "127.0.0.1"
-	if gatewayPorts {
-		bindAddr = "0.0.0.0"
-	}
-	localAddr := fmt.Sprintf("%s:%d", bindAddr, localPort)
-	listener, err := net.Listen("tcp", localAddr)
-	if err != nil {
-		sshClient.Close()
-		return "", fmt.Errorf("failed to listen on local port %d: %w", localPort, err)
-	}
-
-	tunnelID := uuid.NewString()
-	ctx, cancel := context.WithCancel(m.appCtx)
-	tunnel := &Tunnel{
-		ID:         tunnelID,
-		Alias:      alias,
-		Type:       "dynamic", // -D
-		LocalAddr:  localAddr,
-		RemoteAddr: "SOCKS5 Proxy", // 动态转发没有固定的远程地址
-		sshClient:  sshClient,
-		listener:   listener,
-		cancelFunc: cancel,
-	}
-
-	m.mu.Lock()
-	m.activeTunnels[tunnelID] = tunnel
-	m.mu.Unlock()
-
-	log.Printf("Started dynamic forward tunnel %s: %s (SOCKS5 Proxy via %s)", tunnelID, tunnel.LocalAddr, alias)
-
-	go m.runTunnel(tunnel, ctx)
-
-	// 同样，为动态转发隧道也启动一个健康监控 Goroutine。
-	go func() {
-		err := tunnel.sshClient.Wait()
-		log.Printf("SSH connection for tunnel %s (alias: %s) closed: %v. Initiating cleanup.", tunnel.ID, tunnel.Alias, err)
-		// 连接断开后，我们调用 cancelFunc 来优雅地关闭 runTunnel 循环，
-		// 这会触发 defer 中的 cleanupTunnel，从而清理所有资源。
-		tunnel.cancelFunc()
-	}()
-
-	return tunnelID, nil
+	remoteAddr := "SOCKS5 Proxy" // 动态转发没有固定的远程地址
+	return m.createTunnel(alias, localPort, password, gatewayPorts, "dynamic", remoteAddr)
 }
 
 func (m *Manager) runTunnel(tunnel *Tunnel, ctx context.Context) {
@@ -404,20 +348,26 @@ func (m *Manager) proxyData(conn1, conn2 net.Conn) {
 	wg.Add(2)
 	log.Printf("Proxying data between %s and %s", conn1.RemoteAddr(), conn2.RemoteAddr())
 
-	copier := func(dst io.Writer, src io.Reader) {
-		defer utils.Recover(log.Default())
+	copier := func(dst net.Conn, src net.Conn) {
 		defer wg.Done()
 		if _, err := io.Copy(dst, src); err != nil {
-			if err != io.EOF {
-				log.Printf("io.Copy error: %v", err)
+			// io.EOF is an expected and normal condition when a connection is closed by the other side.
+			if err == io.EOF {
+				log.Printf("io.Copy completed: %s -> %s (EOF)", src.RemoteAddr(), dst.RemoteAddr())
+			} else {
+				log.Printf("io.Copy error on %s -> %s: %v", src.RemoteAddr(), dst.RemoteAddr(), err)
 			}
 		}
 	}
 
-	go copier(conn1, conn2)
-	go copier(conn2, conn1)
+	utils.SafeGo(log.Default(), func() {
+		copier(conn1, conn2)
+	})
+	utils.SafeGo(log.Default(), func() {
+		copier(conn2, conn1)
+	})
 
-	wg.Wait() // 等待两个方向的数据复制都完成
+	wg.Wait()
 }
 
 // StopForward 停止一个正在运行的隧道
