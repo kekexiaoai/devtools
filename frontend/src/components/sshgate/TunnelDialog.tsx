@@ -105,7 +105,7 @@ function HelpSheet({
 
   return (
     <Sheet open={!!topic} onOpenChange={onOpenChange}>
-      <SheetContent>
+      <SheetContent onOpenAutoFocus={(e) => e.preventDefault()}>
         <SheetHeader>
           <SheetTitle>{content?.title}</SheetTitle>
         </SheetHeader>
