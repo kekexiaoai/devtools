@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"devtools/backend/internal/sshmanager"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
@@ -112,6 +113,16 @@ func (m *Manager) StartLocalForward(alias string, localPort int, remoteHost stri
 	// 在一个新的 Goroutine 中启动“数据转发循环”，防止阻塞
 	go m.runTunnel(tunnel, ctx)
 
+	// 启动一个独立的 Goroutine 来监控底层 SSH 连接的健康状况。
+	// 当连接因任何原因（网络问题、服务器关闭等）断开时，Wait() 会返回。
+	go func() {
+		err := tunnel.sshClient.Wait()
+		log.Printf("SSH connection for tunnel %s (alias: %s) closed: %v. Initiating cleanup.", tunnel.ID, tunnel.Alias, err)
+		// 连接断开后，我们调用 cancelFunc 来优雅地关闭 runTunnel 循环，
+		// 这会触发 defer 中的 cleanupTunnel，从而清理所有资源。
+		tunnel.cancelFunc()
+	}()
+
 	return tunnelID, nil
 }
 
@@ -159,6 +170,15 @@ func (m *Manager) StartDynamicForward(alias string, localPort int, password stri
 	log.Printf("Started dynamic forward tunnel %s: %s (SOCKS5 Proxy via %s)", tunnelID, tunnel.LocalAddr, alias)
 
 	go m.runTunnel(tunnel, ctx)
+
+	// 同样，为动态转发隧道也启动一个健康监控 Goroutine。
+	go func() {
+		err := tunnel.sshClient.Wait()
+		log.Printf("SSH connection for tunnel %s (alias: %s) closed: %v. Initiating cleanup.", tunnel.ID, tunnel.Alias, err)
+		// 连接断开后，我们调用 cancelFunc 来优雅地关闭 runTunnel 循环，
+		// 这会触发 defer 中的 cleanupTunnel，从而清理所有资源。
+		tunnel.cancelFunc()
+	}()
 
 	return tunnelID, nil
 }
@@ -365,6 +385,8 @@ func (m *Manager) cleanupTunnel(tunnelID string) {
 		tunnel.sshClient.Close()
 		delete(m.activeTunnels, tunnelID)
 		log.Printf("Cleaned up tunnel %s", tunnelID)
+		// 隧道状态发生变化，通知前端刷新列表
+		runtime.EventsEmit(m.appCtx, "tunnels:changed")
 	}
 }
 
