@@ -20,10 +20,22 @@ import (
 // SOCKS5 protocol constants
 const (
 	socks5Version = 0x05
-	cmdConnect    = 0x01
-	atypIPv4      = 0x01
-	atypDomain    = 0x03
-	atypIPv6      = 0x04
+
+	// Commands
+	cmdConnect      = 0x01
+	cmdBind         = 0x02
+	cmdUDPAssociate = 0x03
+
+	// Address types
+	atypIPv4   = 0x01
+	atypDomain = 0x03
+	atypIPv6   = 0x04
+
+	// Reply codes
+	repSucceeded               = 0x00
+	repHostUnreachable         = 0x04
+	repCommandNotSupported     = 0x07
+	repAddressTypeNotSupported = 0x08
 )
 
 // Tunnel 代表一个活动的端口转发隧道
@@ -300,16 +312,20 @@ func (m *Manager) handleSocks5Connection(localConn net.Conn, tunnel *Tunnel) {
 		return
 	}
 
-	if buf[0] != socks5Version {
-		log.Printf("SOCKS5: unsupported version in request: %d", buf[0])
-		return
-	}
-	if buf[1] != cmdConnect {
-		log.Printf("SOCKS5: unsupported command: %d", buf[1])
-		localConn.Write([]byte{0x05, 0x07, 0x00, 0x01, 0, 0, 0, 0, 0, 0}) // Command not supported
+	ver, cmd := buf[0], buf[1]
+	if ver != socks5Version {
+		log.Printf("SOCKS5: unsupported version in request: %d", ver)
 		return
 	}
 
+	// We only support the CONNECT command. For all others, we reply with "command not supported".
+	if cmd != cmdConnect {
+		log.Printf("SOCKS5: unsupported command received: %d. Only CONNECT is supported.", cmd)
+		sendSocks5ErrorReply(localConn, repCommandNotSupported)
+		return
+	}
+
+	// --- CONNECT command logic starts here ---
 	var host string
 	switch buf[3] { // ATYP
 	case atypIPv4:
@@ -337,7 +353,7 @@ func (m *Manager) handleSocks5Connection(localConn net.Conn, tunnel *Tunnel) {
 		host = net.IP(buf[:16]).String()
 	default:
 		log.Printf("SOCKS5: unsupported address type: %d", buf[3])
-		localConn.Write([]byte{0x05, 0x08, 0x00, 0x01, 0, 0, 0, 0, 0, 0}) // Address type not supported
+		sendSocks5ErrorReply(localConn, repAddressTypeNotSupported)
 		return
 	}
 
@@ -353,13 +369,15 @@ func (m *Manager) handleSocks5Connection(localConn net.Conn, tunnel *Tunnel) {
 	remoteConn, err := tunnel.sshClient.Dial("tcp", destAddr)
 	if err != nil {
 		log.Printf("SOCKS5: failed to dial remote addr %s via tunnel %s: %v", destAddr, tunnel.ID, err)
-		localConn.Write([]byte{0x05, 0x04, 0x00, 0x01, 0, 0, 0, 0, 0, 0}) // Host unreachable
+		sendSocks5ErrorReply(localConn, repHostUnreachable)
 		return
 	}
 	defer remoteConn.Close()
 
 	// 5. Server Reply - Success
-	if _, err := localConn.Write([]byte{0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0}); err != nil {
+	// The BND.ADDR and BND.PORT should be the address and port of the server-side of the connection.
+	// For simplicity, we send back 0.0.0.0:0 as many clients ignore this field on success.
+	if _, err := localConn.Write([]byte{socks5Version, repSucceeded, 0x00, atypIPv4, 0, 0, 0, 0, 0, 0}); err != nil {
 		log.Printf("SOCKS5: failed to write success reply: %v", err)
 		return
 	}
@@ -368,6 +386,16 @@ func (m *Manager) handleSocks5Connection(localConn net.Conn, tunnel *Tunnel) {
 
 	// 6. Forward data
 	m.proxyData(localConn, remoteConn)
+}
+
+// sendSocks5ErrorReply sends a SOCKS5 error reply with a given reply code.
+func sendSocks5ErrorReply(w io.Writer, rep byte) {
+	// VER, REP, RSV, ATYP, BND.ADDR, BND.PORT
+	// For errors, BND.ADDR and BND.PORT can be zero.
+	_, err := w.Write([]byte{socks5Version, rep, 0x00, atypIPv4, 0, 0, 0, 0, 0, 0})
+	if err != nil {
+		log.Printf("SOCKS5: failed to write error reply: %v", err)
+	}
 }
 
 // proxyData 在两个连接之间双向地、并发地复制数据
