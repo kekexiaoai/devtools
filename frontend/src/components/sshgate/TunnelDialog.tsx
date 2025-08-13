@@ -27,7 +27,6 @@ import {
   Sheet,
   SheetContent,
 } from '@/components/ui/sheet'
-import { EventsEmit } from '@wailsjs/runtime/runtime'
 import { useSshConnection } from '@/hooks/useSshConnection'
 
 interface TunnelDialProps {
@@ -200,9 +199,6 @@ export function TunnelDial(props: TunnelDialProps) {
         gatewayPorts
       )
 
-      // 发送全局事件，通知其他组件（如 ActiveTunnels）数据已变更
-      EventsEmit('tunnels:changed')
-
       onOpenChange(false) // 关闭模态框
       const bindAddr = gatewayPorts ? '0.0.0.0' : '127.0.0.1'
       logger.info(
@@ -253,9 +249,6 @@ export function TunnelDial(props: TunnelDialProps) {
         password,
         gatewayPorts
       )
-      // 发送全局事件，通知其他组件（如 ActiveTunnels）数据已变更
-      EventsEmit('tunnels:changed')
-
       onOpenChange(false) // 成功后关闭模态框
 
       const bindAddr = gatewayPorts ? '0.0.0.0' : '127.0.0.1'
