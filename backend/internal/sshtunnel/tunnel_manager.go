@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 
 	"devtools/backend/internal/sshmanager"
 	"devtools/backend/pkg/utils"
@@ -65,14 +66,20 @@ type Manager struct {
 	mu            sync.RWMutex
 	sshManager    *sshmanager.Manager // 依赖我们已有的 SSH 管理器来获取配置
 	appCtx        context.Context
+
+	// For debouncing frontend events
+	eventDebouncer        *time.Timer
+	eventDebounceDuration time.Duration
+	eventMu               sync.Mutex
 }
 
 // NewManager 是隧道管理器的构造函数
 func NewManager(ctx context.Context, sshMgr *sshmanager.Manager) *Manager {
 	return &Manager{
-		activeTunnels: make(map[string]*Tunnel),
-		sshManager:    sshMgr,
-		appCtx:        ctx,
+		activeTunnels:         make(map[string]*Tunnel),
+		sshManager:            sshMgr,
+		appCtx:                ctx,
+		eventDebounceDuration: 200 * time.Millisecond, // A sensible default
 	}
 }
 
@@ -130,6 +137,9 @@ func (m *Manager) createTunnel(alias string, localPort int, password string, gat
 		log.Printf("SSH connection for tunnel %s (alias: %s) closed: %v. Initiating cleanup.", tunnel.ID, tunnel.Alias, err)
 		tunnel.cancelFunc()
 	}()
+
+	// Notify frontend about the change
+	m.debounceChangeEvent()
 
 	return tunnelID, nil
 }
@@ -419,13 +429,29 @@ func (m *Manager) cleanupTunnel(tunnelID string) {
 	// Now that resources are closed, remove the tunnel from the active list.
 	delete(m.activeTunnels, tunnelID)
 	log.Printf("Cleaned up tunnel %s", tunnelID)
-	// Tunnel status has changed, notify the frontend to refresh the list.
-	// This is also wrapped for safety, although panics here are highly unlikely.
-	func() {
-		defer utils.Recover(log.Default())
-		runtime.EventsEmit(m.appCtx, "tunnels:changed")
-		log.Printf("Tunnel %s: Frontend event 'tunnels:changed' emitted successfully.", tunnelID)
-	}()
+	// Use a debouncer to avoid event storms if multiple tunnels close at once.
+	m.debounceChangeEvent()
+}
+
+// debounceChangeEvent schedules a "tunnels:changed" event to be sent to the frontend.
+// It waits for a quiet period before sending the event to avoid event storms.
+func (m *Manager) debounceChangeEvent() {
+	m.eventMu.Lock()
+	defer m.eventMu.Unlock()
+
+	// If a timer is already active, reset it to ensure the event is sent after the *last* change.
+	if m.eventDebouncer != nil {
+		m.eventDebouncer.Stop()
+	}
+
+	// Set a new timer that will fire after the quiet period.
+	m.eventDebouncer = time.AfterFunc(m.eventDebounceDuration, func() {
+		log.Println("Debouncer fired: emitting 'tunnels:changed' event to frontend.")
+		// This runs in a new goroutine, so we wrap it for safety.
+		utils.SafeGo(log.Default(), func() {
+			runtime.EventsEmit(m.appCtx, "tunnels:changed")
+		})
+	})
 }
 
 // GetActiveTunnels 返回所有活动隧道的简化信息
