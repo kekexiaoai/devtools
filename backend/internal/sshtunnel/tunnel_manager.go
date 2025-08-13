@@ -10,9 +10,9 @@ import (
 	"sync"
 
 	"devtools/backend/internal/sshmanager"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/google/uuid"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -195,33 +195,44 @@ func (m *Manager) StartDynamicForward(alias string, localPort int, password stri
 
 func (m *Manager) runTunnel(tunnel *Tunnel, ctx context.Context) {
 	defer m.cleanupTunnel(tunnel.ID) // 确保隧道退出时被清理
+	log.Printf("Tunnel %s: runTunnel loop started.", tunnel.ID)
+
+	// 启动一个 goroutine，它的唯一作用是在 context 被取消时关闭 listener。
+	// 这样可以解除下面 listener.Accept() 的阻塞。
+	go func() {
+		<-ctx.Done()
+		log.Printf("Tunnel %s: Context cancelled, closing listener to unblock Accept().", tunnel.ID)
+		tunnel.listener.Close()
+	}()
 
 	for {
-		select {
-		case <-ctx.Done(): // 如果隧道被取消，则退出
-			return
-		default:
-			// 等待并接受来自本地的连接
-			localConn, err := tunnel.listener.Accept()
-			if err != nil {
-				// 如果监听器被关闭，这是一个正常的退出信号
-				if opErr, ok := err.(*net.OpError); ok && opErr.Err.Error() == "use of closed network connection" {
-					return
-				}
-				log.Printf("Tunnel %s failed to accept connection: %v", tunnel.ID, err)
+		// 等待并接受来自本地的连接
+		localConn, err := tunnel.listener.Accept()
+		if err != nil {
+			// 当 listener 被关闭时，Accept() 会返回一个错误。
+			// 我们检查 context 是否已 "done" 来判断这是不是一次正常的关闭。
+			select {
+			case <-ctx.Done():
+				// context 被取消，是预期的关闭流程。
+				log.Printf("Tunnel %s: Listener closed as part of graceful shutdown.", tunnel.ID)
+				return
+			default:
+				// context 没有被取消，这是一个意外的错误。
+				log.Printf("Tunnel %s: Error accepting connection: %v. Shutting down.", tunnel.ID, err)
 				return
 			}
+		}
 
-			// 根据隧道类型，分派到不同的处理器
-			switch tunnel.Type {
-			case "local":
-				go m.forwardLocalConnection(localConn, tunnel)
-			case "dynamic":
-				go m.handleSocks5Connection(localConn, tunnel)
-			default:
-				log.Printf("Unknown tunnel type '%s' for tunnel ID %s. Closing connection.", tunnel.Type, tunnel.ID)
-				localConn.Close()
-			}
+		log.Printf("Tunnel %s: Accepted new local connection from %s", tunnel.ID, localConn.RemoteAddr())
+		// 根据隧道类型，分派到不同的处理器
+		switch tunnel.Type {
+		case "local":
+			go m.forwardLocalConnection(localConn, tunnel)
+		case "dynamic":
+			go m.handleSocks5Connection(localConn, tunnel)
+		default:
+			log.Printf("Unknown tunnel type '%s' for tunnel ID %s. Closing connection.", tunnel.Type, tunnel.ID)
+			localConn.Close()
 		}
 	}
 }
@@ -229,6 +240,7 @@ func (m *Manager) runTunnel(tunnel *Tunnel, ctx context.Context) {
 // forwardLocalConnection 在本地连接和远程SSH通道之间为本地转发(-L)双向复制数据
 func (m *Manager) forwardLocalConnection(localConn net.Conn, tunnel *Tunnel) {
 	defer localConn.Close()
+	log.Printf("Tunnel %s: Starting forwardLocalConnection for %s", tunnel.ID, localConn.RemoteAddr())
 
 	// 通过已建立的 SSH 客户端，连接到最终的目标服务器
 	remoteConn, err := tunnel.sshClient.Dial("tcp", tunnel.RemoteAddr)
@@ -246,6 +258,7 @@ func (m *Manager) forwardLocalConnection(localConn net.Conn, tunnel *Tunnel) {
 // handleSocks5Connection 处理一个 SOCKS5 代理请求
 func (m *Manager) handleSocks5Connection(localConn net.Conn, tunnel *Tunnel) {
 	defer localConn.Close()
+	log.Printf("Tunnel %s: Starting handleSocks5Connection for %s", tunnel.ID, localConn.RemoteAddr())
 
 	// 1. SOCKS5 Greeting
 	buf := make([]byte, 256)
@@ -354,6 +367,7 @@ func (m *Manager) handleSocks5Connection(localConn net.Conn, tunnel *Tunnel) {
 func (m *Manager) proxyData(conn1, conn2 net.Conn) {
 	var wg sync.WaitGroup
 	wg.Add(2)
+	log.Printf("Proxying data between %s and %s", conn1.RemoteAddr(), conn2.RemoteAddr())
 
 	copier := func(dst io.Writer, src io.Reader) {
 		defer wg.Done()
@@ -379,7 +393,7 @@ func (m *Manager) StopForward(tunnelID string) error {
 	if !ok {
 		return fmt.Errorf("tunnel with ID %s not found", tunnelID)
 	}
-	tunnel.cancelFunc() // 发出取消信号
+	tunnel.cancelFunc() // 发出取消信号，将触发 runTunnel 的优雅退出
 
 	log.Printf("Stopping tunnel %s: %s -> %s", tunnelID, tunnel.LocalAddr, tunnel.RemoteAddr)
 	return nil
@@ -389,6 +403,7 @@ func (m *Manager) StopForward(tunnelID string) error {
 func (m *Manager) cleanupTunnel(tunnelID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	log.Printf("Starting cleanup for tunnel %s...", tunnelID)
 
 	if tunnel, ok := m.activeTunnels[tunnelID]; ok {
 		tunnel.listener.Close()
