@@ -66,7 +66,7 @@ func NewManager(ctx context.Context, sshMgr *sshmanager.Manager) *Manager {
 // --- 核心功能实现 - 本地端口转发 (-L) ---
 
 // StartLocalForward 启动一个本地端口转发隧道
-func (m *Manager) StartLocalForward(alias string, localPort int, remoteHost string, remotePort int, password string) (string, error) {
+func (m *Manager) StartLocalForward(alias string, localPort int, remoteHost string, remotePort int, password string, gatewayPorts bool) (string, error) {
 	// 从 sshManager 获取完整的、经过验证的连接配置
 	connConfig, _, err := m.sshManager.GetConnectionConfig(alias, password)
 	if err != nil {
@@ -82,8 +82,13 @@ func (m *Manager) StartLocalForward(alias string, localPort int, remoteHost stri
 		return "", fmt.Errorf("SSH dial to %s failed: %w", alias, err)
 	}
 
+	// 根据 gatewayPorts 决定绑定的地址
+	bindAddr := "127.0.0.1"
+	if gatewayPorts {
+		bindAddr = "0.0.0.0"
+	}
 	// 在本地启动一个 TCP 监听器
-	localAddr := fmt.Sprintf("127.0.0.1:%d", localPort)
+	localAddr := fmt.Sprintf("%s:%d", bindAddr, localPort)
 	listener, err := net.Listen("tcp", localAddr)
 	if err != nil {
 		sshClient.Close()
@@ -129,7 +134,7 @@ func (m *Manager) StartLocalForward(alias string, localPort int, remoteHost stri
 // --- 核心功能实现 - 动态端口转发 (-D) ---
 
 // StartDynamicForward 启动一个动态 SOCKS5 代理隧道
-func (m *Manager) StartDynamicForward(alias string, localPort int, password string) (string, error) {
+func (m *Manager) StartDynamicForward(alias string, localPort int, password string, gatewayPorts bool) (string, error) {
 	// 从 sshManager 获取完整的、经过验证的连接配置
 	connConfig, _, err := m.sshManager.GetConnectionConfig(alias, password)
 	if err != nil {
@@ -143,7 +148,12 @@ func (m *Manager) StartDynamicForward(alias string, localPort int, password stri
 		return "", fmt.Errorf("SSH dial to %s failed: %w", alias, err)
 	}
 
-	localAddr := fmt.Sprintf("127.0.0.1:%d", localPort)
+	// 根据 gatewayPorts 决定绑定的地址
+	bindAddr := "127.0.0.1"
+	if gatewayPorts {
+		bindAddr = "0.0.0.0"
+	}
+	localAddr := fmt.Sprintf("%s:%d", bindAddr, localPort)
 	listener, err := net.Listen("tcp", localAddr)
 	if err != nil {
 		sshClient.Close()

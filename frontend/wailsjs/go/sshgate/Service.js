@@ -50,12 +50,12 @@ export function SaveSSHHost(arg1) {
   return window['go']['sshgate']['Service']['SaveSSHHost'](arg1);
 }
 
-export function StartDynamicForward(arg1, arg2, arg3) {
-  return window['go']['sshgate']['Service']['StartDynamicForward'](arg1, arg2, arg3);
+export function StartDynamicForward(arg1, arg2, arg3, arg4) {
+  return window['go']['sshgate']['Service']['StartDynamicForward'](arg1, arg2, arg3, arg4);
 }
 
-export function StartLocalForward(arg1, arg2, arg3, arg4, arg5) {
-  return window['go']['sshgate']['Service']['StartLocalForward'](arg1, arg2, arg3, arg4, arg5);
+export function StartLocalForward(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['sshgate']['Service']['StartLocalForward'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
 export function StopForward(arg1) {

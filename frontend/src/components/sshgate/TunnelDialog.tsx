@@ -19,6 +19,7 @@ import { Label } from '../ui/label'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { Info, Loader2 } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 import { appLogger } from '@/lib/logger'
 import {
   SheetHeader,
@@ -137,6 +138,7 @@ export function TunnelDial(props: TunnelDialProps) {
 
   const [activeTab, setActiveTab] = useState('local')
   const [isStartingTunnel, setIsStartingTunnel] = useState(false)
+  const [gatewayPorts, setGatewayPorts] = useState(false)
 
   // State to control the help sheet
   const [helpTopic, setHelpTopic] = useState<HelpTopic | null>(null)
@@ -194,18 +196,20 @@ export function TunnelDial(props: TunnelDialProps) {
         localPortNum,
         localForwardForm.remoteHost,
         remotePortNum,
-        password
+        password,
+        gatewayPorts
       )
 
       // 发送全局事件，通知其他组件（如 ActiveTunnels）数据已变更
       EventsEmit('tunnels:changed')
 
       onOpenChange(false) // 关闭模态框
+      const bindAddr = gatewayPorts ? '0.0.0.0' : '127.0.0.1'
       logger.info(
         `Local forward tunnel started successfully!\n\nTunnel ID: ${tunnelId}`
       )
 
-      return `Forwarding 127.0.0.1:${localPortNum} -> ${localForwardForm.remoteHost}:${remotePortNum}`
+      return `Forwarding ${bindAddr}:${localPortNum} -> ${localForwardForm.remoteHost}:${remotePortNum}`
     })()
 
     // 使用toast.promise处理状态反馈
@@ -246,18 +250,20 @@ export function TunnelDial(props: TunnelDialProps) {
       const tunnelId = await StartDynamicForward(
         host.alias,
         localPortNum,
-        password
+        password,
+        gatewayPorts
       )
       // 发送全局事件，通知其他组件（如 ActiveTunnels）数据已变更
       EventsEmit('tunnels:changed')
 
       onOpenChange(false) // 成功后关闭模态框
 
+      const bindAddr = gatewayPorts ? '0.0.0.0' : '127.0.0.1'
       logger.info(
         `Dynamic forward tunnel started successfully!\n\nTunnel ID: ${tunnelId}`
       )
 
-      return `SOCKS5 proxy is listening on 127.0.0.1:${localPortNum}`
+      return `SOCKS5 proxy is listening on ${bindAddr}:${localPortNum}`
     })()
 
     toast.promise(promise, {
@@ -420,6 +426,19 @@ export function TunnelDial(props: TunnelDialProps) {
             </div>
           </TabsContent>
         </Tabs>
+        <div className="flex items-center space-x-2 pt-2">
+          <Checkbox
+            id="gateway-ports"
+            checked={gatewayPorts}
+            onCheckedChange={(checked) => setGatewayPorts(Boolean(checked))}
+          />
+          <Label
+            htmlFor="gateway-ports"
+            className="text-sm font-normal text-muted-foreground"
+          >
+            Allow remote connections (GatewayPorts)
+          </Label>
+        </div>
         <DialogFooter>
           <Button variant={'outline'} onClick={() => onOpenChange(false)}>
             Cancel
