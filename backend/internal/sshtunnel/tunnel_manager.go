@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"devtools/backend/internal/sshmanager"
+	"devtools/backend/pkg/utils"
 
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -199,11 +200,17 @@ func (m *Manager) runTunnel(tunnel *Tunnel, ctx context.Context) {
 
 	// 启动一个 goroutine，它的唯一作用是在 context 被取消时关闭 listener。
 	// 这样可以解除下面 listener.Accept() 的阻塞。
-	go func() {
+	// go func() {
+	// 	<-ctx.Done()
+	// 	log.Printf("Tunnel %s: Context cancelled, closing listener to unblock Accept().", tunnel.ID)
+	// 	tunnel.listener.Close()
+	// }()
+
+	utils.SafeGo(log.Default(), func() {
 		<-ctx.Done()
 		log.Printf("Tunnel %s: Context cancelled, closing listener to unblock Accept().", tunnel.ID)
 		tunnel.listener.Close()
-	}()
+	})
 
 	for {
 		// 等待并接受来自本地的连接
@@ -370,6 +377,7 @@ func (m *Manager) proxyData(conn1, conn2 net.Conn) {
 	log.Printf("Proxying data between %s and %s", conn1.RemoteAddr(), conn2.RemoteAddr())
 
 	copier := func(dst io.Writer, src io.Reader) {
+		defer utils.Recover(log.Default())
 		defer wg.Done()
 		if _, err := io.Copy(dst, src); err != nil {
 			if err != io.EOF {
@@ -403,16 +411,43 @@ func (m *Manager) StopForward(tunnelID string) error {
 func (m *Manager) cleanupTunnel(tunnelID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	tunnel, ok := m.activeTunnels[tunnelID]
+	if !ok {
+		return // Already cleaned up or never existed.
+	}
+
 	log.Printf("Starting cleanup for tunnel %s...", tunnelID)
 
-	if tunnel, ok := m.activeTunnels[tunnelID]; ok {
-		tunnel.listener.Close()
-		tunnel.sshClient.Close()
-		delete(m.activeTunnels, tunnelID)
-		log.Printf("Cleaned up tunnel %s", tunnelID)
-		// 隧道状态发生变化，通知前端刷新列表
+	// Safely close the listener, recovering from any potential panics.
+	// This ensures that even if one Close() fails, the others are still attempted.
+	func() {
+		defer utils.Recover(log.Default())
+		if tunnel.listener != nil {
+			tunnel.listener.Close()
+			log.Printf("Tunnel %s: Listener closed successfully.", tunnelID)
+		}
+	}()
+
+	// Safely close the SSH client.
+	func() {
+		defer utils.Recover(log.Default())
+		if tunnel.sshClient != nil {
+			tunnel.sshClient.Close()
+			log.Printf("Tunnel %s: SSH client closed successfully.", tunnelID)
+		}
+	}()
+
+	// Now that resources are closed, remove the tunnel from the active list.
+	delete(m.activeTunnels, tunnelID)
+	log.Printf("Cleaned up tunnel %s", tunnelID)
+	// Tunnel status has changed, notify the frontend to refresh the list.
+	// This is also wrapped for safety, although panics here are highly unlikely.
+	func() {
+		defer utils.Recover(log.Default())
 		runtime.EventsEmit(m.appCtx, "tunnels:changed")
-	}
+		log.Printf("Tunnel %s: Frontend event 'tunnels:changed' emitted successfully.", tunnelID)
+	}()
 }
 
 // GetActiveTunnels 返回所有活动隧道的简化信息
