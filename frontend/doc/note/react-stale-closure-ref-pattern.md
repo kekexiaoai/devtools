@@ -88,11 +88,9 @@ useEffect(() => {
 }, [displayName])
 ```
 
-#### **第三步：让稳定的函数去读取“信箱”**
+#### **第三步：一个有缺陷的尝试**
 
-现在，我们改造 `logger` 的创建逻辑。`useMemo` 只依赖于不变的 `id`，因此 `logger` 对象本身的引用是**绝对稳定**的。
-
-但是，`logger` 的方法（如 `info`, `error`）在被定义时，形成了一个闭包，这个闭包“捕获”了 `displayNameRef`。当这些方法在未来被**调用**时，它们会通过 `displayNameRef.current` 读取到**最新的** `displayName` 值。
+我们最初的思路是改造 `logger` 的创建逻辑，让 `useMemo` 只依赖于不变的 `id`，从而得到一个引用稳定的 `logger` 对象。
 
 ```tsx
 // 最终的完美方案
@@ -101,12 +99,49 @@ const logger = useMemo(() => {
   const getPrefix = () => `[${id}]<${displayNameRef.current}>`
 
   // 返回一个稳定的对象，但其方法的行为是动态的
-  return advancedLogger.withPrefix(getPrefix())
+  return advancedLogger.withPrefix(getPrefix()) // 致命错误在这里！
 }, [id]) // 依赖项中不再有 displayName！
 ```
 
+这个方案的缺陷在于：
+
+`getPrefix()` 函数在 `useMemo` 的回调函数内部被立即调用了。这意味着 `advancedLogger.withPrefix()` 接收到的是一个固定的字符串，例如 "`[session-1]<my-server>`"。
+
+当 `displayName` 改变时，`displayNameRef.current` 的值会更新，但因为 `id` 没有改变，`useMemo` 不会重新执行，所以 `logger` 实例依然持有那个陈旧的、过时的前缀字符串。
+
+因此，这个方案并没有真正实现动态前缀。
+
+#### **第四步：真正的完美方案 —— 传递函数，而非值**
+
+要真正解决问题，我们需要让 `logger` 在每次打印日志时才去获取最新的前缀。这要求我们的 `logger` 工具（appLogger）支持接收一个函数作为前缀。
+
+幸运的是，我们的 `logger` 库被设计为支持链式调用和动态前缀函数。
+
+```tsx
+// 最终的完美方案
+const logger = useMemo(() => {
+  // 定义一个函数，它在被调用时才去读取 ref 的最新值
+- const getPrefix = () => `[${id}]<${displayNameRef.current}>`
++ const getDynamicPrefix = () => `<${displayNameRef.current}>`
+
+-  return advancedLogger.withPrefix(getPrefix())// 致命错误在这里！
++ // 将 getDynamicPrefix 函数本身传递给 withPrefix
++ // logger 库会在内部需要前缀时调用这个函数
++ return appLogger
++   .withPrefix('Terminal')
++   .withPrefix(id)
++   .withPrefix(getDynamicPrefix)
+}, [id]) // 依赖项中不再有 displayName！
+```
+
+这个方案为何能成功？
+
+1. 稳定的 `logger` 实例：`useMemo` 的依赖项只有 `id`，所以 `logger` 对象的引用是稳定的。`useEffect` 依赖它不会导致不必要的重跑。
+2. 动态的前缀行为：我们传递给 `.withPrefix()` 的是 `getDynamicPrefix` 这个函数本身，而不是它的执行结果。`appLogger` 的内部实现会在每次调用 `.info()`, `.error()` 等方法时，才去执行 `getDynamicPrefix()` 函数。
+3. 读取最新值：因为 `getDynamicPrefix` 是在日志打印的时刻才被调用，所以它总能通过 `displayNameRef.current` 读取到最新的 `displayName` 值。
+
 ### **结论**
 
-通过这个模式，我们成功地将 `logger` 的**稳定“身份”**（它的对象引用）与其**动态的“行为”**（它打印的前缀）进行了解耦。
+通过将动态数据封装在 `useRef` 中，并把一个读取该 `ref` 的函数传递给稳定的 `useMemo` 实例的模式，我们成功地将 `logger` 的 **稳定“身份”**（它的对象引用）与其动态的“行为”（它打印的前缀）进行了解耦。
 
 现在，管理 WebSocket 的 `useEffect` 可以安全地依赖这个引用稳定的 `logger` 对象，重命名操作再也不会触发不必要的重连。同时，所有的日志输出又能正确地显示最新的 `displayName`，实现了功能与性能的完美统一。
