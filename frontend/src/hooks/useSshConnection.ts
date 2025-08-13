@@ -47,7 +47,7 @@ export function useSshConnection({
             let currentPassword = ''
             let savePassword = false
             let trustHost = false
-            const dryRun = strategy === 'internal'
+            const dryRun = strategy !== 'external'
 
             // 使用一个循环来处理多步骤的交互式对话
             while (true) {
