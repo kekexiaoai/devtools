@@ -18,10 +18,6 @@ export function GetSyncPairs(arg1) {
   return window['go']['filesyncer']['Service']['GetSyncPairs'](arg1);
 }
 
-export function LogFromFrontend(arg1) {
-  return window['go']['filesyncer']['Service']['LogFromFrontend'](arg1);
-}
-
 export function SaveConfig(arg1) {
   return window['go']['filesyncer']['Service']['SaveConfig'](arg1);
 }

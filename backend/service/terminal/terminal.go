@@ -3,9 +3,11 @@ package terminal
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -61,9 +63,13 @@ func NewService(sshMgr *sshmanager.Manager) *Service {
 }
 
 // Startup 在应用启动时被调用，接收应用上下文并启动后台 WebSocket 服务器。
-func (s *Service) Startup(ctx context.Context) {
+func (s *Service) Startup(ctx context.Context) error {
 	s.ctx = ctx
-	go s.startWebSocketServer()
+	// 在此启动服务器，并处理可能发生的错误
+	if err := s.startWebSocketServer(); err != nil {
+		return fmt.Errorf("failed to start terminal WebSocket server: %w", err)
+	}
+	return nil
 }
 
 // Shutdown 负责在应用退出时，优雅地关闭所有活动的终端会话。
@@ -224,14 +230,25 @@ func (s *Service) StartRemoteSession(alias, sessionID, password string) (*types.
 }
 
 // startWebSocketServer 在后台启动一个 HTTP 服务器来处理 WebSocket 连接
-func (s *Service) startWebSocketServer() {
+func (s *Service) startWebSocketServer() error {
 	http.HandleFunc("/ws/terminal/", s.handleConnection)
 	port := ":45678" // 选择一个不常用的端口，避免冲突
-	log.Printf("Starting terminal WebSocket server on %s", port)
-	if err := http.ListenAndServe(port, nil); err != nil {
-		// 在真实应用中，这里需要更优雅的错误处理，比如通过 Wails 事件通知前端
-		log.Fatalf("Failed to start terminal WebSocket server: %v", err)
+
+	// 创建一个 listener 来预先检查端口是否可用
+	listener, err := net.Listen("tcp", port)
+	if err != nil {
+		// 端口很可能被占用了，这是我们想要捕获的关键错误
+		return err
 	}
+
+	log.Printf("Starting terminal WebSocket server on %s", port)
+	// 在一个 goroutine 中启动服务，这样它就不会阻塞 Startup 过程
+	go func() {
+		if err := http.Serve(listener, nil); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("FATAL: Terminal WebSocket server crashed unexpectedly: %v", err)
+		}
+	}()
+	return nil
 }
 
 // handleConnection 是一个 HTTP Handler，它会将一个标准的 HTTP 请求升级为 WebSocket 连接

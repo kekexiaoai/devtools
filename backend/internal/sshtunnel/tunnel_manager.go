@@ -83,8 +83,9 @@ func NewManager(sshMgr *sshmanager.Manager) *Manager {
 }
 
 // Startup 在应用启动时被调用，接收应用上下文。
-func (m *Manager) Startup(ctx context.Context) {
+func (m *Manager) Startup(ctx context.Context) error {
 	m.appCtx = ctx
+	return nil
 }
 
 // Shutdown 负责在应用退出时，优雅地关闭所有活动的隧道。

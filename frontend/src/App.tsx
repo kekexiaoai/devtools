@@ -26,6 +26,7 @@ import {
   AlertDialogTitle,
 } from './components/ui/alert-dialog'
 
+import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button' // AlertDialogAction 本质上是一个 Button
 
 import { AlertTriangle } from 'lucide-react'
@@ -49,6 +50,7 @@ const toolIds = ['FileSyncer', 'JsonTools', 'SshGate', 'Terminal'] as const
  * so that hooks like useDialog and useSshAuth can be used within it.
  */
 function AppContent() {
+  const [isBackendReady, setIsBackendReady] = useState(false)
   const [activeTool, setActiveTool] = useState('FileSyncer')
 
   const [uiScale, setUiScale] = useState<UiScale>('default')
@@ -60,6 +62,14 @@ function AppContent() {
   const [terminalSessions, setTerminalSessions] = useState<TerminalSession[]>(
     []
   )
+
+  // 监听后端就绪事件
+  useEffect(() => {
+    const cleanup = EventsOn('app:ready', () => {
+      setIsBackendReady(true)
+    })
+    return cleanup
+  }, [])
 
   useEffect(() => {
     Environment()
@@ -368,6 +378,20 @@ function AppContent() {
     updateTerminalStatus,
   ])
 
+  // 在后端准备好之前，显示一个加载界面
+  if (!isBackendReady) {
+    return (
+      <div
+        id="App"
+        className="w-screen h-screen bg-background text-foreground flex items-center justify-center"
+      >
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="text-lg text-muted-foreground">Initializing...</p>
+        </div>
+      </div>
+    )
+  }
   return (
     <>
       <div id="App" className="w-screen h-screen bg-transparent">
