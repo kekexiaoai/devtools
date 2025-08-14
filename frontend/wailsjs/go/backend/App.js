@@ -10,6 +10,10 @@ export function Ctx() {
   return window['go']['backend']['App']['Ctx']();
 }
 
+export function DomReady() {
+  return window['go']['backend']['App']['DomReady']();
+}
+
 export function ForceQuit() {
   return window['go']['backend']['App']['ForceQuit']();
 }
