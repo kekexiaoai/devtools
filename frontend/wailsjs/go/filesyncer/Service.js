@@ -38,6 +38,10 @@ export function StartWatching(arg1) {
   return window['go']['filesyncer']['Service']['StartWatching'](arg1);
 }
 
+export function Startup(arg1) {
+  return window['go']['filesyncer']['Service']['Startup'](arg1);
+}
+
 export function StopWatching(arg1) {
   return window['go']['filesyncer']['Service']['StopWatching'](arg1);
 }

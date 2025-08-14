@@ -74,13 +74,36 @@ type Manager struct {
 }
 
 // NewManager 是隧道管理器的构造函数
-func NewManager(ctx context.Context, sshMgr *sshmanager.Manager) *Manager {
+func NewManager(sshMgr *sshmanager.Manager) *Manager {
 	return &Manager{
 		activeTunnels:         make(map[string]*Tunnel),
 		sshManager:            sshMgr,
-		appCtx:                ctx,
 		eventDebounceDuration: 200 * time.Millisecond, // A sensible default
 	}
+}
+
+// Startup 在应用启动时被调用，接收应用上下文。
+func (m *Manager) Startup(ctx context.Context) {
+	m.appCtx = ctx
+}
+
+// Shutdown 负责在应用退出时，优雅地关闭所有活动的隧道。
+func (m *Manager) Shutdown() {
+	// 通过创建一个副本避免在迭代时修改 map
+	idsToStop := make([]string, 0, len(m.activeTunnels))
+	m.mu.RLock()
+	for id := range m.activeTunnels {
+		idsToStop = append(idsToStop, id)
+	}
+	m.mu.RUnlock()
+
+	for _, id := range idsToStop {
+		// StopForward 内部会处理锁和清理
+		if err := m.StopForward(id); err != nil {
+			log.Printf("Error stopping tunnel %s during shutdown: %v", id, err)
+		}
+	}
+	log.Println("All active tunnels have been requested to stop.")
 }
 
 // createTunnel is a generic helper function to set up the common parts of a tunnel.

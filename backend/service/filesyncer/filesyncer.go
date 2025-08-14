@@ -21,17 +21,21 @@ type Service struct {
 	watcherSvc    *syncer.WatcherService
 }
 
-// NewService 是 FileSyncer 服务的构造函数
-func NewService(ctx context.Context, cfgManager *syncconfig.ConfigManager) *Service {
-	// 初始化并启动文件监控服务
-	watcher := syncer.NewWatcherService(ctx)
-	go watcher.Start()
-
+// NewService 是 FileSyncer 服务的构造函数。
+// 它只设置不依赖于应用上下文的依赖项。
+func NewService(cfgManager *syncconfig.ConfigManager) *Service {
 	return &Service{
-		ctx:           ctx,
+		// ctx 和 watcherSvc 将在 Startup 中初始化
 		configManager: cfgManager,
-		watcherSvc:    watcher,
 	}
+}
+
+// Startup 在应用启动时被调用。它接收应用上下文并可以启动后台任务。
+func (s *Service) Startup(ctx context.Context) {
+	s.ctx = ctx
+	// 初始化并启动文件监控服务
+	s.watcherSvc = syncer.NewWatcherService(s.ctx)
+	go s.watcherSvc.Start()
 }
 
 // Shutdown 负责在应用退出时，优雅地关闭此服务拥有的资源

@@ -24,13 +24,22 @@ type Service struct {
 }
 
 // NewService 是 SSHGate 服务的构造函数
-func NewService(ctx context.Context, sshMgr *sshmanager.Manager) *Service {
-	tunnelMgr := sshtunnel.NewManager(ctx, sshMgr)
+func NewService(sshMgr *sshmanager.Manager) *Service {
+	tunnelMgr := sshtunnel.NewManager(sshMgr)
 	return &Service{
-		ctx:           ctx,
 		sshManager:    sshMgr,
 		tunnelManager: tunnelMgr,
 	}
+}
+
+// Startup 在应用启动时被调用，接收应用上下文并启动子服务。
+func (s *Service) Startup(ctx context.Context) {
+	s.ctx = ctx
+	s.tunnelManager.Startup(ctx)
+}
+
+func (s *Service) Shutdown() {
+	s.tunnelManager.Shutdown()
 }
 
 // / GetSSHHosts 调用 internal/sshconfig 的实现

@@ -57,9 +57,6 @@ func (a *App) IsQuitting() bool {
 
 // bootstrap 负责在 Wails 启动前，创建和组装所有应用的核心服务
 func (a *App) Bootstrap() {
-	// 这是一个临时的 context，只用于初始化
-	initCtx := context.Background()
-
 	// 日志初始化
 	logDir := a.initLogger()
 
@@ -67,7 +64,7 @@ func (a *App) Bootstrap() {
 	configPath := filepath.Join(logDir, "config.json")
 	cfgManager := syncconfig.NewConfigManager(configPath)
 	if err := cfgManager.Load(); err != nil {
-		log.Printf("警告: 加载配置文件失败: %v", err)
+		log.Printf("Warning: Failed to load config file: %v", err)
 	}
 
 	sshMgr, err := sshmanager.NewManager("")
@@ -76,9 +73,9 @@ func (a *App) Bootstrap() {
 	}
 
 	// 创建并注入服务实例到 app 中
-	a.FileSyncService = filesyncer.NewService(initCtx, cfgManager)
-	a.SSHGateService = sshgate.NewService(initCtx, sshMgr)
-	a.TerminalService = terminal.NewService(initCtx, sshMgr)
+	a.FileSyncService = filesyncer.NewService(cfgManager)
+	a.SSHGateService = sshgate.NewService(sshMgr)
+	a.TerminalService = terminal.NewService(sshMgr)
 }
 
 func (a *App) initLogger() string {
@@ -121,6 +118,11 @@ func (a *App) initLogger() string {
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 	a.isQuitting = false // 初始化状态
+
+	// 将应用上下文传递给所有服务并启动它们
+	a.FileSyncService.Startup(ctx)
+	a.SSHGateService.Startup(ctx)
+	a.TerminalService.Startup(ctx)
 }
 
 // Shutdown is called when the app terminates.
@@ -128,6 +130,12 @@ func (a *App) Shutdown(ctx context.Context) {
 	log.Println("App shutdown initiated...")
 	if a.FileSyncService != nil {
 		a.FileSyncService.Shutdown()
+	}
+	if a.SSHGateService != nil {
+		a.SSHGateService.Shutdown()
+	}
+	if a.TerminalService != nil {
+		a.TerminalService.Shutdown()
 	}
 }
 
