@@ -50,17 +50,26 @@ type Service struct {
 }
 
 // NewService 是终端服务的构造函数
-func NewService(ctx context.Context, sshMgr *sshmanager.Manager) *Service {
-	svc := &Service{
-		ctx:        ctx,
+func NewService(sshMgr *sshmanager.Manager) *Service {
+	return &Service{
 		sessions:   make(map[string]*Session),
 		sshManager: sshMgr,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
 		},
 	}
-	go svc.startWebSocketServer()
-	return svc
+}
+
+// Startup 在应用启动时被调用，接收应用上下文并启动后台 WebSocket 服务器。
+func (s *Service) Startup(ctx context.Context) {
+	s.ctx = ctx
+	go s.startWebSocketServer()
+}
+
+// Shutdown 负责在应用退出时，优雅地关闭所有活动的终端会话。
+func (s *Service) Shutdown() {
+	log.Println("Terminal service shutting down, cleaning up all active sessions...")
+	s.cleanupAllSessions()
 }
 
 // StartLocalSession 启动一个本地的 shell 会话
@@ -387,5 +396,21 @@ func (s *Service) cleanupSession(sessionID string) {
 
 		delete(s.sessions, sessionID)
 		log.Printf("Cleaned up terminal session %s", sessionID)
+	}
+}
+
+// cleanupAllSessions 遍历并清理所有会话
+func (s *Service) cleanupAllSessions() {
+	s.mu.RLock()
+	// 创建一个 session ID 的副本，以避免在迭代时持有锁
+	// (cleanupSession 会请求写锁)
+	sessionIDs := make([]string, 0, len(s.sessions))
+	for id := range s.sessions {
+		sessionIDs = append(sessionIDs, id)
+	}
+	s.mu.RUnlock()
+
+	for _, id := range sessionIDs {
+		s.cleanupSession(id)
 	}
 }
