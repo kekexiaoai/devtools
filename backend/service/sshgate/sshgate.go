@@ -33,9 +33,9 @@ func NewService(sshMgr *sshmanager.Manager) *Service {
 }
 
 // Startup 在应用启动时被调用，接收应用上下文并启动子服务。
-func (s *Service) Startup(ctx context.Context) {
+func (s *Service) Startup(ctx context.Context) error {
 	s.ctx = ctx
-	s.tunnelManager.Startup(ctx)
+	return s.tunnelManager.Startup(ctx)
 }
 
 func (s *Service) Shutdown() {

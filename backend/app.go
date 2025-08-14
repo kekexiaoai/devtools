@@ -119,10 +119,39 @@ func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 	a.isQuitting = false // 初始化状态
 
-	// 将应用上下文传递给所有服务并启动它们
-	a.FileSyncService.Startup(ctx)
-	a.SSHGateService.Startup(ctx)
-	a.TerminalService.Startup(ctx)
+	// 定义一个启动任务列表
+	startupTasks := []struct {
+		Name    string
+		StartFn func(context.Context) error
+	}{
+		{"FileSyncService", a.FileSyncService.Startup},
+		{"SSHGateService", a.SSHGateService.Startup},
+		{"TerminalService", a.TerminalService.Startup},
+	}
+
+	log.Println("App startup initiated...")
+
+	// 依次启动每个服务，并在失败时处理错误
+	for _, task := range startupTasks {
+		log.Printf("Starting service: %s", task.Name)
+		if err := task.StartFn(ctx); err != nil {
+			// 记录致命错误
+			log.Printf("FATAL: Failed to start service '%s': %v", task.Name, err)
+			// 向用户显示一个原生错误对话框
+			runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
+				Type:    runtime.ErrorDialog,
+				Title:   "Application Startup Failed",
+				Message: fmt.Sprintf("Could not start the '%s'. The application will now exit.\n\nError: %v", task.Name, err),
+			})
+			// 退出应用
+			runtime.Quit(ctx)
+			return
+		}
+	}
+
+	// 所有服务启动成功，向前端发送“就绪”信号
+	runtime.EventsEmit(ctx, "app:ready")
+	log.Println("All backend services started successfully. App is ready.")
 }
 
 // Shutdown is called when the app terminates.

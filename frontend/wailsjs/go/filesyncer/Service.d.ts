@@ -11,8 +11,6 @@ export function GetConfigs():Promise<Array<types.SSHConfig>>;
 
 export function GetSyncPairs(arg1:string):Promise<Array<types.SyncPair>>;
 
-export function LogFromFrontend(arg1:types.LogEntry):Promise<void>;
-
 export function SaveConfig(arg1:types.SSHConfig):Promise<void>;
 
 export function SaveSyncPair(arg1:types.SyncPair):Promise<void>;
