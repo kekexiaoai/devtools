@@ -34,6 +34,9 @@ interface IntegratedTerminalProps {
   fontSize?: number
   fontFamily?: string
   copyOnSelect?: boolean
+  scrollback?: number
+  cursorStyle?: 'block' | 'underline' | 'bar'
+  cursorBlink?: boolean
 }
 
 import { appLogger } from '@/lib/logger'
@@ -71,6 +74,9 @@ export function IntegratedTerminal({
   fontSize,
   fontFamily,
   copyOnSelect,
+  scrollback,
+  cursorStyle,
+  cursorBlink,
 }: IntegratedTerminalProps) {
   // --- 动态设置的状态管理 (本地覆盖) ---
   // null 表示使用从 props 传入的全局设置
@@ -82,6 +88,11 @@ export function IntegratedTerminal({
   const [localCopyOnSelect, setLocalCopyOnSelect] = useState<boolean | null>(
     null
   )
+  const [localScrollback, setLocalScrollback] = useState<number | null>(null)
+  const [localCursorStyle, setLocalCursorStyle] = useState<
+    'block' | 'underline' | 'bar' | null
+  >(null)
+  const [localCursorBlink, setLocalCursorBlink] = useState<boolean | null>(null)
 
   // --- 计算最终生效的设置 ---
   const effectiveFontSize = localFontSize ?? fontSize ?? 12
@@ -91,19 +102,24 @@ export function IntegratedTerminal({
   const effectiveFontFamily = localFontFamilyKey
     ? FONT_FAMILIES[localFontFamilyKey]?.value
     : (fontFamily ?? FONT_FAMILIES.default.value)
+
   const effectiveCopyOnSelect = localCopyOnSelect ?? copyOnSelect ?? true
 
+  const effectiveScrollback = localScrollback ?? scrollback ?? 1000
+  const effectiveCursorStyle = localCursorStyle ?? cursorStyle ?? 'block'
+  const effectiveCursorBlink = localCursorBlink ?? cursorBlink ?? true
+
   // 调用 Hook，获取 terminal 实例和 ref
-  // 关键修复：useXTerm 的 options 只在首次创建时使用，且不包含动态变化的设置
-  // 这样可以确保终端实例是稳定的，不会因为设置改变而销毁重建
+  // useXTerm 的 options 只在首次创建时使用。
+  // 这里我们只使用从 props 传入的初始值，动态变化由 useEffect 处理。
   const { instance: terminal, ref } = useXTerm({
     options: useMemo(
       () => ({
-        cursorBlink: true,
-        scrollback: 1000,
-        // 初始值从 props 设置
-        fontSize,
-        fontFamily,
+        // Use initial values from props, with defaults
+        cursorBlink: cursorBlink ?? true,
+        scrollback: scrollback ?? 1000,
+        fontSize: fontSize ?? 12,
+        fontFamily: fontFamily ?? FONT_FAMILIES.default.value,
         theme,
       }),
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -243,7 +259,19 @@ export function IntegratedTerminal({
     if (terminal.options.theme !== effectiveTheme) {
       terminal.options.theme = effectiveTheme
     }
+    if (terminal.options.scrollback !== effectiveScrollback) {
+      terminal.options.scrollback = effectiveScrollback
+    }
+    if (terminal.options.cursorStyle !== effectiveCursorStyle) {
+      terminal.options.cursorStyle = effectiveCursorStyle
+    }
 
+    if (terminal.options.cursorBlink !== effectiveCursorBlink) {
+      terminal.options.cursorBlink = effectiveCursorBlink
+    }
+
+    // Force a redraw to apply visual changes from options
+    terminal.refresh(0, terminal.rows - 1)
     // 字体大小或族裔变化需要重新计算终端尺寸
     if (settingsChanged) {
       void adjustTerminalSize()
@@ -253,6 +281,9 @@ export function IntegratedTerminal({
     effectiveFontSize,
     effectiveFontFamily,
     effectiveTheme,
+    effectiveScrollback,
+    effectiveCursorStyle,
+    effectiveCursorBlink,
     adjustTerminalSize,
   ])
 
@@ -400,17 +431,22 @@ export function IntegratedTerminal({
                       }`}
                     />
                   </div>
-                  <Slider
-                    id="font-size"
-                    min={8}
-                    max={24}
-                    step={1}
-                    value={[effectiveFontSize]}
-                    onValueChange={(value: number[]) =>
-                      setLocalFontSize(value[0])
-                    }
-                    className="col-span-3 h-full"
-                  />
+                  <div className="col-span-3 flex items-center gap-2">
+                    <Slider
+                      id="font-size"
+                      min={8}
+                      max={24}
+                      step={1}
+                      value={[effectiveFontSize]}
+                      onValueChange={(value: number[]) =>
+                        setLocalFontSize(value[0])
+                      }
+                      className="flex-1"
+                    />
+                    <span className="w-8 text-right text-sm text-muted-foreground">
+                      {effectiveFontSize}
+                    </span>
+                  </div>
                 </div>
                 {/* Font Family */}
                 <div className="grid grid-cols-5 items-center gap-4">
@@ -547,6 +583,147 @@ export function IntegratedTerminal({
                       checked={effectiveCopyOnSelect}
                       onCheckedChange={(checked) =>
                         setLocalCopyOnSelect(checked)
+                      }
+                    />
+                  </div>
+                </div>
+
+                {/* Scrollback */}
+                <div className="grid grid-cols-5 items-center gap-4">
+                  <div
+                    className="col-span-2 group flex cursor-pointer items-center gap-1.5"
+                    onClick={(e) => {
+                      if (localScrollback !== null) {
+                        e.preventDefault()
+                        setTimeout(() => setLocalScrollback(null), 0)
+                      }
+                    }}
+                  >
+                    <Label
+                      htmlFor="scrollback"
+                      className="cursor-pointer"
+                      title={
+                        localScrollback !== null
+                          ? 'Reset to default'
+                          : undefined
+                      }
+                    >
+                      Scrollback
+                    </Label>
+                    <RotateCcw
+                      className={`h-3 w-3 text-muted-foreground transition-opacity ${
+                        localScrollback !== null
+                          ? 'opacity-50 group-hover:opacity-100 cursor-pointer'
+                          : 'opacity-0'
+                      }`}
+                    />
+                  </div>
+                  <div className="col-span-3 flex items-center gap-2">
+                    <Slider
+                      id="scrollback"
+                      min={1000}
+                      max={10000}
+                      step={100}
+                      value={[effectiveScrollback]}
+                      onValueChange={(value: number[]) =>
+                        setLocalScrollback(value[0])
+                      }
+                      className="flex-1"
+                    />
+                    <span className="w-12 text-right text-sm text-muted-foreground">
+                      {effectiveScrollback}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Cursor Style */}
+                <div className="grid grid-cols-5 items-center gap-4">
+                  <div
+                    className="col-span-2 group flex cursor-pointer items-center gap-1.5"
+                    onClick={(e) => {
+                      if (localCursorStyle !== null) {
+                        e.preventDefault()
+                        setTimeout(() => setLocalCursorStyle(null), 0)
+                      }
+                    }}
+                  >
+                    <Label
+                      htmlFor="cursor-style"
+                      className="cursor-pointer"
+                      title={
+                        localCursorStyle !== null
+                          ? 'Reset to default'
+                          : undefined
+                      }
+                    >
+                      Cursor Style
+                    </Label>
+                    <RotateCcw
+                      className={`h-3 w-3 text-muted-foreground transition-opacity ${
+                        localCursorStyle !== null
+                          ? 'opacity-50 group-hover:opacity-100 cursor-pointer'
+                          : 'opacity-0'
+                      }`}
+                    />
+                  </div>
+                  <Select
+                    value={localCursorStyle ?? 'default'}
+                    onValueChange={(key) =>
+                      setLocalCursorStyle(
+                        key === 'default'
+                          ? null
+                          : (key as 'block' | 'underline' | 'bar')
+                      )
+                    }
+                  >
+                    <SelectTrigger id="cursor-style" className="col-span-3">
+                      <SelectValue placeholder="Select Style" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Default</SelectItem>
+                      <SelectItem value="block">Block</SelectItem>
+                      <SelectItem value="underline">Underline</SelectItem>
+                      <SelectItem value="bar">Bar</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Cursor Blink */}
+                <div className="grid grid-cols-5 items-center gap-4">
+                  <div
+                    className="col-span-2 group flex cursor-pointer items-center gap-1.5"
+                    onClick={(e) => {
+                      if (localCursorBlink !== null) {
+                        e.preventDefault()
+                        setTimeout(() => setLocalCursorBlink(null), 0)
+                      }
+                    }}
+                  >
+                    <Label
+                      htmlFor="cursor-blink"
+                      className="cursor-pointer"
+                      title={
+                        localCursorBlink !== null
+                          ? 'Reset to default'
+                          : undefined
+                      }
+                    >
+                      Cursor Blink
+                    </Label>
+                    <RotateCcw
+                      className={`h-3 w-3 text-muted-foreground transition-opacity ${
+                        localCursorBlink !== null
+                          ? 'opacity-50 group-hover:opacity-100 cursor-pointer'
+                          : 'opacity-0'
+                      }`}
+                    />
+                  </div>
+                  <div className="col-span-3">
+                    <Switch
+                      id="cursor-blink"
+                      checked={effectiveCursorBlink}
+                      onCheckedChange={(checked) =>
+                        setLocalCursorBlink(checked)
                       }
                     />
                   </div>
