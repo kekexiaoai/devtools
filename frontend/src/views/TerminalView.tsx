@@ -81,6 +81,12 @@ export function TerminalView({
   const [globalCopyOnSelect, setGlobalCopyOnSelect] = useState(true)
   const globalFontFamily = FONT_FAMILIES[globalFontFamilyKey].value
 
+  const [globalScrollback, setGlobalScrollback] = useState<number>(1000)
+  const [globalCursorStyle, setGlobalCursorStyle] = useState<
+    'block' | 'underline' | 'bar' | undefined
+  >(undefined)
+  const [globalCursorBlink, setGlobalCursorBlink] = useState(true)
+
   // 主题切换处理函数
   const handleThemeChange = (themeName: string) => {
     setSelectedThemeName(themeName)
@@ -162,7 +168,7 @@ export function TerminalView({
       onValueChange={onActiveTerminalChange}
       className="h-full flex flex-col"
     >
-      <div className="flex items-center pl-2 pr-2 border-b">
+      <div className="flex items-center pl-2 pr-2">
         <TabsList className="flex-shrink overflow-x-auto m-0 mr-2">
           {terminalSessions.map((session) => (
             <TabsTrigger
@@ -250,15 +256,20 @@ export function TerminalView({
                     <Label htmlFor="global-font-size" className="col-span-2">
                       Font Size
                     </Label>
-                    <Slider
-                      id="global-font-size"
-                      min={8}
-                      max={24}
-                      step={1}
-                      value={[globalFontSize]}
-                      onValueChange={(value) => setGlobalFontSize(value[0])}
-                      className="col-span-3 h-full"
-                    />
+                    <div className="col-span-3 flex items-center gap-2">
+                      <Slider
+                        id="global-font-size"
+                        min={8}
+                        max={24}
+                        step={1}
+                        value={[globalFontSize]}
+                        onValueChange={(value) => setGlobalFontSize(value[0])}
+                        className="flex-1"
+                      />
+                      <span className="w-8 text-right text-sm text-muted-foreground">
+                        {globalFontSize}
+                      </span>
+                    </div>
                   </div>
                   <div className="grid grid-cols-5 items-center gap-4">
                     <Label htmlFor="global-font-family" className="col-span-2">
@@ -320,6 +331,69 @@ export function TerminalView({
                       />
                     </div>
                   </div>
+                  {/* Scrollback */}
+                  <div className="grid grid-cols-5 items-center gap-4">
+                    <Label htmlFor="scrollback" className="col-span-2">
+                      Ccrollback
+                    </Label>
+                    <div className="col-span-3 flex items-center gap-2">
+                      <Slider
+                        id="scrollback"
+                        min={1000}
+                        max={10000}
+                        step={100}
+                        value={[globalScrollback]}
+                        onValueChange={(value: number[]) => {
+                          setGlobalScrollback(value[0])
+                        }}
+                        className="flex-1"
+                      />
+                      <span className="w-12 text-right text-sm text-muted-foreground">
+                        {globalScrollback}
+                      </span>
+                    </div>
+                  </div>
+                  {/* Cursor Style */}
+                  <div className="grid grid-cols-5 items-center gap-4">
+                    <Label htmlFor="cursor-style" className="col-span-2">
+                      Cursor Style
+                    </Label>
+                    <div className="col-span-3">
+                      <Select
+                        value={globalCursorStyle ?? 'default'}
+                        onValueChange={(key) => {
+                          setGlobalCursorStyle(
+                            key as 'block' | 'underline' | 'bar'
+                          )
+                        }}
+                      >
+                        <SelectTrigger id="cursor-style">
+                          <SelectValue placeholder="Select Style" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="default">Default</SelectItem>
+                          <SelectItem value="block">Block</SelectItem>
+                          <SelectItem value="underline">Underline</SelectItem>
+                          <SelectItem value="bar">Bar</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  {/* Cursor Blink */}
+                  <div className="grid grid-cols-5 items-center gap-4">
+                    <Label htmlFor="cursor-blink" className="col-span-2">
+                      Cursor Blink
+                    </Label>
+                    <div className="col-span-3">
+                      <Switch
+                        id="cursor-blink"
+                        checked={globalCursorBlink}
+                        onCheckedChange={(checked) =>
+                          setGlobalCursorBlink(checked)
+                        }
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </PopoverContent>
@@ -354,6 +428,9 @@ export function TerminalView({
               fontSize={globalFontSize}
               fontFamily={globalFontFamily}
               copyOnSelect={globalCopyOnSelect}
+              scrollback={globalScrollback}
+              cursorStyle={globalCursorStyle}
+              cursorBlink={globalCursorBlink}
             />
           </TabsContent>
         ))}
