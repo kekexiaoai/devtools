@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"sync"
 	"os"
 	"path/filepath"
 	"time"
@@ -30,7 +31,9 @@ type App struct {
 	TerminalService *terminal.Service
 	FileSyncService *filesyncer.Service
 
-	isQuitting bool // 内部状态标志
+	isQuitting   bool // 内部状态标志
+	backendReady bool // 新增：标记后端服务是否全部成功启动
+	mu           sync.Mutex // 新增：保护 backendReady
 	isDebug    bool
 	isMacOS    bool
 }
@@ -40,6 +43,7 @@ func NewApp(isDebug, isMacOS bool) *App {
 	return &App{
 		isDebug: isDebug,
 		isMacOS: isMacOS,
+		// backendReady is false by default
 	}
 }
 
@@ -118,6 +122,9 @@ func (a *App) initLogger() string {
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 	a.isQuitting = false // 初始化状态
+	a.mu.Lock()
+	a.backendReady = false // 明确在启动时重置状态
+	a.mu.Unlock()
 
 	// 定义一个启动任务列表
 	startupTasks := []struct {
@@ -144,28 +151,53 @@ func (a *App) Startup(ctx context.Context) {
 				Message: fmt.Sprintf("Could not start the '%s'. The application will now exit.\n\nError: %v", task.Name, err),
 			})
 			// 退出应用
-			runtime.Quit(ctx)
-			return
+			// runtime.Quit(ctx)
+			a.ForceQuit()
+			return // 启动失败，backendReady 保持 false
 		}
 	}
 
-	// 所有服务启动成功，向前端发送“就绪”信号
-	runtime.EventsEmit(ctx, "app:ready")
-	log.Println("All backend services started successfully. App is ready.")
+	// 所有服务都成功启动
+	log.Println("All backend services started successfully. App is ready and waiting for frontend.")
+	a.mu.Lock()
+	a.backendReady = true // 设置成功状态
+	a.mu.Unlock()
+}
+
+// DomReady is called by the frontend when it's ready to receive events.
+func (a *App) DomReady() {
+	a.mu.Lock()
+	isReady := a.backendReady
+	a.mu.Unlock()
+
+	if isReady {
+		log.Println("Frontend is ready and backend was ready. Emitting 'app:ready' event.")
+		runtime.EventsEmit(a.ctx, "app:ready")
+	} else {
+		// 如果后端没有准备好，可能是因为它在 Startup 期间遇到了错误并正在退出。
+		// 在这种情况下，我们不发送 app:ready 事件，前端会继续显示 loading 界面，
+		// 直到应用进程被 Startup 中的 ForceQuit() 终止。
+		// 这是一个正确的行为，因为用户应该已经看到了一个错误对话框。
+		log.Println("Frontend signaled ready, but backend is not. Startup may have failed. Not emitting 'app:ready'.")
+	}
 }
 
 // Shutdown is called when the app terminates.
 func (a *App) Shutdown(ctx context.Context) {
 	log.Println("App shutdown initiated...")
 	if a.FileSyncService != nil {
+		log.Println("Shutting down FileSyncService...")
 		a.FileSyncService.Shutdown()
 	}
 	if a.SSHGateService != nil {
+		log.Println("Shutting down SSHGateService...")
 		a.SSHGateService.Shutdown()
 	}
 	if a.TerminalService != nil {
+		log.Println("Shutting down TerminalService...")
 		a.TerminalService.Shutdown()
 	}
+	log.Println("App shutdown completed.")
 }
 
 // OnBeforeClose is called when the user attempts to close the window.

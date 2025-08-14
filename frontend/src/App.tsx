@@ -13,7 +13,7 @@ import {
 } from '@wailsjs/runtime/runtime'
 
 import type { UiScale } from './types'
-import { ForceQuit } from '@wailsjs/go/backend/App'
+import { DomReady, ForceQuit } from '@wailsjs/go/backend/App'
 import { logToServer } from '@/lib/utils'
 import {
   AlertDialog,
@@ -35,6 +35,7 @@ import { Toaster } from 'sonner'
 import { types } from '@wailsjs/go/models'
 import { useSshConnection } from './hooks/useSshConnection'
 import { useDialog } from './hooks/useDialog'
+import { appLogger } from './lib/logger'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
 
@@ -63,21 +64,38 @@ function AppContent() {
     []
   )
 
+  const logger = useMemo(() => {
+    return appLogger
+  }, [])
+
   // 监听后端就绪事件
   useEffect(() => {
     const cleanup = EventsOn('app:ready', () => {
+      logToServer('INFO', 'frontend receive app:ready event')
       setIsBackendReady(true)
+      logger.info(
+        'frontend receive app:ready event, set is backend ready to true'
+      )
     })
     return cleanup
-  }, [])
+  }, [logger])
+
+  // 新增：前端加载完成后，通知后端可以发送 app:ready 事件了
+  useEffect(() => {
+    // 这个 effect 只在组件首次挂载时运行一次
+    // 调用后端 DomReady 方法，触发 "握手"
+    DomReady().catch((err) => {
+      logger.error('Failed to signal DomReady to backend:', err)
+    })
+  }, [logger])
 
   useEffect(() => {
     Environment()
       .then((info) => setPlatform(info.platform))
       .catch((error) => {
-        console.error('Environment promise was rejected:', error)
+        logger.error('Environment promise was rejected:', error)
       })
-  }, [])
+  }, [logger])
 
   // 适配系统主题
   // 调用 Hook 来获取实时的暗黑模式状态
@@ -114,7 +132,7 @@ function AppContent() {
 
   useEffect(() => {
     const handler = (newScale: UiScale) => {
-      console.log('Zoom event received from Go:', newScale)
+      logger.info('Zoom event received from Go:', newScale)
       setUiScale(newScale)
     }
     EventsOn('zoom_change', handler)
@@ -123,7 +141,7 @@ function AppContent() {
       // 清理事件监听器
       EventsOn('zoom_change', () => {}) // 取消订阅事件，传递一个空函数
     }
-  }, [])
+  }, [logger])
 
   // 使用轮询来检测全屏状态的 useEffect
   // useEffect(() => {
@@ -134,7 +152,7 @@ function AppContent() {
   //       // 只有当状态发生变化时，才更新 state，避免不必要的重渲染
   //       setIsFullscreen((prevState) => {
   //         if (prevState !== isCurrentlyFullscreen) {
-  //           console.log(
+  //           logger.info(
   //             `Polling: Fullscreen state changed to ${isCurrentlyFullscreen}`
   //           )
   //           return isCurrentlyFullscreen
@@ -142,7 +160,7 @@ function AppContent() {
   //         return prevState
   //       })
   //     } catch (error) {
-  //       console.error('Polling: Failed to check fullscreen state:', error)
+  //       logger.error('Polling: Failed to check fullscreen state:', error)
   //     }
   //   }
 
@@ -161,7 +179,7 @@ function AppContent() {
   //       window.clearInterval(intervalId)
   //     }
   //   }
-  // }, []) // 空依赖数组 [] 意味着这个 effect 只在组件首次挂载时运行一次
+  // }, [logger]) // logger是稳定的，意味着这个 effect 只在组件首次挂载时运行一次
 
   // --- 3. 新增 useEffect 来监听窗口全屏事件 ---
   useEffect(() => {
@@ -169,21 +187,21 @@ function AppContent() {
     WindowIsFullscreen()
       .then(setIsFullscreen)
       .catch((error) => {
-        console.error('Failed to check initial fullscreen state:', error)
+        logger.error('Failed to check initial fullscreen state:', error)
       })
       .finally(() => {
-        console.log('Checked initial fullscreen state')
+        logger.info('Checked initial fullscreen state')
       })
 
     // Wails 会在窗口进入全屏时发出 "wails:fullscreen" 事件
     EventsOn('wails:fullscreen', () => {
-      console.log('Entered fullscreen mode')
+      logger.info('Entered fullscreen mode')
       setIsFullscreen(true)
     })
 
     // Wails 会在窗口退出全屏时发出 "wails:unfullscreen" 事件
     EventsOn('wails:unfullscreen', () => {
-      console.log('Left fullscreen mode')
+      logger.info('Left fullscreen mode')
       setIsFullscreen(false)
     })
 
@@ -192,7 +210,7 @@ function AppContent() {
       EventsOn('wails:fullscreen', () => {}) // 取消订阅事件，传递一个空函数
       EventsOn('wails:unfullscreen', () => {}) // 取消订阅事件，传递一个空函数
     }
-  }, []) // 空依赖数组 [] 意味着这个 effect 只在组件首次挂载时运行一次
+  }, [logger]) // logger是稳定的 意味着这个 effect 只在组件首次挂载时运行一次
 
   // 新增一个 state 来控制“退出确认”对话框的显示
   const [isQuitConfirmOpen, setIsQuitConfirmOpen] = useState(false)

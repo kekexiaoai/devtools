@@ -8,6 +8,8 @@ export function Bootstrap():Promise<void>;
 
 export function Ctx():Promise<context.Context>;
 
+export function DomReady():Promise<void>;
+
 export function ForceQuit():Promise<void>;
 
 export function IsDebug():Promise<boolean>;
