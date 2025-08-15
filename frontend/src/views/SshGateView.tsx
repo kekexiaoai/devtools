@@ -161,6 +161,7 @@ const VisualEditor = React.memo(function VisualEditor({
   const [hosts, setHosts] = useState<types.SSHHost[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedAlias, setSelectedAlias] = useState<string | null>(null)
+  const [hoveredAlias, setHoveredAlias] = useState<string | null>(null)
 
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingHost, setEditingHost] = useState<types.SSHHost | null>(null)
@@ -199,6 +200,15 @@ const VisualEditor = React.memo(function VisualEditor({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hosts]) // 只依赖 hosts
+
+  const handleSelectHost = (alias: string) => {
+    setSelectedAlias(alias)
+    setHoveredAlias(null) // Clear hover state on explicit selection
+  }
+
+  const handleHoverHost = (alias: string) => {
+    setHoveredAlias(alias)
+  }
 
   const handleOpenNew = () => {
     setEditingHost(null)
@@ -241,39 +251,49 @@ const VisualEditor = React.memo(function VisualEditor({
     void onConnect(alias, 'remote', strategy)
   }
 
-  const selectedHost = useMemo(() => {
-    if (!selectedAlias) return null
-    return hosts.find((h) => h.alias === selectedAlias) || null
-  }, [selectedAlias, hosts])
+  const hostToDisplay = useMemo(() => {
+    const aliasToShow = hoveredAlias || selectedAlias
+    if (!aliasToShow) return null
+    return hosts.find((h) => h.alias === aliasToShow) || null
+  }, [hoveredAlias, selectedAlias, hosts])
+
+  const isPreviewing = useMemo(() => {
+    return !!hoveredAlias && hoveredAlias !== selectedAlias
+  }, [hoveredAlias, selectedAlias])
 
   if (isLoading) return <p>Loading SSH hosts...</p>
 
   return (
     <div className="flex h-full">
       {/* 左侧主机列表 */}
-      <div className="w-1/3 max-w-xs flex-shrink-0 bg-muted/50 rounded-md">
+      <div
+        className="w-1/3 max-w-xs flex-shrink-0 bg-muted/50 rounded-md"
+        onMouseLeave={() => setHoveredAlias(null)}
+      >
         <HostList
           hosts={hosts}
           selectedAlias={selectedAlias}
-          onSelect={setSelectedAlias}
+          onSelect={handleSelectHost}
           onNew={handleOpenNew}
+          onHover={handleHoverHost}
         />
       </div>
 
       {/* 右侧详情 */}
       <div className="flex-1 p-6 overflow-y-auto">
-        {selectedHost ? (
+        {hostToDisplay ? (
           <HostDetail
-            key={selectedHost.alias}
-            host={selectedHost}
-            onEdit={() => void handleOpenEdit(selectedHost)}
-            onDelete={() => void handleDelete(selectedHost.alias)}
+            key={hostToDisplay.alias} // Use key to ensure re-mount on host change
+            host={hostToDisplay}
+            isPreview={isPreviewing}
+            onEdit={() => void handleOpenEdit(hostToDisplay)}
+            onDelete={() => void handleDelete(hostToDisplay.alias)}
             onConnectExternal={() =>
-              void handleConnect(selectedHost.alias, 'external')
+              void handleConnect(hostToDisplay.alias, 'external')
             }
             activeTunnels={activeTunnels}
             onConnectInternal={() =>
-              void handleConnect(selectedHost.alias, 'internal')
+              void handleConnect(hostToDisplay.alias, 'internal')
             }
           />
         ) : (
