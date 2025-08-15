@@ -25,6 +25,7 @@ interface HostDetailProps {
   onConnectExternal: (alias: string) => void
   onConnectInternal: (alias: string) => void
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
+  isPreview?: boolean
 }
 
 interface SSHStatusEventDetail {
@@ -42,6 +43,7 @@ export function HostDetail({
   onConnectExternal,
   onConnectInternal,
   activeTunnels,
+  isPreview = false,
 }: HostDetailProps) {
   const [isTunnelModalOpen, setIsTunnelModalOpen] = useState(false)
   // === 连接状态管理 ===
@@ -95,8 +97,15 @@ export function HostDetail({
 
   return (
     <>
-      <Card>
+      <Card
+        className={`relative ${isPreview ? 'border-dashed border-primary' : ''}`}
+      >
         <CardHeader>
+          {isPreview && (
+            <Badge variant="outline" className="absolute -top-4 right-4 z-10">
+              Preview
+            </Badge>
+          )}
           <div className="flex justify-between items-center">
             <div>
               <CardTitle className="font-mono text-2xl">{host.alias}</CardTitle>
