@@ -5,7 +5,6 @@ import {
   DeleteSSHHost,
   GetSSHConfigFileContent,
   SaveSSHConfigFileContent,
-  GetActiveTunnels,
 } from '@wailsjs/go/sshgate/Service'
 import { useDialog } from '@/hooks/useDialog'
 
@@ -21,9 +20,6 @@ import { HostFormDialog } from '@/components/sshgate/HostFormDialog'
 import { HostList } from '@/components/sshgate/HostList'
 import { HostDetail } from '@/components/sshgate/HostDetail'
 import { Save } from 'lucide-react'
-import { ActiveTunnels } from '@/components/sshgate/ActiveTunnels'
-import { useOnVisible } from '@/hooks/useOnVisible'
-import { EventsOn } from '@wailsjs/runtime'
 
 // #############################################################################
 // #  主视图组件 (Main View Component)
@@ -36,54 +32,18 @@ interface SshGateViewProps {
     type: 'local' | 'remote',
     strategy: 'internal' | 'external'
   ) => void
+  activeTunnels: sshtunnel.ActiveTunnelInfo[]
+  isLoadingTunnels: boolean
+  onRefreshTunnels: () => void
 }
 
-export function SshGateView({ isActive, onConnect }: SshGateViewProps) {
+export function SshGateView({ onConnect, activeTunnels }: SshGateViewProps) {
   // 这个 state 用于在两个 Tab 之间同步数据刷新
   // 当 RawEditor 保存了文件，或 VisualEditor 增删改了主机，
   // 我们就增加 dataVersion 的值，这会强制两个 Tab 都重新获取数据
   const [dataVersion, setDataVersion] = useState(0)
   const refreshData = () => setDataVersion((v) => v + 1)
   const [activeTab, setActiveTab] = useState('visual')
-
-  // 使用Hook，告诉 useOnVisible: 当这个组件可见时，执行 refreshData 函数
-  const [activeTunnels, setActiveTunnels] = useState<
-    sshtunnel.ActiveTunnelInfo[]
-  >([])
-  const [isLoadingTunnels, setIsLoadingTunnels] = useState(true)
-
-  const fetchTunnels = useCallback(async () => {
-    // For background refresh, we don't always set loading to true
-    // setIsLoadingTunnels(true);
-    try {
-      const tunnels = await GetActiveTunnels()
-      setActiveTunnels(tunnels)
-    } catch (error) {
-      // Errors are handled in the component that needs to show them,
-      // or we could use a global toast here.
-      console.error(`Failed to fetch active tunnels: ${String(error)}`)
-    } finally {
-      setIsLoadingTunnels(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    void fetchTunnels()
-    const handleFocus = () => void fetchTunnels()
-    const interval = setInterval(() => void fetchTunnels(), 30000)
-    const cleanupTunnelChangedEvent = EventsOn(
-      'tunnels:changed',
-      () => void fetchTunnels()
-    )
-    window.addEventListener('focus', handleFocus)
-    return () => {
-      window.removeEventListener('focus', handleFocus)
-      clearInterval(interval)
-      cleanupTunnelChangedEvent()
-    }
-  }, [fetchTunnels])
-  useOnVisible(refreshData, isActive)
-  console.log('ssh gate, data version:', dataVersion)
 
   return (
     // 根容器
@@ -107,7 +67,6 @@ export function SshGateView({ isActive, onConnect }: SshGateViewProps) {
             <TabsList>
               <TabsTrigger value="visual">Visual Editor</TabsTrigger>
               <TabsTrigger value="raw">Raw File Editor</TabsTrigger>
-              <TabsTrigger value="tunnels">Active Tunnels</TabsTrigger>
             </TabsList>
           </div>
         </div>
@@ -125,15 +84,6 @@ export function SshGateView({ isActive, onConnect }: SshGateViewProps) {
         {/* 原始文件编辑器 Tab */}
         <TabsContent value="raw" className="flex-1 mt-2 flex flex-col min-h-0">
           <RawEditor dataVersion={dataVersion} onDataChange={refreshData} />
-        </TabsContent>
-
-        {/* 活动隧道 Tab */}
-        <TabsContent value="tunnels" className="flex-1 min-h-0">
-          <ActiveTunnels
-            tunnels={activeTunnels}
-            isLoading={isLoadingTunnels}
-            onRefresh={() => void fetchTunnels()}
-          />
         </TabsContent>
       </Tabs>
     </div>

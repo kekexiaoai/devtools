@@ -10,6 +10,7 @@ import {
   FileJson2,
   TerminalIcon,
   TerminalSquare,
+  TrainFrontTunnel,
 } from 'lucide-react'
 
 // 在 TypeScript 中，我们为组件的 props 定义一个接口(interface)，
@@ -29,6 +30,7 @@ export function Sidebar({ activeTool, onToolChange }: SidebarProps) {
     { id: 'FileSyncer', name: 'File Syncer', icon: FolderDown },
     { id: 'JsonTools', name: 'JSON Tools', icon: FileJson2 },
     { id: 'SshGate', name: 'SSH Gate', icon: TerminalSquare },
+    { id: 'Tunnel', name: 'SSH Tunnel', icon: TrainFrontTunnel },
     { id: 'Terminal', name: 'Terminal', icon: TerminalIcon },
     // 这里可以添加更多工具
   ]

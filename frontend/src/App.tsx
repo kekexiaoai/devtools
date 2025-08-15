@@ -31,11 +31,14 @@ import { Button } from '@/components/ui/button' // AlertDialogAction 本质上�
 
 import { AlertTriangle } from 'lucide-react'
 import { useThemeDetector } from './hooks/useThemeDetector'
-import { Toaster } from 'sonner'
+import { toast, Toaster } from 'sonner'
 import { types } from '@wailsjs/go/models'
+import { sshtunnel } from '@wailsjs/go/models'
 import { useSshConnection } from './hooks/useSshConnection'
 import { useDialog } from './hooks/useDialog'
 import { appLogger } from './lib/logger'
+import { GetActiveTunnels } from '@wailsjs/go/sshgate/Service'
+import { TunnelView } from './views/TunnelView'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
 
@@ -44,7 +47,13 @@ export type TerminalSession = types.TerminalSessionInfo & {
   status: ConnectionStatus
 }
 
-const toolIds = ['FileSyncer', 'JsonTools', 'SshGate', 'Terminal'] as const
+const toolIds = [
+  'FileSyncer',
+  'JsonTools',
+  'SshGate',
+  'Tunnel',
+  'Terminal',
+] as const
 
 /**
  * AppContent contains the main application logic. It's wrapped in DialogProvider
@@ -63,6 +72,11 @@ function AppContent() {
   const [terminalSessions, setTerminalSessions] = useState<TerminalSession[]>(
     []
   )
+
+  const [activeTunnels, setActiveTunnels] = useState<
+    sshtunnel.ActiveTunnelInfo[]
+  >([])
+  const [isLoadingTunnels, setIsLoadingTunnels] = useState(true)
 
   const logger = useMemo(() => {
     return appLogger
@@ -96,6 +110,37 @@ function AppContent() {
         logger.error('Environment promise was rejected:', error)
       })
   }, [logger])
+
+  const fetchTunnels = useCallback(async () => {
+    // For background refresh, we don't always set loading to true
+    // setIsLoadingTunnels(true);
+    try {
+      const tunnels = await GetActiveTunnels()
+      setActiveTunnels(tunnels)
+    } catch (error) {
+      // Errors are handled in the component that needs to show them,
+      // or we could use a global toast here.
+      logger.error(`Failed to fetch active tunnels: ${String(error)}`)
+    } finally {
+      setIsLoadingTunnels(false)
+    }
+  }, [logger])
+
+  useEffect(() => {
+    void fetchTunnels()
+    const handleFocus = () => void fetchTunnels()
+    // Poll every 30 seconds
+    const interval = setInterval(() => void fetchTunnels(), 30000)
+    // Listen for backend event
+    const cleanupTunnelChangedEvent = EventsOn('tunnels:changed', handleFocus)
+    // Refresh on window focus
+    window.addEventListener('focus', handleFocus)
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      clearInterval(interval)
+      cleanupTunnelChangedEvent()
+    }
+  }, [fetchTunnels, logger])
 
   // 适配系统主题
   // 调用 Hook 来获取实时的暗黑模式状态
@@ -358,6 +403,12 @@ function AppContent() {
     [connect]
   )
 
+  const handleCreateTunnel = useCallback(() => {
+    // Switch to SshGate view to select a host
+    setActiveTool('SshGate')
+    toast.info('Please select a host to create a new tunnel.')
+  }, [])
+
   const toolViews = useMemo(() => {
     // useMemo 会“记住”这个对象的计算结果。
     // 只有当它的依赖项（如 activeTool, terminalSessions 等）发生变化时，
@@ -369,6 +420,17 @@ function AppContent() {
         <SshGateView
           isActive={activeTool === 'SshGate'}
           onConnect={handleTerminalConnect}
+          activeTunnels={activeTunnels}
+          isLoadingTunnels={isLoadingTunnels}
+          onRefreshTunnels={() => void fetchTunnels()}
+        />
+      ),
+      Tunnel: (
+        <TunnelView
+          tunnels={activeTunnels}
+          isLoading={isLoadingTunnels}
+          onRefresh={() => void fetchTunnels()}
+          onCreateTunnel={handleCreateTunnel}
         />
       ),
       Terminal: (
@@ -391,6 +453,10 @@ function AppContent() {
     closeTerminal,
     renameTerminal,
     activeTerminalId,
+    activeTunnels,
+    isLoadingTunnels,
+    fetchTunnels,
+    handleCreateTunnel,
     handleTerminalConnect,
     reconnectTerminal,
     updateTerminalStatus,
