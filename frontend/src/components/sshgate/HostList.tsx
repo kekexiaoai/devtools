@@ -6,10 +6,11 @@ interface HostListProps {
   selectedAlias: string | null
   onSelect: (alias: string) => void
   onNew: () => void
+  onHover: (alias: string) => void
 }
 
 export function HostList(props: HostListProps) {
-  const { hosts, selectedAlias, onSelect, onNew } = props
+  const { hosts, selectedAlias, onSelect, onNew, onHover } = props
 
   return (
     <div className="p-2 h-full flex flex-col">
@@ -21,6 +22,7 @@ export function HostList(props: HostListProps) {
           {hosts.map((host) => (
             <li
               key={host.alias}
+              onMouseEnter={() => onHover(host.alias)}
               onClick={() => onSelect(host.alias)}
               className={`px-3 py-2 rounded-md cursor-pointer transition-colors text-sm font-medium ${
                 selectedAlias === host.alias
