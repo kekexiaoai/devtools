@@ -1,9 +1,15 @@
-import { useCallback } from 'react'
+import { JSX, useCallback } from 'react'
 import { sshtunnel } from '@wailsjs/go/models'
 import { toast } from 'sonner'
 import { StopForward } from '@wailsjs/go/sshgate/Service'
 import { useDialog } from '@/hooks/useDialog'
 import { Button } from '@/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import {
   Table,
   TableBody,
@@ -12,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { RefreshCw, Trash2 } from 'lucide-react'
+import { RefreshCw, Trash2, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 
 const getTunnelTypeLabel = (type: string): string => {
   switch (type.toLowerCase()) {
@@ -25,6 +31,60 @@ const getTunnelTypeLabel = (type: string): string => {
     default:
       return type.toUpperCase()
   }
+}
+
+type TunnelStatus = 'active' | 'disconnected' | 'stopping'
+
+const isTunnelStatus = (s: string): s is TunnelStatus => {
+  return ['active', 'disconnected', 'stopping'].includes(s)
+}
+
+function TunnelStatusIndicator({
+  status,
+  message,
+}: {
+  status: TunnelStatus
+  message: string
+}) {
+  const statusConfig: Record<
+    TunnelStatus,
+    { icon: JSX.Element; label: string }
+  > = {
+    active: {
+      icon: <CheckCircle2 className="h-4 w-4 text-green-500" />,
+      label: 'Active',
+    },
+    disconnected: {
+      icon: <XCircle className="h-4 w-4 text-red-500" />,
+      label: 'Disconnected',
+    },
+    stopping: {
+      icon: <Loader2 className="h-4 w-4 animate-spin text-yellow-500" />,
+      label: 'Stopping',
+    },
+  }
+
+  // const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.disconnected;
+
+  const config = isTunnelStatus(status)
+    ? statusConfig[status]
+    : statusConfig.disconnected
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex items-center gap-2">
+            {config.icon}
+            <span className="capitalize">{config.label}</span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{message}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
 }
 
 interface ActiveTunnelsProps {
@@ -41,28 +101,31 @@ export function ActiveTunnels({
   const { showDialog } = useDialog()
 
   const handleStopTunnel = useCallback(
-    async (tunnelId: string) => {
+    async (tunnel: sshtunnel.ActiveTunnelInfo) => {
       // 停止隧道前找到它的信息，以便在通知中使用
-      const tunnelToStop = tunnels.find((t) => t.id === tunnelId)
+      const isDisconnected = tunnel.status === 'disconnected'
+      const actionText = isDisconnected ? 'Clearing' : 'Stopping'
+      const successText = isDisconnected ? 'cleared' : 'stopped'
+
       try {
-        await StopForward(tunnelId)
+        await StopForward(tunnel.id)
         // 刷新列表的逻辑现在由 'tunnels:changed' 事件监听器自动处理
-        if (tunnelToStop) {
-          toast.success('Tunnel Stoped', {
-            description: `Stopped forwarding from ${tunnelToStop.localAddr}`,
-          })
-        } else {
-          toast.success('Tunnel stopped successfully.')
-        }
+        toast.success(`Tunnel ${successText}`, {
+          description: isDisconnected
+            ? `Entry for ${tunnel.alias} removed.`
+            : `Stopped forwarding from ${tunnel.localAddr}`,
+        })
       } catch (error) {
         await showDialog({
           type: 'error',
-          title: 'Error',
-          message: `Failed to stop tunnel: ${String(error)}`,
+          title: `${actionText} Error`,
+          message: `Failed to ${
+            isDisconnected ? 'clear' : 'stop'
+          } tunnel: ${String(error)}`,
         })
       }
     },
-    [showDialog, tunnels]
+    [showDialog]
   )
 
   return (
@@ -82,6 +145,7 @@ export function ActiveTunnels({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[150px]">Status</TableHead>
               <TableHead>Alias</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Local Address</TableHead>
@@ -92,19 +156,30 @@ export function ActiveTunnels({
           <TableBody>
             {isLoading && tunnels.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center">
+                <TableCell colSpan={6} className="h-24 text-center">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : tunnels.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center">
+                <TableCell colSpan={6} className="h-24 text-center">
                   No active tunnels.
                 </TableCell>
               </TableRow>
             ) : (
               tunnels.map((tunnel) => (
-                <TableRow key={tunnel.id}>
+                <TableRow
+                  key={tunnel.id}
+                  data-state={
+                    tunnel.status === 'disconnected' ? 'disconnected' : 'active'
+                  }
+                >
+                  <TableCell>
+                    <TunnelStatusIndicator
+                      status={tunnel.status as TunnelStatus}
+                      message={tunnel.statusMsg}
+                    />
+                  </TableCell>
                   <TableCell className="font-mono">{tunnel.alias}</TableCell>
                   <TableCell>
                     <span className="px-2 py-1 text-xs font-semibold rounded-full bg-secondary text-secondary-foreground">
@@ -119,13 +194,22 @@ export function ActiveTunnels({
                   </TableCell>
                   <TableCell className="text-right">
                     <Button
-                      onClick={() => void handleStopTunnel(tunnel.id)}
+                      onClick={() => void handleStopTunnel(tunnel)}
                       variant="ghost"
                       size="icon"
                       className="hover:text-destructive"
-                      title="Stop Tunnel"
+                      disabled={tunnel.status === 'stopping'}
+                      title={
+                        tunnel.status === 'disconnected'
+                          ? 'Clear Disconnected Tunnel'
+                          : 'Stop Tunnel'
+                      }
                     >
-                      <Trash2 className="h-4 w-4" />
+                      {tunnel.status === 'stopping' ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
                     </Button>
                   </TableCell>
                 </TableRow>
