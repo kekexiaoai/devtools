@@ -43,18 +43,8 @@ import { appLogger } from '@/lib/logger'
 import { Terminal, type ITheme } from '@xterm/xterm'
 
 // --- 复用全局主题定义 ---
-import * as termThemes from '@/themes/terminalThemes'
+import { NAMED_THEMES } from '@/themes/terminalThemes'
 import { FONT_FAMILIES } from '@/themes/terminalThemes'
-
-const NAMED_THEMES: Record<string, { name: string; theme: ITheme }> = {
-  'one-dark': { name: 'One Dark', theme: termThemes.oneDarkTheme },
-  dracula: { name: 'Dracula', theme: termThemes.draculaTheme },
-  'github-dark': { name: 'GitHub Dark', theme: termThemes.githubDarkTheme },
-  'solarized-light': {
-    name: 'Solarized Light',
-    theme: termThemes.solarizedLightTheme,
-  },
-}
 
 // 扩展Terminal类型以解决类型定义问题（如果类型文件缺失）
 interface ExtendedTerminal extends Terminal {
