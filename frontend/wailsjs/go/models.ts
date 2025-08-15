@@ -104,6 +104,8 @@ export namespace sshtunnel {
 	    type: string;
 	    localAddr: string;
 	    remoteAddr: string;
+	    status: string;
+	    statusMsg: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ActiveTunnelInfo(source);
@@ -116,6 +118,8 @@ export namespace sshtunnel {
 	        this.type = source["type"];
 	        this.localAddr = source["localAddr"];
 	        this.remoteAddr = source["remoteAddr"];
+	        this.status = source["status"];
+	        this.statusMsg = source["statusMsg"];
 	    }
 	}
 

@@ -19,6 +19,18 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// TunnelStatus represents the state of a tunnel.
+type TunnelStatus string
+
+const (
+	// StatusActive means the tunnel is running normally.
+	StatusActive TunnelStatus = "active"
+	// StatusDisconnected means the tunnel lost its connection unexpectedly.
+	StatusDisconnected TunnelStatus = "disconnected"
+	// StatusStopping means the tunnel is being shut down by the user.
+	StatusStopping TunnelStatus = "stopping"
+)
+
 // SOCKS5 protocol constants
 const (
 	socks5Version = 0x05
@@ -50,6 +62,8 @@ type Tunnel struct {
 	Type       string // local, remote, dynamic
 	LocalAddr  string
 	RemoteAddr string
+	Status     TunnelStatus // New field to track the tunnel's state
+	StatusMsg  string       // New field for state
 	sshClient  *ssh.Client
 	listener   net.Listener
 	cancelFunc context.CancelFunc // 用于优雅地关闭隧道
@@ -57,11 +71,13 @@ type Tunnel struct {
 
 // ActiveTunnelInfo 是一个用于向前端展示的、简化的隧道信息结构
 type ActiveTunnelInfo struct {
-	ID         string `json:"id"`
-	Alias      string `json:"alias"`
-	Type       string `json:"type"`
-	LocalAddr  string `json:"localAddr"`
-	RemoteAddr string `json:"remoteAddr"`
+	ID         string       `json:"id"`
+	Alias      string       `json:"alias"`
+	Type       string       `json:"type"`
+	LocalAddr  string       `json:"localAddr"`
+	RemoteAddr string       `json:"remoteAddr"`
+	Status     TunnelStatus `json:"status"`
+	StatusMsg  string       `json:"statusMsg"`
 }
 
 // Manager 负责管理所有活动的隧道
@@ -161,6 +177,8 @@ func (m *Manager) createTunnel(alias string, localPort int, password string, gat
 		sshClient:  sshClient,
 		listener:   listener,
 		cancelFunc: cancel,
+		Status:     StatusActive, // Tunnels start as active.
+		StatusMsg:  "Connection established.",
 	}
 
 	m.mu.Lock()
@@ -173,18 +191,9 @@ func (m *Manager) createTunnel(alias string, localPort int, password string, gat
 	//    - runTunnel: Accepts and forwards connections.
 	//    - monitorSSHConnection: Passively waits for the SSH connection to close.
 	//    - startKeepAlive: Actively probes the connection to detect failures.
-	// go m.runTunnel(tunnel, ctx)
-	utils.SafeGo(log.Default(), func() {
-		m.runTunnel(tunnel, ctx)
-	})
-	// go m.monitorSSHConnection(tunnel)
-	utils.SafeGo(log.Default(), func() {
-		m.monitorSSHConnection(tunnel)
-	})
-	// go m.startKeepAlive(tunnel.sshClient, ctx)
-	utils.SafeGo(log.Default(), func() {
-		m.startKeepAlive(tunnel.sshClient, ctx)
-	})
+	go m.runTunnel(tunnel, ctx)
+	go m.monitorSSHConnection(tunnel)
+	go m.startKeepAlive(tunnel.sshClient, ctx)
 
 	// Notify frontend about the change
 	m.debounceChangeEvent()
@@ -196,10 +205,29 @@ func (m *Manager) createTunnel(alias string, localPort int, password string, gat
 // closed, then triggers the tunnel's cancellation context to start the
 // cleanup process. This is a passive monitoring mechanism.
 func (m *Manager) monitorSSHConnection(tunnel *Tunnel) {
-	err := tunnel.sshClient.Wait()
-	log.Printf("SSH connection for tunnel %s (alias: %s) closed: %v. Initiating cleanup.", tunnel.ID, tunnel.Alias, err)
-	// Calling cancelFunc is the primary trigger for the entire cleanup cascade.
-	tunnel.cancelFunc()
+	// This blocks until the connection is closed for any reason.
+	waitErr := tunnel.sshClient.Wait()
+	log.Printf("SSH connection for tunnel %s (alias: %s) closed: %v.", tunnel.ID, tunnel.Alias, waitErr)
+
+	m.mu.Lock()
+	// Re-fetch the tunnel to get the most current state inside the lock.
+	currentTunnel, ok := m.activeTunnels[tunnel.ID]
+	if !ok || currentTunnel.Status == StatusStopping {
+		// If the tunnel is not found or is already being stopped by the user,
+		// the cleanup is being handled by StopForward. We don't need to do anything.
+		m.mu.Unlock()
+		log.Printf("Tunnel %s is already stopping or cleaned up, skipping disconnect logic.", tunnel.ID)
+		return
+	}
+
+	// This was an unexpected disconnection. Update the status.
+	currentTunnel.Status = StatusDisconnected
+	currentTunnel.StatusMsg = fmt.Sprintf("Connection lost: %v", waitErr)
+	m.mu.Unlock()
+
+	// Close the listener to unblock the runTunnel goroutine, which will then call cleanup.
+	currentTunnel.listener.Close()
+	m.debounceChangeEvent() // Notify the frontend of the status change.
 }
 
 // startKeepAlive periodically sends keep-alive requests to the SSH server
@@ -467,15 +495,33 @@ func (m *Manager) proxyData(conn1, conn2 net.Conn) {
 // StopForward 停止一个正在运行的隧道
 func (m *Manager) StopForward(tunnelID string) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	tunnel, ok := m.activeTunnels[tunnelID]
 	if !ok {
+		m.mu.Unlock()
 		return fmt.Errorf("tunnel with ID %s not found", tunnelID)
 	}
-	tunnel.cancelFunc() // 发出取消信号，将触发 runTunnel 的优雅退出
 
-	log.Printf("Stopping tunnel %s: %s -> %s", tunnelID, tunnel.LocalAddr, tunnel.RemoteAddr)
+	switch tunnel.Status {
+	case StatusActive:
+		// For active tunnels, initiate a graceful shutdown.
+		log.Printf("User requested stop for active tunnel %s. Changing status to 'stopping'.", tunnelID)
+		tunnel.Status = StatusStopping
+		tunnel.StatusMsg = "User initiated stop."
+		// Calling cancelFunc triggers the cleanup cascade.
+		tunnel.cancelFunc()
+	case StatusDisconnected:
+		// For disconnected tunnels, the user is just clearing it from the list.
+		// Resources are already closed, so we just remove it from the map.
+		log.Printf("User requested to clear disconnected tunnel %s.", tunnelID)
+		delete(m.activeTunnels, tunnelID)
+		// Manually trigger event as cleanupTunnel won't be called for this case.
+		m.debounceChangeEvent()
+	case StatusStopping:
+		// Already being stopped, do nothing.
+		log.Printf("Stop request for tunnel %s ignored, already in 'stopping' state.", tunnelID)
+	}
+
+	m.mu.Unlock()
 	return nil
 }
 
@@ -486,34 +532,28 @@ func (m *Manager) cleanupTunnel(tunnelID string) {
 
 	tunnel, ok := m.activeTunnels[tunnelID]
 	if !ok {
-		return // Already cleaned up or never existed.
+		return // Already cleaned up or never existed
 	}
 
-	log.Printf("Starting cleanup for tunnel %s...", tunnelID)
+	log.Printf("Starting resource cleanup for tunnel %s (status: %s)...", tunnelID, tunnel.Status)
 
-	// Safely close the listener, recovering from any potential panics.
-	// This ensures that even if one Close() fails, the others are still attempted.
-	func() {
-		defer utils.Recover(log.Default())
-		if tunnel.listener != nil {
-			tunnel.listener.Close()
-			log.Printf("Tunnel %s: Listener closed successfully.", tunnelID)
-		}
-	}()
+	// Resources like listener and sshClient are closed regardless of status.
+	// The listener might have already been closed by monitorSSHConnection, but closing again is safe.
+	if tunnel.listener != nil {
+		tunnel.listener.Close()
+	}
+	if tunnel.sshClient != nil {
+		tunnel.sshClient.Close()
+	}
 
-	// Safely close the SSH client.
-	func() {
-		defer utils.Recover(log.Default())
-		if tunnel.sshClient != nil {
-			tunnel.sshClient.Close()
-			log.Printf("Tunnel %s: SSH client closed successfully.", tunnelID)
-		}
-	}()
+	// The crucial part: only remove the tunnel from the map if it was a user-initiated stop.
+	if tunnel.Status == StatusStopping {
+		delete(m.activeTunnels, tunnelID)
+		log.Printf("Completed cleanup and removed tunnel %s from active list.", tunnelID)
+	} else {
+		log.Printf("Completed resource cleanup for tunnel %s. It remains in 'disconnected' state.", tunnelID)
+	}
 
-	// Now that resources are closed, remove the tunnel from the active list.
-	delete(m.activeTunnels, tunnelID)
-	log.Printf("Cleaned up tunnel %s", tunnelID)
-	// Use a debouncer to avoid event storms if multiple tunnels close at once.
 	m.debounceChangeEvent()
 }
 
@@ -551,6 +591,8 @@ func (m *Manager) GetActiveTunnels() []ActiveTunnelInfo {
 			Type:       tunnel.Type,
 			LocalAddr:  tunnel.LocalAddr,
 			RemoteAddr: tunnel.RemoteAddr,
+			Status:     tunnel.Status,
+			StatusMsg:  tunnel.StatusMsg,
 		})
 	}
 	return info
