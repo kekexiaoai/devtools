@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -131,7 +132,18 @@ func (m *Manager) createTunnel(alias string, localPort int, password string, gat
 	listener, err := net.Listen("tcp", localAddr)
 	if err != nil {
 		sshClient.Close()
-		return "", fmt.Errorf("failed to listen on local port %d: %w", localPort, err)
+		// Check for a specific "address already in use" error to provide a better message.
+		// The underlying error from net.Listen can be complex (*net.OpError), which might
+		// cause issues with the Wails bridge. We create a new, simple error string.
+		if opErr, ok := err.(*net.OpError); ok {
+			// Checking the error string is a common and reasonably portable alternative
+			// to platform-specific syscall errors.
+			if strings.Contains(strings.ToLower(opErr.Err.Error()), "address already in use") {
+				return "", fmt.Errorf("本地端口 %d 已被占用，请使用其他端口", localPort)
+			}
+		}
+		// For other listener errors, we also return a simplified error string.
+		return "", fmt.Errorf("无法监听本地端口 %d: %s", localPort, err)
 	}
 
 	// 4. Create and register tunnel

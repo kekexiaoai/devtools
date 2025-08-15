@@ -14,6 +14,35 @@ import {
 } from '@wailsjs/go/terminal/Service'
 import { useDialog } from '@/hooks/useDialog'
 
+/**
+ * Wraps a promise with a timeout.
+ * @param promise The promise to wrap.
+ * @param ms The timeout in milliseconds.
+ * @param timeoutMessage The error message to use on timeout.
+ * @returns A new promise that races the original promise against a timeout.
+ */
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  timeoutMessage: string
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error(timeoutMessage))
+    }, ms)
+
+    promise
+      .then((res) => {
+        clearTimeout(timeoutId)
+        resolve(res)
+      })
+      .catch((err) => {
+        clearTimeout(timeoutId)
+        reject(err instanceof Error ? err : new Error(String(err)))
+      })
+  })
+}
+
 // Hook 的参数类型定义
 interface UseSshConnectionProps {
   showDialog: ReturnType<typeof useDialog>['showDialog']
@@ -48,6 +77,7 @@ export function useSshConnection({
             let savePassword = false
             let trustHost = false
             const dryRun = strategy !== 'external'
+            const TIMEOUT_MS = 15000 // 15-second timeout for network operations
 
             // 使用一个循环来处理多步骤的交互式对话
             while (true) {
@@ -60,22 +90,34 @@ export function useSshConnection({
                   result = { success: true } as types.ConnectionResult
                 } else {
                   if (trustHost) {
-                    result = await ConnectInTerminalAndTrustHost(
-                      alias,
-                      currentPassword,
-                      savePassword,
-                      dryRun
+                    result = await withTimeout(
+                      ConnectInTerminalAndTrustHost(
+                        alias,
+                        currentPassword,
+                        savePassword,
+                        dryRun
+                      ),
+                      TIMEOUT_MS,
+                      `Connection to ${alias} timed out.`
                     )
                     trustHost = false // 重置信任标志，只用一次
                   } else {
                     result = currentPassword
-                      ? await ConnectInTerminalWithPassword(
-                          alias,
-                          currentPassword,
-                          savePassword,
-                          dryRun
+                      ? await withTimeout(
+                          ConnectInTerminalWithPassword(
+                            alias,
+                            currentPassword,
+                            savePassword,
+                            dryRun
+                          ),
+                          TIMEOUT_MS,
+                          `Connection to ${alias} timed out.`
                         )
-                      : await ConnectInTerminal(alias, dryRun)
+                      : await withTimeout(
+                          ConnectInTerminal(alias, dryRun),
+                          TIMEOUT_MS,
+                          `Connection to ${alias} timed out.`
+                        )
                   }
                 }
 
