@@ -1,13 +1,47 @@
 import { useDialog } from '@/hooks/useDialog'
 import { types } from '@wailsjs/go/models'
-import { useEffect, useState } from 'react'
-import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
-import { SavePasswordForAlias, SaveSSHHost } from '@wailsjs/go/sshgate/Service'
-import { DialogContent } from '../ui/dialog'
-import { Label } from '../ui/label'
+import { useEffect } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog'
+import { SaveSSHHost } from '@wailsjs/go/sshgate/Service'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 
+// 1. 使用 Zod 定义表单验证 schema
+const hostSchema = z.object({
+  alias: z
+    .string()
+    .trim()
+    .min(1, { message: 'Alias is required.' })
+    .refine((val) => !/\s/.test(val), {
+      message: 'Alias cannot contain spaces.',
+    }),
+  hostName: z.string().trim().min(1, { message: 'HostName is required.' }),
+  user: z.string().trim().min(1, { message: 'User is required.' }),
+  port: z.string().trim().optional(),
+  identityFile: z.string().trim().optional(),
+})
+
+// 从 schema 推断出 TypeScript 类型
+type HostFormValues = z.infer<typeof hostSchema>
 interface HostFormDialogProps {
   host: types.SSHHost | null
   isOpen: boolean
@@ -18,92 +52,53 @@ interface HostFormDialogProps {
 export function HostFormDialog(props: HostFormDialogProps) {
   const { host, isOpen, onOpenChange, onSave } = props
   const { showDialog } = useDialog()
-  const [formData, setFormData] = useState<types.SSHHost>({} as types.SSHHost)
-  const [errors, setErrors] = useState<Record<string, string>>({})
 
-  const [password, setPassword] = useState('')
-  const [savePassword, setSavePassword] = useState(true)
+  // 2. 使用 react-hook-form 设置表单
+  const form = useForm<HostFormValues>({
+    resolver: zodResolver(hostSchema),
+    defaultValues: {
+      alias: '',
+      hostName: '',
+      user: '',
+      port: '22',
+      identityFile: '',
+    },
+  })
 
+  // 3. 当对话框打开或编辑的 host 变化时，重置表单
   useEffect(() => {
     if (isOpen) {
-      setPassword('')
-      setSavePassword(true)
-      if (host) {
-        setFormData(host)
-      } else {
-        setFormData({
-          alias: '',
-          hostName: '',
-          user: '',
-          port: '22',
-          identityFile: '',
-        } as types.SSHHost)
-      }
+      const defaultValues = host
+        ? {
+            alias: host.alias,
+            hostName: host.hostName,
+            user: host.user,
+            port: host.port || '22',
+            identityFile: host.identityFile || '',
+          }
+        : {
+            alias: '',
+            hostName: '',
+            user: '',
+            port: '22',
+            identityFile: '',
+          }
+      form.reset(defaultValues)
     }
-  }, [isOpen, host])
+  }, [isOpen, host, form])
 
-  const validateAlias = (value: string) => {
-    let error = ''
-    if (!value) {
-      error = 'Alias is required'
-    } else if (/\s/.test(value)) {
-      error = 'Alias cannot contain spaces'
-    }
-    setErrors((prev) => ({ ...prev, alias: error }))
-    return !error
-  }
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    // 直接使用当前状态更新，可能获取到旧的状态值
-    // setFormData({
-    //   ...formData,
-    //   [name]: value,
-    // })
-
-    // 使用函数式更新，确保使用最新的状态值
-    setFormData((prev) => ({ ...prev, [name]: value }))
-
-    // Real-time validation for alias field
-    if (name === 'alias') {
-      validateAlias(value)
-    }
-  }
-  // 添加对话框关闭时的错误重置处理
-  const handleOpenChange = (open: boolean) => {
-    if (!open) {
-      setErrors({})
-    }
-    onOpenChange(open)
-  }
-
-  const handleSave = async () => {
-    const errors = []
-    if (!formData.alias) {
-      errors.push('Alias is required.')
-    } else if (/\s/.test(formData.alias)) {
-      errors.push('Alias cannot contain spaces.')
-    }
-    if (!formData.hostName) {
-      errors.push('HostName is required.')
-    }
-    if (!formData.user) {
-      errors.push('User is required.')
-    }
-
-    if (errors.length > 0) {
-      await showDialog({
-        type: 'error',
-        title: 'Validation Error',
-        message: errors.join('\n'),
-      })
-      return
-    }
+  // 4. 处理表单提交
+  const onSubmit = async (data: HostFormValues) => {
     try {
-      await SaveSSHHost(formData)
-      if (password && savePassword) {
-        await SavePasswordForAlias(formData.alias, password)
+      // Wails 生成的 Go struct 类型要求所有字段都是 string，
+      // 而 Zod schema 将可选字段推断为 string | undefined。
+      // 在这里进行转换以匹配后端类型。
+      const payload: types.SSHHost = {
+        ...data,
+        port: data.port ?? '',
+        identityFile: data.identityFile ?? '',
       }
+      await SaveSSHHost(payload)
       onSave()
       onOpenChange(false)
       await showDialog({
@@ -119,108 +114,107 @@ export function HostFormDialog(props: HostFormDialogProps) {
       })
     }
   }
+
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>
-            {host ? `Edit Host: ${host.alias}` : 'Add New SSH Host'}
-          </DialogTitle>
+          <DialogTitle>{host ? 'Edit Host' : 'New Host'}</DialogTitle>
+          <DialogDescription>
+            Enter the details for the SSH host. All fields are parsed from
+            `~/.ssh/config`.
+          </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="alias" className="justify-self-end">
-              Alias
-            </Label>
-            <div className="col-span-3 space-y-1">
-              <Input
-                id="alias"
-                name="alias"
-                value={formData.alias}
-                onChange={handleInputChange}
-                className={`col-span-3 normal-case ${errors.alias ? 'border-red-5' : ''}`}
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                disabled={!!host}
-              ></Input>
-              {errors.alias && (
-                <p className="text-sm text-red-500">{errors.alias}</p>
-              )}
-            </div>
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="hostName" className="justify-self-end">
-              HostName
-            </Label>
-            <Input
-              id="hostName"
-              name="hostName"
-              value={formData.hostName}
-              onChange={handleInputChange}
-              className="col-span-3 normal-case"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-            ></Input>
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="user" className="justify-self-end">
-              User
-            </Label>
-            <Input
-              id="user"
-              name="user"
-              value={formData.user}
-              onChange={handleInputChange}
-              className="col-span-3 normal-case"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-            ></Input>
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="port" className="justify-self-end">
-              Port
-            </Label>
-            <Input
-              id="port"
-              name="port"
-              value={formData.port}
-              onChange={handleInputChange}
-              className="col-span-3 normal-case"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-            ></Input>
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="identityFile" className="justify-self-end">
-              IdentityFile
-            </Label>
-            <Input
-              id="identityFile"
-              name="identityFile"
-              value={formData.identityFile}
-              onChange={handleInputChange}
-              className="col-span-3 normal-case"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-            ></Input>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => {
-              onOpenChange(false)
+        {/* 5. 使用 Form 组件包裹表单 */}
+        <Form {...form}>
+          <form
+            onSubmit={(e) => {
+              // 包装 handleSubmit 以满足 ESLint 的 no-misused-promises 规则
+              void form.handleSubmit(onSubmit)(e)
             }}
+            className="space-y-4"
           >
-            Cancel
-          </Button>
-          <Button onClick={() => void handleSave()}>Save</Button>
-        </DialogFooter>
+            <FormField
+              control={form.control}
+              name="alias"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Alias</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="my-server"
+                      {...field}
+                      disabled={!!host}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="hostName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>HostName</FormLabel>
+                  <FormControl>
+                    <Input placeholder="192.168.1.100" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="user"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>User</FormLabel>
+                  <FormControl>
+                    <Input placeholder="root" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="port"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Port (optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="22" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="identityFile"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>IdentityFile (optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="~/.ssh/id_rsa" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit">Save</Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   )
