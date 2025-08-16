@@ -178,7 +178,7 @@ export function JsonToolsView() {
             <label className="mb-1 text-sm font-semibold text-foreground">
               Input
             </label>
-            <div className="flex-grow w-full border rounded-md overflow-y-auto">
+            <div className="flex-grow w-full border border-border rounded-md overflow-y-auto">
               <CodeMirror
                 value={input}
                 height="100%"
@@ -219,7 +219,7 @@ export function JsonToolsView() {
           <label className="mb-1 text-sm font-semibold text-foreground">
             Output
           </label>
-          <div className="w-full flex-grow p-2 bg-muted/50 rounded-md border overflow-auto">
+          <div className="w-full flex-grow p-2 bg-muted/50 rounded-md border border-border overflow-auto">
             {Object.keys(outputObject).length > 0 ? (
               <ReactJson
                 src={outputObject}

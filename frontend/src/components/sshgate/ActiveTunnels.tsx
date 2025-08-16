@@ -141,10 +141,10 @@ export function ActiveTunnels({
           <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
         </Button>
       </div>
-      <div className="border rounded-lg overflow-y-auto flex-1">
+      <div className="border border-border rounded-lg overflow-y-auto flex-1">
         <Table>
           <TableHeader>
-            <TableRow>
+            <TableRow className="border-border">
               <TableHead className="w-[150px]">Status</TableHead>
               <TableHead>Alias</TableHead>
               <TableHead>Type</TableHead>

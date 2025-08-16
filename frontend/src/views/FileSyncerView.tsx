@@ -539,7 +539,7 @@ export function FileSyncerView({ isActive }: { isActive: boolean }) {
         )}
 
         {/* 状态栏 */}
-        <div className="h-6 flex-shrink-0 bg-background border-t flex items-center justify-between px-2 text-xs select-none">
+        <div className="h-6 flex-shrink-0 bg-background border-t border-border flex items-center justify-between px-2 text-xs select-none">
           <button
             onClick={toggleLogPanel}
             className="flex items-center space-x-1 text-muted-foreground hover:text-foreground"
