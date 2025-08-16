@@ -55,25 +55,41 @@ func (a *Service) GetSSHHosts() ([]types.SSHHost, error) {
 	return hosts, nil
 }
 
-// SaveSSHHost 保存（新增或更新）一个 SSH 主机配置
-func (a *Service) SaveSSHHost(host types.SSHHost) error {
+// validateAndSanitizeHost cleans and validates the input SSHHost.
+// It trims whitespace from all fields and checks for required values and format constraints.
+func validateAndSanitizeHost(host *types.SSHHost) error {
+	// 1. Sanitize: Trim whitespace from all fields.
 	host.Alias = strings.TrimSpace(host.Alias)
-	if host.Alias == "" {
-		return errors.New("alias is required")
-	}
-	if strings.Contains(host.Alias, " ") {
-		return errors.New("alias cannot contain space")
-	}
 	host.HostName = strings.TrimSpace(host.HostName)
-	if host.HostName == "" {
-		return errors.New("hostName is required")
-	}
 	host.User = strings.TrimSpace(host.User)
-	if host.User == "" {
-		return errors.New("user is required")
-	}
 	host.Port = strings.TrimSpace(host.Port)
 	host.IdentityFile = strings.TrimSpace(host.IdentityFile)
+
+	// 2. Validate: Check for required fields using a map for clarity and easy extension.
+	requiredFields := map[string]string{
+		"alias":    host.Alias,
+		"hostName": host.HostName,
+		"user":     host.User,
+	}
+	for field, value := range requiredFields {
+		if value == "" {
+			return fmt.Errorf("%s is required", field)
+		}
+	}
+
+	// 3. Specific validations
+	if strings.Contains(host.Alias, " ") {
+		return errors.New("alias cannot contain spaces")
+	}
+
+	return nil
+}
+
+// SaveSSHHost 保存（新增或更新）一个 SSH 主机配置
+func (a *Service) SaveSSHHost(host types.SSHHost) error {
+	if err := validateAndSanitizeHost(&host); err != nil {
+		return err
+	}
 
 	// 我们的 sshmanager 期望的是一个包含所有参数的 map
 	// 我们需要将 types.SSHHost 转换为它需要的格式
