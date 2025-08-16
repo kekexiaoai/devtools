@@ -47,6 +47,7 @@ import { NAMED_THEMES } from '@/themes/terminalThemes'
 import { FONT_FAMILIES } from '@/themes/terminalThemes'
 
 // 扩展Terminal类型以解决类型定义问题（如果类型文件缺失）
+import { useTerminalSetting } from '@/hooks/useTerminalSetting'
 interface ExtendedTerminal extends Terminal {
   on?(event: 'focus' | 'blur', handler: () => void): void
   off?(event: 'focus' | 'blur', handler: () => void): void
@@ -68,36 +69,56 @@ export function IntegratedTerminal({
   cursorStyle,
   cursorBlink,
 }: IntegratedTerminalProps) {
-  // --- 动态设置的状态管理 (本地覆盖) ---
-  // null 表示使用从 props 传入的全局设置
-  const [localFontSize, setLocalFontSize] = useState<number | null>(null)
+  // --- Settings Management using the custom hook ---
+  const {
+    effectiveValue: effectiveFontSize,
+    setLocalValue: setLocalFontSize,
+    isOverridden: isFontSizeOverridden,
+    reset: resetFontSize,
+  } = useTerminalSetting(fontSize, 12)
+
+  const {
+    effectiveValue: effectiveCopyOnSelect,
+    setLocalValue: setLocalCopyOnSelect,
+    isOverridden: isCopyOnSelectOverridden,
+    reset: resetCopyOnSelect,
+  } = useTerminalSetting(copyOnSelect, true)
+
+  const {
+    effectiveValue: effectiveScrollback,
+    setLocalValue: setLocalScrollback,
+    isOverridden: isScrollbackOverridden,
+    reset: resetScrollback,
+  } = useTerminalSetting(scrollback, 1000)
+
+  const {
+    effectiveValue: effectiveCursorStyle,
+    setLocalValue: setLocalCursorStyle,
+    isOverridden: isCursorStyleOverridden,
+    reset: resetCursorStyle,
+  } = useTerminalSetting<'block' | 'underline' | 'bar'>(cursorStyle, 'block')
+
+  const {
+    effectiveValue: effectiveCursorBlink,
+    setLocalValue: setLocalCursorBlink,
+    isOverridden: isCursorBlinkOverridden,
+    reset: resetCursorBlink,
+  } = useTerminalSetting(cursorBlink, true)
+
+  // These settings have more complex logic (mapping keys to objects/values)
+  // and are kept separate for now.
   const [localThemeKey, setLocalThemeKey] = useState<string | null>(null)
   const [localFontFamilyKey, setLocalFontFamilyKey] = useState<string | null>(
     null
   )
-  const [localCopyOnSelect, setLocalCopyOnSelect] = useState<boolean | null>(
-    null
-  )
-  const [localScrollback, setLocalScrollback] = useState<number | null>(null)
-  const [localCursorStyle, setLocalCursorStyle] = useState<
-    'block' | 'underline' | 'bar' | null
-  >(null)
-  const [localCursorBlink, setLocalCursorBlink] = useState<boolean | null>(null)
 
   // --- 计算最终生效的设置 ---
-  const effectiveFontSize = localFontSize ?? fontSize ?? 12
   const effectiveTheme = localThemeKey
     ? NAMED_THEMES[localThemeKey]?.theme
     : theme
   const effectiveFontFamily = localFontFamilyKey
     ? FONT_FAMILIES[localFontFamilyKey]?.value
     : (fontFamily ?? FONT_FAMILIES.default.value)
-
-  const effectiveCopyOnSelect = localCopyOnSelect ?? copyOnSelect ?? true
-
-  const effectiveScrollback = localScrollback ?? scrollback ?? 1000
-  const effectiveCursorStyle = localCursorStyle ?? cursorStyle ?? 'block'
-  const effectiveCursorBlink = localCursorBlink ?? cursorBlink ?? true
 
   // 调用 Hook，获取 terminal 实例和 ref
   // useXTerm 的 options 只在首次创建时使用。
@@ -396,11 +417,11 @@ export function IntegratedTerminal({
                   <div
                     className="col-span-2 group flex cursor-pointer items-center gap-1.5"
                     onClick={(e) => {
-                      if (localFontSize !== null) {
+                      if (isFontSizeOverridden) {
                         // Prevent default mousedown behavior which can cause focus shifts
                         // and trigger the popover to close.
                         e.preventDefault()
-                        setTimeout(() => setLocalFontSize(null), 0)
+                        setTimeout(() => resetFontSize(), 0)
                       }
                     }}
                   >
@@ -408,14 +429,14 @@ export function IntegratedTerminal({
                       htmlFor="font-size"
                       className="cursor-pointer"
                       title={
-                        localFontSize !== null ? 'Reset to default' : undefined
+                        isFontSizeOverridden ? 'Reset to default' : undefined
                       }
                     >
                       Font Size
                     </Label>
                     <RotateCcw
                       className={`h-3 w-3 text-muted-foreground transition-opacity ${
-                        localFontSize !== null
+                        isFontSizeOverridden
                           ? 'opacity-50 group-hover:opacity-100 cursor-pointer'
                           : 'opacity-0'
                       }`}
@@ -542,9 +563,9 @@ export function IntegratedTerminal({
                   <div
                     className="col-span-2 group flex cursor-pointer items-center gap-1.5"
                     onClick={(e) => {
-                      if (localCopyOnSelect !== null) {
+                      if (isCopyOnSelectOverridden) {
                         e.preventDefault()
-                        setTimeout(() => setLocalCopyOnSelect(null), 0)
+                        setTimeout(() => resetCopyOnSelect(), 0)
                       }
                     }}
                   >
@@ -552,7 +573,7 @@ export function IntegratedTerminal({
                       htmlFor="copy-on-select"
                       className="cursor-pointer"
                       title={
-                        localCopyOnSelect !== null
+                        isCopyOnSelectOverridden
                           ? 'Reset to default'
                           : undefined
                       }
@@ -561,7 +582,7 @@ export function IntegratedTerminal({
                     </Label>
                     <RotateCcw
                       className={`h-3 w-3 text-muted-foreground transition-opacity ${
-                        localCopyOnSelect !== null
+                        isCopyOnSelectOverridden
                           ? 'opacity-50 group-hover:opacity-100 cursor-pointer'
                           : 'opacity-0'
                       }`}
@@ -583,9 +604,9 @@ export function IntegratedTerminal({
                   <div
                     className="col-span-2 group flex cursor-pointer items-center gap-1.5"
                     onClick={(e) => {
-                      if (localScrollback !== null) {
+                      if (isScrollbackOverridden) {
                         e.preventDefault()
-                        setTimeout(() => setLocalScrollback(null), 0)
+                        setTimeout(() => resetScrollback(), 0)
                       }
                     }}
                   >
@@ -593,16 +614,14 @@ export function IntegratedTerminal({
                       htmlFor="scrollback"
                       className="cursor-pointer"
                       title={
-                        localScrollback !== null
-                          ? 'Reset to default'
-                          : undefined
+                        isScrollbackOverridden ? 'Reset to default' : undefined
                       }
                     >
                       Scrollback
                     </Label>
                     <RotateCcw
                       className={`h-3 w-3 text-muted-foreground transition-opacity ${
-                        localScrollback !== null
+                        isScrollbackOverridden
                           ? 'opacity-50 group-hover:opacity-100 cursor-pointer'
                           : 'opacity-0'
                       }`}
@@ -631,9 +650,9 @@ export function IntegratedTerminal({
                   <div
                     className="col-span-2 group flex cursor-pointer items-center gap-1.5"
                     onClick={(e) => {
-                      if (localCursorStyle !== null) {
+                      if (isCursorStyleOverridden) {
                         e.preventDefault()
-                        setTimeout(() => setLocalCursorStyle(null), 0)
+                        setTimeout(() => resetCursorStyle(), 0)
                       }
                     }}
                   >
@@ -641,23 +660,23 @@ export function IntegratedTerminal({
                       htmlFor="cursor-style"
                       className="cursor-pointer"
                       title={
-                        localCursorStyle !== null
-                          ? 'Reset to default'
-                          : undefined
+                        isCursorStyleOverridden ? 'Reset to default' : undefined
                       }
                     >
                       Cursor Style
                     </Label>
                     <RotateCcw
                       className={`h-3 w-3 text-muted-foreground transition-opacity ${
-                        localCursorStyle !== null
+                        isCursorStyleOverridden
                           ? 'opacity-50 group-hover:opacity-100 cursor-pointer'
                           : 'opacity-0'
                       }`}
                     />
                   </div>
                   <Select
-                    value={localCursorStyle ?? 'default'}
+                    value={
+                      isCursorStyleOverridden ? effectiveCursorStyle : 'default'
+                    }
                     onValueChange={(key) =>
                       setLocalCursorStyle(
                         key === 'default'
@@ -683,9 +702,9 @@ export function IntegratedTerminal({
                   <div
                     className="col-span-2 group flex cursor-pointer items-center gap-1.5"
                     onClick={(e) => {
-                      if (localCursorBlink !== null) {
+                      if (isCursorBlinkOverridden) {
                         e.preventDefault()
-                        setTimeout(() => setLocalCursorBlink(null), 0)
+                        setTimeout(() => resetCursorBlink(), 0)
                       }
                     }}
                   >
@@ -693,16 +712,14 @@ export function IntegratedTerminal({
                       htmlFor="cursor-blink"
                       className="cursor-pointer"
                       title={
-                        localCursorBlink !== null
-                          ? 'Reset to default'
-                          : undefined
+                        isCursorBlinkOverridden ? 'Reset to default' : undefined
                       }
                     >
                       Cursor Blink
                     </Label>
                     <RotateCcw
                       className={`h-3 w-3 text-muted-foreground transition-opacity ${
-                        localCursorBlink !== null
+                        isCursorBlinkOverridden
                           ? 'opacity-50 group-hover:opacity-100 cursor-pointer'
                           : 'opacity-0'
                       }`}
