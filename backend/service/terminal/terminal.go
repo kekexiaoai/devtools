@@ -13,8 +13,6 @@ import (
 	"os/exec"
 	"runtime"
 	"sync"
-	"syscall"
-	"time"
 
 	"devtools/backend/internal/sshmanager"
 	"devtools/backend/internal/types"
@@ -366,48 +364,13 @@ func (s *Service) cleanupSession(sessionID string) {
 
 			// 2. 处理本地会话：关闭伪终端 + 终止进程组
 			if session.localCmd != nil && session.localCmd.Process != nil {
-				// 先关闭伪终端（切断输入输出）
+				// Close the pty file descriptor first to unblock any I/O operations.
 				if session.ptyIn != nil {
 					session.ptyIn.Close()
 				}
-
-				// 获取进程 ID 和进程组 ID
-				pid := session.localCmd.Process.Pid
-				pgid, err := syscall.Getpgid(pid)
-				if err != nil {
-					// 若获取进程组失败，默认使用进程 ID 作为组 ID
-					pgid = pid
-					log.Printf("Failed to get pgid for pid %d, using pid as pgid: %v", pid, err)
-				}
-
-				// 定义终止函数：向进程组发送信号
-				terminate := func(signal syscall.Signal) error {
-					// 向进程组发送信号（信号值为负表示组信号）
-					return syscall.Kill(-pgid, signal)
-				}
-
-				// 步骤1：发送 SIGTERM 尝试优雅终止
-				if err := terminate(syscall.SIGTERM); err != nil {
-					log.Printf("SIGTERM to session %s (pgid %d) failed: %v", sessionID, pgid, err)
-				} else {
-					// 等待 500ms 让进程优雅退出
-					time.Sleep(500 * time.Millisecond)
-					// 检查进程是否已退出
-					if _, err := os.FindProcess(pid); err != nil {
-						// 进程已退出，无需后续操作
-						log.Printf("Session %s (pid %d) exited on SIGTERM", sessionID, pid)
-						goto cleanupDone
-					}
-				}
-
-				// 步骤2：SIGTERM 失败，发送 SIGKILL 强制终止
-				if err := terminate(syscall.SIGKILL); err != nil {
-					log.Printf("SIGKILL to session %s (pgid %d) failed: %v", sessionID, pgid, err)
-				} else {
-					log.Printf("Session %s (pid %d) killed with SIGKILL", sessionID, pid)
-				}
-
-			cleanupDone:
+				// Call the platform-specific termination logic.
+				// This will handle killing the process group on Unix and the process tree on Windows.
+				terminateProcessGroup(session.localCmd)
 			}
 		}
 
