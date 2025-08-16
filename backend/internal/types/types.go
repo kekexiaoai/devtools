@@ -40,7 +40,8 @@ type SSHHost struct {
 
 // PasswordRequiredError 表示连接因为需要密码而失败
 type PasswordRequiredError struct {
-	Alias string
+	Alias   string `json:"alias"`
+	Message string `json:"message"`
 }
 
 func (e *PasswordRequiredError) Error() string {
@@ -50,9 +51,9 @@ func (e *PasswordRequiredError) Error() string {
 
 // HostKeyVerificationRequiredError 表示需要用户确认一个新的主机指纹
 type HostKeyVerificationRequiredError struct {
-	Alias       string
-	Fingerprint string
-	HostAddress string
+	Alias       string `json:"alias"`
+	Fingerprint string `json:"fingerprint"`
+	HostAddress string `json:"hostAddress"`
 }
 
 func (e *HostKeyVerificationRequiredError) Error() string {
@@ -68,7 +69,8 @@ type ConnectionResult struct {
 
 // AuthenticationFailedError 表示尝试连接但因凭据错误而失败
 type AuthenticationFailedError struct {
-	Alias string
+	Alias   string `json:"alias"`
+	Message string `json:"message"`
 }
 
 func (e *AuthenticationFailedError) Error() string {
