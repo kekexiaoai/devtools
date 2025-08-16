@@ -110,6 +110,14 @@ func (m *Manager) Startup(ctx context.Context) error {
 
 // Shutdown 负责在应用退出时，优雅地关闭所有活动的隧道。
 func (m *Manager) Shutdown() {
+	// Stop the debouncer first to prevent any final events from firing during shutdown.
+	// This ensures no lingering goroutines from time.AfterFunc.
+	m.eventMu.Lock()
+	if m.eventDebouncer != nil {
+		m.eventDebouncer.Stop()
+	}
+	m.eventMu.Unlock()
+
 	// 通过创建一个副本避免在迭代时修改 map
 	idsToStop := make([]string, 0, len(m.activeTunnels))
 	m.mu.RLock()
