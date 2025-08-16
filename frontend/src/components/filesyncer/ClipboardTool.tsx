@@ -171,7 +171,7 @@ function ClipboardTool({ config, onConfigUpdate }: ClipboardToolProps) {
   // --- JSX 渲染 ---
   return (
     <>
-      <Card>
+      <Card className="border-border">
         <CardHeader>
           <CardTitle>Clipboard to Remote File</CardTitle>
           <CardDescription>
@@ -213,7 +213,7 @@ function ClipboardTool({ config, onConfigUpdate }: ClipboardToolProps) {
               </div>
             )}
           </div>
-          <div className="border-t pt-4">
+          <div className="border-t border-border pt-4">
             <Button
               onClick={openEditorModal}
               disabled={!remotePath || isEditingPath}

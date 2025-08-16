@@ -1,3 +1,4 @@
+
 # Makefile - 适配 monorepo 风格的目录结构
 
 # --------- 变量定义 -----------
@@ -22,8 +23,8 @@ help:  ## 📜 显示所有可用命令（分类展示）
 	@echo " 📦 项目安装与初始化"
 	@grep -E '^(install|install-frontend|install-wails):.*?## ' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
-	@echo " ✨ 代码检查与格式化"
-	@grep -E '^(lint|format|format-check|lint-all|lint-staged|lint-staged-debug):.*?## ' $(MAKEFILE_LIST) | \
+	@echo " ✨ 代码检查、测试与格式化"
+	@grep -E '^(lint|format|format-check|lint-all|lint-staged|test|test-ui|lint-staged-debug):.*?## ' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo " 🌐 前端独立命令"
 	@grep -E '^(frontend-dev|frontend-build|frontend-preview):.*?## ' $(MAKEFILE_LIST) | \
@@ -93,6 +94,14 @@ lint-staged:  ## 🔎 git 暂存检查（类型+格式+lint）
 lint-staged-debug:  ## 🔎 git 暂存检查(debug 模式)（类型+格式+lint）
 	@echo "🔍 运行 git 暂存检查(debug 模式)（类型+格式+lint）..."
 	@pnpm --filter $(FRONTEND_DIR) run lint-staged:debug
+
+test:  ## 🧪 运行所有前端测试
+	@echo "🧪 运行所有测试..."
+	@pnpm --filter $(FRONTEND_DIR) run test
+
+test-ui:  ## 🧪 在 UI 模式下运行前端测试
+	@echo "🧪 在 UI 模式下运行测试..."
+	@pnpm --filter $(FRONTEND_DIR) run test:ui
 
 format:  ## ✨ 自动格式化所有前端代码
 	@echo "✨ 自动格式化代码..."

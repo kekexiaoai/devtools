@@ -5,21 +5,22 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"sync"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
-
-	"github.com/wailsapp/wails/v2/pkg/menu"
-	"github.com/wailsapp/wails/v2/pkg/menu/keys"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"devtools/backend/internal/sshmanager"
 	"devtools/backend/internal/syncconfig"
 	"devtools/backend/internal/types"
+	"devtools/backend/pkg/platform"
 	"devtools/backend/service/filesyncer"
 	"devtools/backend/service/sshgate"
 	"devtools/backend/service/terminal"
+
+	"github.com/wailsapp/wails/v2/pkg/menu"
+	"github.com/wailsapp/wails/v2/pkg/menu/keys"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
@@ -31,11 +32,11 @@ type App struct {
 	TerminalService *terminal.Service
 	FileSyncService *filesyncer.Service
 
-	isQuitting   bool // 内部状态标志
-	backendReady bool // 新增：标记后端服务是否全部成功启动
+	isQuitting   bool       // 内部状态标志
+	backendReady bool       // 新增：标记后端服务是否全部成功启动
 	mu           sync.Mutex // 新增：保护 backendReady
-	isDebug    bool
-	isMacOS    bool
+	isDebug      bool
+	isMacOS      bool
 }
 
 // NewApp creates a new App application struct
@@ -59,7 +60,7 @@ func (a *App) IsQuitting() bool {
 	return a.isQuitting
 }
 
-// bootstrap 负责在 Wails 启动前，创建和组装所有应用的核心服务
+// Bootstrap 负责在 Wails 启动前，创建和组装所有应用的核心服务
 func (a *App) Bootstrap() {
 	// 日志初始化
 	logDir := a.initLogger()
@@ -125,6 +126,8 @@ func (a *App) Startup(ctx context.Context) {
 	a.mu.Lock()
 	a.backendReady = false // 明确在启动时重置状态
 	a.mu.Unlock()
+
+	platform.SetupPlatformSpecifics("DevTools")
 
 	// 定义一个启动任务列表
 	startupTasks := []struct {

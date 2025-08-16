@@ -13,8 +13,6 @@ import (
 	"os/exec"
 	"runtime"
 	"sync"
-	"syscall"
-	"time"
 
 	"devtools/backend/internal/sshmanager"
 	"devtools/backend/internal/types"
@@ -40,6 +38,7 @@ type Session struct {
 	ptyOut     io.Reader
 	localCmd   *exec.Cmd
 	ptmx       *os.File // For local sessions, to handle resize
+	cancelFunc context.CancelFunc
 }
 
 // Service 负责管理所有活动的终端会话
@@ -162,16 +161,21 @@ func (s *Service) StartRemoteSession(alias, sessionID, password string) (*types.
 		return nil, fmt.Errorf("SSH dial to %s failed: %w", alias, err)
 	}
 
+	// Create a context for this session's lifecycle (e.g., for keep-alive)
+	sessionCtx, cancel := context.WithCancel(s.ctx)
+
 	// 创建 SSH 会话
 	sshSession, err := sshConn.NewSession()
 	if err != nil {
 		sshConn.Close()
+		cancel()
 		return nil, fmt.Errorf("failed to create SSH session: %w", err)
 	}
 
 	// 请求 PTY
 	if err := sshSession.RequestPty("xterm-256color", 40, 80, ssh.TerminalModes{}); err != nil {
 		sshSession.Close()
+		cancel()
 		sshConn.Close()
 		return nil, fmt.Errorf("failed to request PTY: %w", err)
 	}
@@ -180,18 +184,21 @@ func (s *Service) StartRemoteSession(alias, sessionID, password string) (*types.
 	ptyIn, err := sshSession.StdinPipe()
 	if err != nil {
 		sshSession.Close()
+		cancel()
 		sshConn.Close()
 		return nil, err
 	}
 	ptyOut, err := sshSession.StdoutPipe()
 	if err != nil {
 		sshSession.Close()
+		cancel()
 		sshConn.Close()
 		return nil, err
 	}
 
 	// 启动远程 Shell
 	if err := sshSession.Shell(); err != nil {
+		cancel()
 		sshSession.Close()
 		sshConn.Close()
 		return nil, fmt.Errorf("failed to start shell: %w", err)
@@ -207,6 +214,7 @@ func (s *Service) StartRemoteSession(alias, sessionID, password string) (*types.
 		sshSession: sshSession,
 		ptyIn:      ptyIn,
 		ptyOut:     ptyOut,
+		cancelFunc: cancel,
 	}
 
 	s.mu.Lock()
@@ -215,8 +223,12 @@ func (s *Service) StartRemoteSession(alias, sessionID, password string) (*types.
 
 	log.Printf("Started new terminal session %s for host %s", sessionID, alias)
 
+	// Start keep-alive for the underlying SSH connection
+	go sshmanager.StartKeepAlive(sshConn, sessionCtx)
+
 	go func() {
 		defer s.cleanupSession(sessionID)
+		defer cancel()        // Ensure keep-alive and other context-aware goroutines are stopped
 		_ = sshSession.Wait() // 等待会话结束
 	}()
 
@@ -356,6 +368,11 @@ func (s *Service) cleanupSession(sessionID string) {
 
 	if session, ok := s.sessions[sessionID]; ok {
 		if session != nil {
+			// Cancel context to stop associated goroutines like keep-alive
+			if session.cancelFunc != nil {
+				session.cancelFunc()
+			}
+
 			// 1. 关闭 SSH 资源（仅远程会话有效）
 			if session.sshSession != nil {
 				session.sshSession.Close()
@@ -366,48 +383,13 @@ func (s *Service) cleanupSession(sessionID string) {
 
 			// 2. 处理本地会话：关闭伪终端 + 终止进程组
 			if session.localCmd != nil && session.localCmd.Process != nil {
-				// 先关闭伪终端（切断输入输出）
+				// Close the pty file descriptor first to unblock any I/O operations.
 				if session.ptyIn != nil {
 					session.ptyIn.Close()
 				}
-
-				// 获取进程 ID 和进程组 ID
-				pid := session.localCmd.Process.Pid
-				pgid, err := syscall.Getpgid(pid)
-				if err != nil {
-					// 若获取进程组失败，默认使用进程 ID 作为组 ID
-					pgid = pid
-					log.Printf("Failed to get pgid for pid %d, using pid as pgid: %v", pid, err)
-				}
-
-				// 定义终止函数：向进程组发送信号
-				terminate := func(signal syscall.Signal) error {
-					// 向进程组发送信号（信号值为负表示组信号）
-					return syscall.Kill(-pgid, signal)
-				}
-
-				// 步骤1：发送 SIGTERM 尝试优雅终止
-				if err := terminate(syscall.SIGTERM); err != nil {
-					log.Printf("SIGTERM to session %s (pgid %d) failed: %v", sessionID, pgid, err)
-				} else {
-					// 等待 500ms 让进程优雅退出
-					time.Sleep(500 * time.Millisecond)
-					// 检查进程是否已退出
-					if _, err := os.FindProcess(pid); err != nil {
-						// 进程已退出，无需后续操作
-						log.Printf("Session %s (pid %d) exited on SIGTERM", sessionID, pid)
-						goto cleanupDone
-					}
-				}
-
-				// 步骤2：SIGTERM 失败，发送 SIGKILL 强制终止
-				if err := terminate(syscall.SIGKILL); err != nil {
-					log.Printf("SIGKILL to session %s (pgid %d) failed: %v", sessionID, pgid, err)
-				} else {
-					log.Printf("Session %s (pid %d) killed with SIGKILL", sessionID, pid)
-				}
-
-			cleanupDone:
+				// Call the platform-specific termination logic.
+				// This will handle killing the process group on Unix and the process tree on Windows.
+				terminateProcessGroup(session.localCmd)
 			}
 		}
 

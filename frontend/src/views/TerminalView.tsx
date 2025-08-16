@@ -17,11 +17,10 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import {
-  oneDarkTheme,
-  solarizedLightTheme,
-  draculaTheme,
-  githubDarkTheme,
+  NAMED_THEMES,
   FONT_FAMILIES,
+  atomOneLightTheme,
+  gruvboxDarkDimmedTheme,
 } from '@/themes/terminalThemes'
 import type { ITheme } from '@xterm/xterm'
 import { Slider } from '@/components/ui/slider'
@@ -44,15 +43,15 @@ interface TerminalViewProps {
   isActive: boolean
 }
 
-const defaultDarkTheme = oneDarkTheme
-const defaultLightTheme = solarizedLightTheme
+const defaultDarkTheme = gruvboxDarkDimmedTheme
+const defaultLightTheme = atomOneLightTheme
 
 const availableThemes: { name: string; theme: ITheme | null }[] = [
   { name: 'System Default', theme: null },
-  { name: 'One Dark', theme: oneDarkTheme },
-  { name: 'Dracula', theme: draculaTheme },
-  { name: 'GitHub Dark', theme: githubDarkTheme },
-  { name: 'Solarized Light', theme: solarizedLightTheme },
+  ...Object.entries(NAMED_THEMES).map(([, theme]) => ({
+    name: theme.name,
+    theme: theme.theme,
+  })),
 ]
 
 export function TerminalView({
@@ -168,7 +167,7 @@ export function TerminalView({
       onValueChange={onActiveTerminalChange}
       className="h-full flex flex-col"
     >
-      <div className="flex items-center pl-2 pr-2">
+      <div className="flex items-center pl-2 pr-2 border-b border-border">
         <TabsList className="flex-shrink overflow-x-auto m-0 mr-2">
           {terminalSessions.map((session) => (
             <TabsTrigger

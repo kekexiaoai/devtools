@@ -50,7 +50,7 @@ export function LogPanel({ logs, onClear }: logPanelProps) {
   }, [])
 
   return (
-    <div className="h-full bg-muted/30 text-foreground flex flex-col p-2 border-t">
+    <div className="h-full bg-muted/30 text-foreground flex flex-col p-2 border-t border-border">
       {/* 面板头部 */}
       <div className="flex-shrink-0 flex justify-between items-center mb-1 px-1">
         <h3 className="font-bold text-sm">Sync Log</h3>

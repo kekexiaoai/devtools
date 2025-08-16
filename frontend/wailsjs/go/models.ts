@@ -104,6 +104,8 @@ export namespace sshtunnel {
 	    type: string;
 	    localAddr: string;
 	    remoteAddr: string;
+	    status: string;
+	    statusMsg: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ActiveTunnelInfo(source);
@@ -116,6 +118,8 @@ export namespace sshtunnel {
 	        this.type = source["type"];
 	        this.localAddr = source["localAddr"];
 	        this.remoteAddr = source["remoteAddr"];
+	        this.status = source["status"];
+	        this.statusMsg = source["statusMsg"];
 	    }
 	}
 
@@ -124,9 +128,9 @@ export namespace sshtunnel {
 export namespace types {
 	
 	export class HostKeyVerificationRequiredError {
-	    Alias: string;
-	    Fingerprint: string;
-	    HostAddress: string;
+	    alias: string;
+	    fingerprint: string;
+	    hostAddress: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new HostKeyVerificationRequiredError(source);
@@ -134,13 +138,14 @@ export namespace types {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Alias = source["Alias"];
-	        this.Fingerprint = source["Fingerprint"];
-	        this.HostAddress = source["HostAddress"];
+	        this.alias = source["alias"];
+	        this.fingerprint = source["fingerprint"];
+	        this.hostAddress = source["hostAddress"];
 	    }
 	}
 	export class PasswordRequiredError {
-	    Alias: string;
+	    alias: string;
+	    message: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PasswordRequiredError(source);
@@ -148,7 +153,8 @@ export namespace types {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Alias = source["Alias"];
+	        this.alias = source["alias"];
+	        this.message = source["message"];
 	    }
 	}
 	export class ConnectionResult {
