@@ -50,9 +50,6 @@ const (
 	repHostUnreachable         = 0x04
 	repCommandNotSupported     = 0x07
 	repAddressTypeNotSupported = 0x08
-
-	// sshKeepAliveInterval is the interval for sending SSH keep-alive messages.
-	sshKeepAliveInterval = 15 * time.Second
 )
 
 // Tunnel 代表一个活动的端口转发隧道
@@ -201,7 +198,7 @@ func (m *Manager) createTunnel(alias string, localPort int, password string, gat
 	//    - startKeepAlive: Actively probes the connection to detect failures.
 	go m.runTunnel(tunnel, ctx)
 	go m.monitorSSHConnection(tunnel)
-	go m.startKeepAlive(tunnel.sshClient, ctx)
+	go sshmanager.StartKeepAlive(tunnel.sshClient, ctx)
 
 	// Notify frontend about the change
 	m.debounceChangeEvent()
@@ -236,32 +233,6 @@ func (m *Manager) monitorSSHConnection(tunnel *Tunnel) {
 	// Close the listener to unblock the runTunnel goroutine, which will then call cleanup.
 	currentTunnel.listener.Close()
 	m.debounceChangeEvent() // Notify the frontend of the status change.
-}
-
-// startKeepAlive periodically sends keep-alive requests to the SSH server
-// to actively detect dead connections. If a request fails, it closes the client,
-// which in turn unblocks the sshClient.Wait() call in monitorSSHConnection.
-func (m *Manager) startKeepAlive(client *ssh.Client, ctx context.Context) {
-	ticker := time.NewTicker(sshKeepAliveInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			// Send a keep-alive request. "keepalive@openssh.com" is a standard
-			// no-op request used for this purpose.
-			_, _, err := client.SendRequest("keepalive@openssh.com", true, nil)
-			if err != nil {
-				log.Printf("SSH keep-alive for client %s failed: %v. Closing connection.", client.RemoteAddr(), err)
-				// Closing the client is the key action. It will cause sshClient.Wait() to unblock.
-				client.Close()
-				return
-			}
-		case <-ctx.Done():
-			// The tunnel is being shut down gracefully, so we can stop the keep-alive.
-			return
-		}
-	}
 }
 
 // --- 核心功能实现 - 本地端口转发 (-L) ---
