@@ -38,6 +38,7 @@ type Session struct {
 	ptyOut     io.Reader
 	localCmd   *exec.Cmd
 	ptmx       *os.File // For local sessions, to handle resize
+	cancelFunc context.CancelFunc
 }
 
 // Service 负责管理所有活动的终端会话
@@ -160,16 +161,21 @@ func (s *Service) StartRemoteSession(alias, sessionID, password string) (*types.
 		return nil, fmt.Errorf("SSH dial to %s failed: %w", alias, err)
 	}
 
+	// Create a context for this session's lifecycle (e.g., for keep-alive)
+	sessionCtx, cancel := context.WithCancel(s.ctx)
+
 	// 创建 SSH 会话
 	sshSession, err := sshConn.NewSession()
 	if err != nil {
 		sshConn.Close()
+
 		return nil, fmt.Errorf("failed to create SSH session: %w", err)
 	}
 
 	// 请求 PTY
 	if err := sshSession.RequestPty("xterm-256color", 40, 80, ssh.TerminalModes{}); err != nil {
 		sshSession.Close()
+		cancel()
 		sshConn.Close()
 		return nil, fmt.Errorf("failed to request PTY: %w", err)
 	}
@@ -178,18 +184,21 @@ func (s *Service) StartRemoteSession(alias, sessionID, password string) (*types.
 	ptyIn, err := sshSession.StdinPipe()
 	if err != nil {
 		sshSession.Close()
+		cancel()
 		sshConn.Close()
 		return nil, err
 	}
 	ptyOut, err := sshSession.StdoutPipe()
 	if err != nil {
 		sshSession.Close()
+		cancel()
 		sshConn.Close()
 		return nil, err
 	}
 
 	// 启动远程 Shell
 	if err := sshSession.Shell(); err != nil {
+		cancel()
 		sshSession.Close()
 		sshConn.Close()
 		return nil, fmt.Errorf("failed to start shell: %w", err)
@@ -205,6 +214,7 @@ func (s *Service) StartRemoteSession(alias, sessionID, password string) (*types.
 		sshSession: sshSession,
 		ptyIn:      ptyIn,
 		ptyOut:     ptyOut,
+		cancelFunc: cancel,
 	}
 
 	s.mu.Lock()
@@ -213,8 +223,12 @@ func (s *Service) StartRemoteSession(alias, sessionID, password string) (*types.
 
 	log.Printf("Started new terminal session %s for host %s", sessionID, alias)
 
+	// Start keep-alive for the underlying SSH connection
+	go sshmanager.StartKeepAlive(sshConn, sessionCtx)
+
 	go func() {
 		defer s.cleanupSession(sessionID)
+		defer cancel() // Ensure keep-alive and other context-aware goroutines are stopped
 		_ = sshSession.Wait() // 等待会话结束
 	}()
 
@@ -354,6 +368,11 @@ func (s *Service) cleanupSession(sessionID string) {
 
 	if session, ok := s.sessions[sessionID]; ok {
 		if session != nil {
+			// Cancel context to stop associated goroutines like keep-alive
+			if session.cancelFunc != nil {
+				session.cancelFunc()
+			}
+
 			// 1. 关闭 SSH 资源（仅远程会话有效）
 			if session.sshSession != nil {
 				session.sshSession.Close()
