@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import type { types } from '@wailsjs/go/models'
+import { types } from '@wailsjs/go/models'
 import {
   ConnectInTerminal,
   ConnectInTerminalAndTrustHost,
@@ -115,7 +115,7 @@ export function useSshConnection({
           try {
             let result: types.ConnectionResult | null = null
             if (type === 'local') {
-              result = { success: true } as types.ConnectionResult
+              result = new types.ConnectionResult({ success: true })
             } else {
               if (trustHost) {
                 result = await withTimeout(
@@ -149,35 +149,41 @@ export function useSshConnection({
             }
 
             if (result.success) {
-              if (strategy === 'verify') {
-                setState({
-                  status: 'success',
-                  context,
-                  message: password ?? '',
-                })
-              } else if (strategy === 'internal') {
-                let sessionInfo: types.TerminalSessionInfo
-                if (type === 'local') {
-                  sessionInfo = await StartLocalSession(sessionID ?? '')
-                } else {
-                  sessionInfo = await StartRemoteSession(
-                    alias,
-                    sessionID ?? '',
-                    password ?? ''
-                  )
+              switch (strategy) {
+                case 'verify':
+                  setState({
+                    status: 'success',
+                    context,
+                    message: password ?? '',
+                  })
+                  break
+                case 'internal': {
+                  let sessionInfo: types.TerminalSessionInfo
+                  if (type === 'local') {
+                    sessionInfo = await StartLocalSession(sessionID ?? '')
+                  } else {
+                    sessionInfo = await StartRemoteSession(
+                      alias,
+                      sessionID ?? '',
+                      password ?? ''
+                    )
+                  }
+                  onOpenTerminal(sessionInfo)
+                  setState({
+                    status: 'success',
+                    context,
+                    message: `Terminal for ${alias} is ready.`,
+                  })
+                  break
                 }
-                onOpenTerminal(sessionInfo)
-                setState({
-                  status: 'success',
-                  context,
-                  message: `Terminal for ${alias} is ready.`,
-                })
-              } else {
-                setState({
-                  status: 'success',
-                  context,
-                  message: `Terminal for ${alias} launched.`,
-                })
+                case 'external':
+                default:
+                  setState({
+                    status: 'success',
+                    context,
+                    message: `Terminal for ${alias} launched.`,
+                  })
+                  break
               }
             } else if (result.passwordRequired) {
               setState({
@@ -219,8 +225,8 @@ export function useSshConnection({
           const dialogResult = await showDialog({
             type: 'confirm',
             title: `Password Required for ${context.alias}`,
-            message: error?.message
-              ? `${error?.message}\nPlease enter the password.`
+            message: error.message
+              ? `${error.message}\nPlease enter the password.`
               : `Please enter the password to connect.`,
             prompt: { label: 'Password', type: 'password' },
             checkboxes: [
