@@ -167,7 +167,7 @@ export function TerminalView({
       onValueChange={onActiveTerminalChange}
       className="h-full flex flex-col"
     >
-      <div className="flex items-center pl-2 pr-2 border-b">
+      <div className="flex items-center pl-2 pr-2 border-b border-border">
         <TabsList className="flex-shrink overflow-x-auto m-0 mr-2">
           {terminalSessions.map((session) => (
             <TabsTrigger

@@ -381,7 +381,7 @@ const RawEditor = React.memo(function RawEditor({
       {/* CodeMirror 的 height="100%" 会让它填满这个容器，
            其内部的滚动条现在可以正常工作了
       */}
-      <div className="absolute inset-0 border rounded-md overflow-y-auto">
+      <div className="absolute inset-0 border border-border rounded-md overflow-y-auto">
         <CodeMirror
           value={content}
           onChange={onChange}

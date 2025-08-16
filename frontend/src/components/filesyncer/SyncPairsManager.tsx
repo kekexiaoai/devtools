@@ -116,7 +116,7 @@ export function SyncPairsManager({
   }
 
   return (
-    <Card>
+    <Card className="border-border">
       <CardHeader className="flex flex-row items-center justify-between">
         <div className="space-y-1.5">
           <CardTitle>Sync Directories</CardTitle>
