@@ -168,7 +168,7 @@ func (s *Service) StartRemoteSession(alias, sessionID, password string) (*types.
 	sshSession, err := sshConn.NewSession()
 	if err != nil {
 		sshConn.Close()
-
+		cancel()
 		return nil, fmt.Errorf("failed to create SSH session: %w", err)
 	}
 
@@ -228,7 +228,7 @@ func (s *Service) StartRemoteSession(alias, sessionID, password string) (*types.
 
 	go func() {
 		defer s.cleanupSession(sessionID)
-		defer cancel() // Ensure keep-alive and other context-aware goroutines are stopped
+		defer cancel()        // Ensure keep-alive and other context-aware goroutines are stopped
 		_ = sshSession.Wait() // 等待会话结束
 	}()
 
