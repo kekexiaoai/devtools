@@ -1,18 +1,49 @@
 // src/hooks/useSshConnection.ts
 
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import type { types } from '@wailsjs/go/models'
 import {
   ConnectInTerminal,
-  ConnectInTerminalWithPassword,
   ConnectInTerminalAndTrustHost,
+  ConnectInTerminalWithPassword,
 } from '@wailsjs/go/sshgate/Service'
 import {
   StartLocalSession,
   StartRemoteSession,
 } from '@wailsjs/go/terminal/Service'
 import { useDialog } from '@/hooks/useDialog'
+
+// --- State Machine Types ---
+interface ConnectionContext {
+  alias: string
+  type: 'local' | 'remote'
+  strategy: 'internal' | 'external' | 'verify'
+  sessionID?: string
+  password?: string
+  savePassword?: boolean
+  trustHost?: boolean
+  // For resolving the promise
+  resolve: (value: string | null) => void
+  reject: (reason?: unknown) => void
+}
+
+type ConnectionState =
+  | { status: 'idle' }
+  | { status: 'connecting'; context: ConnectionContext }
+  | {
+      status: 'awaiting_password'
+      context: ConnectionContext
+      error: types.PasswordRequiredError
+    }
+  | {
+      status: 'awaiting_host_key'
+      context: ConnectionContext
+      error: types.HostKeyVerificationRequiredError
+    }
+  | { status: 'success'; context: ConnectionContext; message: string }
+  | { status: 'cancelled'; context: ConnectionContext }
+  | { status: 'failure'; context: ConnectionContext; error: Error }
 
 /**
  * Wraps a promise with a timeout.
@@ -62,188 +93,246 @@ export function useSshConnection({
   showDialog,
   onOpenTerminal,
 }: UseSshConnectionProps) {
-  const connect = useCallback(
-    (
-      alias: string,
-      type?: 'local' | 'remote',
-      sessionID?: string,
-      strategy: 'internal' | 'external' | 'verify' = 'external'
-    ): Promise<string | null> => {
-      const connectionPromise = new Promise<string | null>(
-        (resolve, reject) => {
-          // 使用 void 明确告知 linter 我们有意不 await 这个 IIFE
-          void (async () => {
-            let currentPassword = ''
-            let savePassword = false
-            let trustHost = false
-            const dryRun = strategy !== 'external'
-            const TIMEOUT_MS = 15000 // 15-second timeout for network operations
+  const [state, setState] = useState<ConnectionState>({ status: 'idle' })
 
-            // 使用一个循环来处理多步骤的交互式对话
-            while (true) {
-              try {
-                let result: types.ConnectionResult | null = null
+  useEffect(() => {
+    const processState = async () => {
+      switch (state.status) {
+        case 'connecting': {
+          const { context } = state
+          const {
+            alias,
+            type,
+            strategy,
+            password,
+            savePassword,
+            trustHost,
+            sessionID,
+          } = context
+          const dryRun = strategy !== 'external'
+          const TIMEOUT_MS = 15000
 
-                // 对于本机的直接设置成功
-                if (type === 'local') {
-                  strategy = 'internal'
-                  result = { success: true } as types.ConnectionResult
-                } else {
-                  if (trustHost) {
-                    result = await withTimeout(
-                      ConnectInTerminalAndTrustHost(
+          try {
+            let result: types.ConnectionResult | null = null
+            if (type === 'local') {
+              result = { success: true } as types.ConnectionResult
+            } else {
+              if (trustHost) {
+                result = await withTimeout(
+                  ConnectInTerminalAndTrustHost(
+                    alias,
+                    password ?? '',
+                    savePassword ?? false,
+                    dryRun
+                  ),
+                  TIMEOUT_MS,
+                  `Connection to ${alias} timed out.`
+                )
+              } else {
+                result = password
+                  ? await withTimeout(
+                      ConnectInTerminalWithPassword(
                         alias,
-                        currentPassword,
-                        savePassword,
+                        password,
+                        savePassword ?? false,
                         dryRun
                       ),
                       TIMEOUT_MS,
                       `Connection to ${alias} timed out.`
                     )
-                    trustHost = false // 重置信任标志，只用一次
-                  } else {
-                    result = currentPassword
-                      ? await withTimeout(
-                          ConnectInTerminalWithPassword(
-                            alias,
-                            currentPassword,
-                            savePassword,
-                            dryRun
-                          ),
-                          TIMEOUT_MS,
-                          `Connection to ${alias} timed out.`
-                        )
-                      : await withTimeout(
-                          ConnectInTerminal(alias, dryRun),
-                          TIMEOUT_MS,
-                          `Connection to ${alias} timed out.`
-                        )
-                  }
-                }
-
-                if (result.success) {
-                  if (strategy === 'verify') {
-                    resolve(currentPassword)
-                    return
-                  }
-                  if (strategy === 'internal') {
-                    let sessionInfo: types.TerminalSessionInfo
-                    switch (type) {
-                      case 'local':
-                        sessionInfo = await StartLocalSession(
-                          sessionID as string
-                        )
-                        break
-                      case 'remote':
-                        sessionInfo = await StartRemoteSession(
-                          alias,
-                          sessionID as string,
-                          currentPassword
-                        )
-
-                        break
-                      default:
-                        reject(new Error(`unknown type ${type}`))
-                        return
-                    }
-                    onOpenTerminal(sessionInfo)
-                    console.log(`Connection for ${alias} opened successfully.`)
-                    // 在 'internal' 模式下，由调用方决定是否显示 toast
-                    // toast.success(`Terminal for ${alias} is ready.`)
-                    resolve(`Terminal for ${alias} is ready.`)
-                  } else {
-                    console.log('Connection successful!')
-                    // 在 'external' 模式下，显示 toast 是合适的
-                    // toast.success(`Terminal for ${alias} launched.`)
-                    resolve(`Terminal for ${alias} launched.`)
-                  }
-                  return // 成功，结束循环
-                }
-
-                if (result.passwordRequired) {
-                  const dialogResult = await showDialog({
-                    type: 'confirm',
-                    title: `Password Required for ${alias}`,
-                    message: result.errorMessage
-                      ? `${result.errorMessage}\nPlease enter the password.`
-                      : `Please enter the password to connect.`,
-                    prompt: { label: 'Password', type: 'password' },
-                    checkboxes: [
-                      {
-                        label: 'Save password to system keychain',
-                        value: 'save',
-                      },
-                    ],
-                    buttons: [
-                      { text: 'Cancel', variant: 'outline', value: 'cancel' },
-                      { text: 'Connect', variant: 'default', value: 'connect' },
-                    ],
-                  })
-
-                  if (
-                    dialogResult.buttonValue === 'connect' &&
-                    dialogResult.inputValue
-                  ) {
-                    currentPassword = dialogResult.inputValue
-                    savePassword =
-                      dialogResult.checkedValues?.includes('save') || false
-                    continue // 继续循环，这次会带着密码
-                  } else {
-                    resolve(null) // 用户取消
-                    return // 用户取消，结束循环
-                  }
-                } else if (result.hostKeyVerificationRequired) {
-                  const { Fingerprint, HostAddress } =
-                    result.hostKeyVerificationRequired
-                  const choice = await showDialog({
-                    type: 'confirm',
-                    title: `Host Key Verification for ${alias}`,
-                    message: `The authenticity of host '${HostAddress}' can't be established.\n\nFingerprint: ${Fingerprint}\n\nAre you sure you want to continue connecting?`,
-                    buttons: [
-                      { text: 'Cancel', variant: 'outline', value: 'cancel' },
-                      {
-                        text: 'Yes, Trust Host',
-                        variant: 'default',
-                        value: 'yes',
-                      },
-                    ],
-                  })
-
-                  if (choice.buttonValue === 'yes') {
-                    trustHost = true // 设置信任标志
-                    continue // 继续循环，这次会信任主机
-                  } else {
-                    resolve(null) // 用户取消
-                    return // 用户取消，结束循环
-                  }
-                } else if (result.errorMessage) {
-                  await showDialog({
-                    type: 'error',
-                    title: 'Connection Failed',
-                    message: result.errorMessage,
-                  })
-                  reject(new Error(result.errorMessage))
-                  return // 错误，结束循环
-                } else {
-                  await showDialog({
-                    type: 'error',
-                    title: 'Error',
-                    message: 'An unknown connection error occurred.',
-                  })
-                  reject(new Error('An unknown connection error occurred.'))
-                  return // 未知错误，结束循环
-                }
-              } catch (systemError) {
-                await showDialog({
-                  type: 'error',
-                  title: 'System Error',
-                  message: `A critical error occurred: ${String(systemError)}`,
-                })
-                reject(systemError as Error)
-                return // 系统错误，结束循环
+                  : await withTimeout(
+                      ConnectInTerminal(alias, dryRun),
+                      TIMEOUT_MS,
+                      `Connection to ${alias} timed out.`
+                    )
               }
             }
-          })()
+
+            if (result.success) {
+              if (strategy === 'verify') {
+                setState({
+                  status: 'success',
+                  context,
+                  message: password ?? '',
+                })
+              } else if (strategy === 'internal') {
+                let sessionInfo: types.TerminalSessionInfo
+                if (type === 'local') {
+                  sessionInfo = await StartLocalSession(sessionID ?? '')
+                } else {
+                  sessionInfo = await StartRemoteSession(
+                    alias,
+                    sessionID ?? '',
+                    password ?? ''
+                  )
+                }
+                onOpenTerminal(sessionInfo)
+                setState({
+                  status: 'success',
+                  context,
+                  message: `Terminal for ${alias} is ready.`,
+                })
+              } else {
+                setState({
+                  status: 'success',
+                  context,
+                  message: `Terminal for ${alias} launched.`,
+                })
+              }
+            } else if (result.passwordRequired) {
+              setState({
+                status: 'awaiting_password',
+                context,
+                error: result.passwordRequired,
+              })
+            } else if (result.hostKeyVerificationRequired) {
+              setState({
+                status: 'awaiting_host_key',
+                context,
+                error: result.hostKeyVerificationRequired,
+              })
+            } else if (result.errorMessage) {
+              setState({
+                status: 'failure',
+                context,
+                error: new Error(result.errorMessage),
+              })
+            } else {
+              setState({
+                status: 'failure',
+                context,
+                error: new Error('An unknown connection error occurred.'),
+              })
+            }
+          } catch (error) {
+            setState({
+              status: 'failure',
+              context,
+              error: error as Error,
+            })
+          }
+          break
+        }
+
+        case 'awaiting_password': {
+          const { context, error } = state
+          const dialogResult = await showDialog({
+            type: 'confirm',
+            title: `Password Required for ${context.alias}`,
+            message: error?.message
+              ? `${error?.message}\nPlease enter the password.`
+              : `Please enter the password to connect.`,
+            prompt: { label: 'Password', type: 'password' },
+            checkboxes: [
+              {
+                label: 'Save password to system keychain',
+                value: 'save',
+              },
+            ],
+            buttons: [
+              { text: 'Cancel', variant: 'outline', value: 'cancel' },
+              { text: 'Connect', variant: 'default', value: 'connect' },
+            ],
+          })
+
+          if (
+            dialogResult.buttonValue === 'connect' &&
+            dialogResult.inputValue
+          ) {
+            setState({
+              status: 'connecting',
+              context: {
+                ...context,
+                password: dialogResult.inputValue,
+                savePassword:
+                  dialogResult.checkedValues?.includes('save') || false,
+                trustHost: false, // Reset trust host on password prompt
+              },
+            })
+          } else {
+            setState({ status: 'cancelled', context })
+          }
+          break
+        }
+
+        case 'awaiting_host_key': {
+          const { context, error } = state
+          const { fingerprint, hostAddress } = error
+          const choice = await showDialog({
+            type: 'confirm',
+            title: `Host Key Verification for ${context.alias}`,
+            message: `The authenticity of host '${hostAddress}' can't be established.\n\nFingerprint: ${fingerprint}\n\nAre you sure you want to continue connecting?`,
+            buttons: [
+              { text: 'Cancel', variant: 'outline', value: 'cancel' },
+              {
+                text: 'Yes, Trust Host',
+                variant: 'default',
+                value: 'yes',
+              },
+            ],
+          })
+
+          if (choice.buttonValue === 'yes') {
+            setState({
+              status: 'connecting',
+              context: { ...context, trustHost: true },
+            })
+          } else {
+            setState({ status: 'cancelled', context })
+          }
+          break
+        }
+
+        case 'success': {
+          const { context, message } = state
+          context.resolve(message)
+          setState({ status: 'idle' })
+          break
+        }
+
+        case 'failure': {
+          const { context, error } = state
+          await showDialog({
+            type: 'error',
+            title: 'Connection Failed',
+            message: error.message,
+          })
+          context.reject(error)
+          setState({ status: 'idle' })
+          break
+        }
+
+        case 'cancelled': {
+          const { context } = state
+          context.resolve(null)
+          setState({ status: 'idle' })
+          break
+        }
+      }
+    }
+    void processState()
+  }, [state, showDialog, onOpenTerminal])
+
+  const connect = useCallback(
+    (
+      alias: string,
+      type: 'local' | 'remote' = 'remote',
+      sessionID?: string,
+      strategy: 'internal' | 'external' | 'verify' = 'external'
+    ): Promise<string | null> => {
+      const connectionPromise = new Promise<string | null>(
+        (resolve, reject) => {
+          setState({
+            status: 'connecting',
+            context: {
+              alias,
+              type,
+              strategy,
+              sessionID,
+              resolve,
+              reject,
+            },
+          })
         }
       )
 
@@ -261,7 +350,7 @@ export function useSshConnection({
       }
       return connectionPromise
     },
-    [showDialog, onOpenTerminal] // Hook 的依赖项
+    [] // No dependencies, connect function is stable
   )
 
   return { connect }
