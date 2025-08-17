@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 
 // --- 导入 shadcn/ui 和图标 ---
 import { Button } from '@/components/ui/button'
@@ -20,7 +20,7 @@ import ReactJson from 'react-json-view'
 import { useDialog } from '@/hooks/useDialog'
 
 // React 组件就是一个函数
-export function JsonToolsView() {
+export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
   // --- 教学：使用 useState Hook 管理状态 ---
   // 每个 useState 都管理着组件中的一小块独立数据
   const [input, setInput] = useState('') // 左侧输入框的文本内容
@@ -36,12 +36,12 @@ export function JsonToolsView() {
   // --- 教学：使用 useMemo Hook 进行性能优化 ---
   // useMemo 会缓存一个计算结果。只有当它的依赖项(这里是 isDarkMode)改变时，
   // 它才会重新计算，避免了在每次组件渲染时都去检测暗黑模式。
-  const isDarkMode = useMemo(
-    () =>
-      window.matchMedia &&
-      window.matchMedia('(prefers-color-scheme: dark)').matches,
-    []
-  )
+  // const isDarkMode = useMemo(
+  //   () =>
+  //     window.matchMedia &&
+  //     window.matchMedia('(prefers-color-scheme: dark)').matches,
+  //   []
+  // )
 
   const toggleInputView = () => {
     setIsInputVisible(!isInputVisible)

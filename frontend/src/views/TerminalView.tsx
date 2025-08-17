@@ -41,6 +41,7 @@ interface TerminalViewProps {
   onActiveTerminalChange: (sessionId: string | null) => void // 这是 setActiveTerminalId
   onStatusChange: (sessionId: string, status: ConnectionStatus) => void
   isActive: boolean
+  isDarkMode: boolean
 }
 
 const defaultDarkTheme = gruvboxDarkDimmedTheme
@@ -64,6 +65,7 @@ export function TerminalView({
   onActiveTerminalChange,
   onStatusChange,
   isActive,
+  isDarkMode,
 }: TerminalViewProps) {
   // 新增 state，用于追踪哪个 Tab 正在被编辑
   const [editingTabId, setEditingTabId] = useState<string | null>(null)
@@ -92,24 +94,36 @@ export function TerminalView({
   }
 
   // Effect to handle all theme updates, including system theme changes
-  useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-    const updateThemeForSystem = () => {
-      setCurrentTheme(mediaQuery.matches ? defaultDarkTheme : defaultLightTheme)
-    }
+  // useEffect(() => {
+  //   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+  //   const updateThemeForSystem = () => {
+  //     setCurrentTheme(mediaQuery.matches ? defaultDarkTheme : defaultLightTheme)
+  //   }
 
+  //   if (selectedThemeName === 'System Default') {
+  //     updateThemeForSystem()
+  //     mediaQuery.addEventListener('change', updateThemeForSystem)
+  //     return () =>
+  //       mediaQuery.removeEventListener('change', updateThemeForSystem)
+  //   } else {
+  //     const selected = availableThemes.find((t) => t.name === selectedThemeName)
+  //     if (selected?.theme) {
+  //       setCurrentTheme(selected.theme)
+  //     }
+  //   }
+  // }, [selectedThemeName])
+  // Effect to handle all theme updates, including system theme changes
+  useEffect(() => {
     if (selectedThemeName === 'System Default') {
-      updateThemeForSystem()
-      mediaQuery.addEventListener('change', updateThemeForSystem)
-      return () =>
-        mediaQuery.removeEventListener('change', updateThemeForSystem)
+      // 当选择“系统默认”时，主题由 App.tsx 传递的 isDarkMode prop 决定
+      setCurrentTheme(isDarkMode ? defaultDarkTheme : defaultLightTheme)
     } else {
       const selected = availableThemes.find((t) => t.name === selectedThemeName)
       if (selected?.theme) {
         setCurrentTheme(selected.theme)
       }
     }
-  }, [selectedThemeName])
+  }, [selectedThemeName, isDarkMode])
 
   useEffect(() => {
     if (editingTabId && inputRef.current) {

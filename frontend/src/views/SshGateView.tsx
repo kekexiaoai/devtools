@@ -36,9 +36,14 @@ interface SshGateViewProps {
     type: 'local' | 'remote',
     strategy: 'internal' | 'external'
   ) => void
+  isDarkMode: boolean
 }
 
-export function SshGateView({ isActive, onConnect }: SshGateViewProps) {
+export function SshGateView({
+  isActive,
+  onConnect,
+  isDarkMode,
+}: SshGateViewProps) {
   // 这个 state 用于在两个 Tab 之间同步数据刷新
   // 当 RawEditor 保存了文件，或 VisualEditor 增删改了主机，
   // 我们就增加 dataVersion 的值，这会强制两个 Tab 都重新获取数据
@@ -119,12 +124,17 @@ export function SshGateView({ isActive, onConnect }: SshGateViewProps) {
             onDataChange={refreshData}
             onConnect={onConnect}
             activeTunnels={activeTunnels}
+            isDarkMode={isDarkMode}
           />
         </TabsContent>
 
         {/* 原始文件编辑器 Tab */}
         <TabsContent value="raw" className="flex-1 mt-2 flex flex-col min-h-0">
-          <RawEditor dataVersion={dataVersion} onDataChange={refreshData} />
+          <RawEditor
+            dataVersion={dataVersion}
+            onDataChange={refreshData}
+            isDarkMode={isDarkMode}
+          />
         </TabsContent>
 
         {/* 活动隧道 Tab */}
@@ -157,6 +167,7 @@ const VisualEditor = React.memo(function VisualEditor({
   ) => void
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
   dataVersion: number
+  isDarkMode: boolean
 }) {
   const [hosts, setHosts] = useState<types.SSHHost[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -322,17 +333,19 @@ const VisualEditor = React.memo(function VisualEditor({
 const RawEditor = React.memo(function RawEditor({
   onDataChange,
   dataVersion,
+  isDarkMode,
 }: {
   onDataChange: () => void
   dataVersion: number
+  isDarkMode: boolean
 }) {
   const [content, setContent] = useState('')
   const [isDirty, setIsDirty] = useState(false)
   const { showDialog } = useDialog()
-  const isDarkMode = useMemo(
-    () => window.matchMedia?.('(prefers-color-scheme: dark)').matches,
-    []
-  )
+  // const isDarkMode = useMemo(
+  //   () => window.matchMedia?.('(prefers-color-scheme: dark)').matches,
+  //   []
+  // )
 
   useEffect(() => {
     GetSSHConfigFileContent()
