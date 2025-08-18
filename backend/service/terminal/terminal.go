@@ -86,6 +86,7 @@ func (s *Service) StartLocalSession(sessionID string) (*types.TerminalSessionInf
 	// 创建一个执行本地 shell 的命令
 	cmd := exec.Command(shell)
 
+	cmd.SysProcAttr = sysProcAttr()
 	// This is crucial for built applications.
 	// When launched from a GUI, the app doesn't inherit TERM, which is essential
 	// for correct terminal behavior (e.g., backspace, arrow keys).

@@ -43,3 +43,8 @@ func terminateProcessGroup(cmd *exec.Cmd) {
 	log.Printf("Process group %d did not exit gracefully, sending SIGKILL.", pgid)
 	_ = syscall.Kill(-pgid, syscall.SIGKILL)
 }
+
+// sysProcAttr returns the syscall.SysProcAttr for Unix-like systems.
+func sysProcAttr() *syscall.SysProcAttr {
+	return &syscall.SysProcAttr{}
+}
