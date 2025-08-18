@@ -146,6 +146,10 @@
         "DevTools",
         "2345"
       ],
+      // "args": [
+      //   "-c",
+      //   "source ~/.bashrc && ./debug.sh DevTools 2345"
+      // ],
       // "command": "powershell",
       // "args": [
       //   "-File",
