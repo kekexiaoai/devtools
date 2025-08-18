@@ -48,6 +48,7 @@ type Service struct {
 	mu         sync.RWMutex
 	sshManager *sshmanager.Manager
 	upgrader   websocket.Upgrader
+	serverAddr string // To store the actual address of the WebSocket server
 }
 
 // NewService 是终端服务的构造函数
@@ -141,7 +142,7 @@ func (s *Service) StartLocalSession(sessionID string) (*types.TerminalSessionInf
 	return &types.TerminalSessionInfo{
 		ID:    sessionID,
 		Alias: "local",
-		URL:   fmt.Sprintf("ws://localhost:45678/ws/terminal/%s", sessionID),
+		URL:   fmt.Sprintf("ws://%s/ws/terminal/%s", s.serverAddr, sessionID),
 		Type:  TypeLocal,
 	}, nil
 }
@@ -236,7 +237,7 @@ func (s *Service) StartRemoteSession(alias, sessionID, password string) (*types.
 	return &types.TerminalSessionInfo{
 		ID:    sessionID,
 		Alias: alias,
-		URL:   fmt.Sprintf("ws://localhost:45678/ws/terminal/%s", sessionID),
+		URL:   fmt.Sprintf("ws://%s/ws/terminal/%s", s.serverAddr, sessionID),
 		Type:  TypeRemote,
 	}, nil
 }
@@ -244,16 +245,19 @@ func (s *Service) StartRemoteSession(alias, sessionID, password string) (*types.
 // startWebSocketServer 在后台启动一个 HTTP 服务器来处理 WebSocket 连接
 func (s *Service) startWebSocketServer() error {
 	http.HandleFunc("/ws/terminal/", s.handleConnection)
-	port := ":45678" // 选择一个不常用的端口，避免冲突
 
-	// 创建一个 listener 来预先检查端口是否可用
-	listener, err := net.Listen("tcp", port)
+	// Listen on localhost with port 0 to let the OS choose an available ephemeral port.
+	// This is more robust than using a fixed port.
+	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
-		// 端口很可能被占用了，这是我们想要捕获的关键错误
+		// This is unlikely to fail unless there's a more fundamental networking issue.
 		return err
 	}
 
-	log.Printf("Starting terminal WebSocket server on %s", port)
+	// Store the actual address, including the chosen port.
+	s.serverAddr = listener.Addr().String()
+
+	log.Printf("Starting terminal WebSocket server on %s", s.serverAddr)
 	// 在一个 goroutine 中启动服务，这样它就不会阻塞 Startup 过程
 	go func() {
 		if err := http.Serve(listener, nil); err != nil && !errors.Is(err, http.ErrServerClosed) {
