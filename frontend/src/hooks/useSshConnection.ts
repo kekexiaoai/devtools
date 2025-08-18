@@ -214,7 +214,7 @@ export function useSshConnection({
             setState({
               status: 'failure',
               context,
-              error: error as Error,
+              error: error instanceof Error ? error : new Error(String(error)),
             })
           }
           break
