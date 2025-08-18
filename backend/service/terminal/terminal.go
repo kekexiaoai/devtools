@@ -92,6 +92,13 @@ func (s *Service) StartLocalSession(sessionID string) (*types.TerminalSessionInf
 	// for correct terminal behavior (e.g., backspace, arrow keys).
 	// 'xterm-256color' is a safe and widely supported default.
 	// We append it to the existing environment to preserve other important variables.
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Printf("ERROR: Failed to get user home directory: %v", err)
+		// Optionally, return an error or proceed with a default directory
+	} else {
+		cmd.Dir = homeDir // Set the working directory to the user's home directory
+	}
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 	log.Printf("Starting local command with pty...")
 	// 使用 pty 库来在一个伪终端中启动这个命令
