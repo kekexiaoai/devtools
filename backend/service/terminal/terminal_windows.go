@@ -26,13 +26,10 @@ func terminateProcessGroup(cmd *exec.Cmd) {
 }
 
 // sysProcAttr returns the syscall.SysProcAttr for Windows.
-// On Windows, when running a GUI application (like a Wails app),
-// spawning a console subprocess (like powershell.exe) can cause a
-// fleeting console window to appear. Setting HideWindow to true
-// prevents this, which is crucial for a seamless user experience and
-// can prevent certain initialization issues with the pseudo-terminal.
+// For Windows, we don't need to set any special attributes. The ConPTY API
+// used by the pty library handles window visibility and process management.
+// Setting HideWindow here would actually conflict with ConPTY and cause
+// the pty to fail to start.
 func sysProcAttr() *syscall.SysProcAttr {
-	return &syscall.SysProcAttr{
-		HideWindow: true,
-	}
+	return nil
 }

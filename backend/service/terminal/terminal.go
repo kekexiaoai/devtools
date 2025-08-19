@@ -16,8 +16,8 @@ import (
 
 	"devtools/backend/internal/sshmanager"
 	"devtools/backend/internal/types"
+	"devtools/backend/pkg/ptyx"
 
-	"github.com/creack/pty"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ssh"
@@ -37,7 +37,7 @@ type Session struct {
 	ptyIn      io.WriteCloser
 	ptyOut     io.Reader
 	localCmd   *exec.Cmd
-	ptmx       *os.File // For local sessions, to handle resize
+	ptmx       ptyx.Pty // For local sessions, to handle resize
 	cancelFunc context.CancelFunc
 }
 
@@ -86,6 +86,9 @@ func (s *Service) StartLocalSession(sessionID string) (*types.TerminalSessionInf
 	// 创建一个执行本地 shell 的命令
 	cmd := exec.Command(shell)
 
+	// On Unix-like systems, this sets Setpgid to true, creating a new process group.
+	// This is essential for properly terminating the shell and all its children.
+	// On Windows, this is a no-op as ConPTY handles process management.
 	cmd.SysProcAttr = sysProcAttr()
 	// This is crucial for built applications.
 	// When launched from a GUI, the app doesn't inherit TERM, which is essential
@@ -102,7 +105,7 @@ func (s *Service) StartLocalSession(sessionID string) (*types.TerminalSessionInf
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 	log.Printf("Starting local command with pty...")
 	// 使用 pty 库来在一个伪终端中启动这个命令
-	ptmx, err := pty.Start(cmd)
+	ptmx, err := ptyx.Start(cmd)
 	if err != nil {
 		log.Printf("ERROR: Failed to start local pty for shell '%s': %v", shell, err)
 		return nil, fmt.Errorf("failed to start local pty: %w", err)
@@ -118,8 +121,8 @@ func (s *Service) StartLocalSession(sessionID string) (*types.TerminalSessionInf
 		sshConn:    nil,
 		sshSession: nil,
 		// ptyIn 和 ptyOut 现在直接就是 ptmx
-		ptyIn:    ptmx,
-		ptyOut:   ptmx,
+		ptyIn:    ptmx.In(),
+		ptyOut:   ptmx.Out(),
 		localCmd: cmd,  // 保存cmd到session中
 		ptmx:     ptmx, // 保存 ptmx 以便调整大小
 	}
@@ -136,7 +139,7 @@ func (s *Service) StartLocalSession(sessionID string) (*types.TerminalSessionInf
 			if r := recover(); r != nil {
 				log.Printf("Panic in session %s: %v", sessionID, r)
 			}
-			log.Printf("defer for session %s to ecleanup...", sessionID) // 新增验证进入等待
+			log.Printf("defer for session %s to cleanup...", sessionID) // 新增验证进入等待
 
 			s.cleanupSession(sessionID)
 		}()
@@ -369,7 +372,7 @@ func (s *Service) handleConnection(w http.ResponseWriter, r *http.Request) {
 
 				if session.ptmx != nil {
 					// 处理本地 PTY 的尺寸调整
-					if err := pty.Setsize(session.ptmx, &pty.Winsize{Rows: resizeMsg.Rows, Cols: resizeMsg.Cols}); err != nil {
+					if err := session.ptmx.Resize(resizeMsg.Rows, resizeMsg.Cols); err != nil {
 						log.Printf("Error resizing local pty for session %s: %v", sessionID, err)
 					}
 				} else if session.sshSession != nil {
