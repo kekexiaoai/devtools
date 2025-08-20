@@ -208,7 +208,7 @@ func (a *Service) handleSSHConnectError(alias string, host *types.SSHHost, err e
 	default:
 		// 其他通用错误
 		log.Printf("Error during connection pre-flight check for '%s': %v", alias, err)
-		return &types.ConnectionResult{Success: false, ErrorMessage: "Connection pre-flight check failed"}, nil
+		return &types.ConnectionResult{Success: false, ErrorMessage: fmt.Sprintf("Connection pre-flight check failed, %v", err)}, nil
 	}
 }
 

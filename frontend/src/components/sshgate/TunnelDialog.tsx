@@ -211,6 +211,15 @@ export function TunnelDial(props: TunnelDialProps) {
   // State to control the help sheet
   const [helpTopic, setHelpTopic] = useState<HelpTopic | null>(null)
 
+  // Ref to track component mount status, preventing state updates on unmounted components
+  const isMountedRef = useRef(true)
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
   const aliasRef = useRef(host.alias)
   useEffect(() => {
     aliasRef.current = host.alias
@@ -227,7 +236,7 @@ export function TunnelDial(props: TunnelDialProps) {
     spellCheck: false,
   }
 
-  const handleStartLocalForward = async () => {
+  const handleStartLocalForward = () => {
     // input validate
     const localPortNum = parseInt(localForwardForm.localPort, 10)
     const remotePortNum = parseInt(localForwardForm.remotePort, 10)
@@ -268,7 +277,6 @@ export function TunnelDial(props: TunnelDialProps) {
         gatewayPorts
       )
 
-      onOpenChange(false) // 关闭模态框
       const bindAddr = gatewayPorts ? '0.0.0.0' : '127.0.0.1'
       logger.info(
         `Local forward tunnel started successfully!\n\nTunnel ID: ${tunnelId}`
@@ -280,18 +288,25 @@ export function TunnelDial(props: TunnelDialProps) {
     // 使用toast.promise处理状态反馈
     toast.promise(promise, {
       loading: `Verifying connection to ${host.alias}...`,
-      success: (msg) => `Tunnel Started: ${msg}`,
+      success: (msg) => {
+        onOpenChange(false) // 在 toast 成功后关闭模态框
+        return `Tunnel Started: ${msg}`
+      },
       error: (error: unknown) => {
         const err = error instanceof Error ? error : new Error(String(error))
         return err.message.includes('cancelled')
           ? 'Tunnel creation cancelled.'
           : `Failed to start tunnel: ${err.message}`
       },
-      finally: () => setIsStartingTunnel(false),
+      finally: () => {
+        if (isMountedRef.current) {
+          setIsStartingTunnel(false)
+        }
+      },
     })
   }
 
-  const handleStartDynamicForward = async () => {
+  const handleStartDynamicForward = () => {
     const localPortNum = parseInt(dynamicForwardForm.localPort, 10)
     if (isNaN(localPortNum)) {
       return showDialog({
@@ -320,7 +335,6 @@ export function TunnelDial(props: TunnelDialProps) {
         password,
         gatewayPorts
       )
-      onOpenChange(false) // 成功后关闭模态框
 
       const bindAddr = gatewayPorts ? '0.0.0.0' : '127.0.0.1'
       logger.info(
@@ -332,25 +346,32 @@ export function TunnelDial(props: TunnelDialProps) {
 
     toast.promise(promise, {
       loading: `Verifying connection to ${host.alias}...`,
-      success: (msg) => `SOCKS Proxy Started: ${msg}`,
+      success: (msg) => {
+        onOpenChange(false) // 在 toast 成功后关闭模态框
+        return `SOCKS Proxy Started: ${msg}`
+      },
       error: (error: unknown) => {
         const err = error instanceof Error ? error : new Error(String(error))
         return err.message.includes('cancelled')
           ? 'Proxy creation cancelled.'
           : `Failed to start proxy: ${err.message}`
       },
-      finally: () => setIsStartingTunnel(false),
+      finally: () => {
+        if (isMountedRef.current) {
+          setIsStartingTunnel(false)
+        }
+      },
       duration: 2000,
     })
   }
 
-  const handleStartTunnel = async (tab: string) => {
+  const handleStartTunnel = (tab: string): void => {
     if (tab === 'local') {
-      await handleStartLocalForward()
+      void handleStartLocalForward()
     } else if (tab === 'dynamic') {
-      await handleStartDynamicForward()
+      void handleStartDynamicForward()
     } else {
-      await showDialog({
+      void showDialog({
         type: 'error',
         title: 'Error',
         message: `Invalid tab value: ${tab}`,
@@ -511,7 +532,7 @@ export function TunnelDial(props: TunnelDialProps) {
             Cancel
           </Button>
           <Button
-            onClick={() => void handleStartTunnel(activeTab)}
+            onClick={() => handleStartTunnel(activeTab)}
             disabled={isStartingTunnel}
           >
             {isStartingTunnel && (
