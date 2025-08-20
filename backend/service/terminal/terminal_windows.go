@@ -31,5 +31,5 @@ func terminateProcessGroup(cmd *exec.Cmd) {
 // Setting HideWindow here would actually conflict with ConPTY and cause
 // the pty to fail to start.
 func sysProcAttr() *syscall.SysProcAttr {
-	return nil
+	return &syscall.SysProcAttr{}
 }

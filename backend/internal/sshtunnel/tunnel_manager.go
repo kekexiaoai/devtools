@@ -144,7 +144,10 @@ func (m *Manager) createTunnel(alias string, localPort int, password string, gat
 	serverAddr := fmt.Sprintf("%s:%s", connConfig.HostName, connConfig.Port)
 	sshClient, err := ssh.Dial("tcp", serverAddr, connConfig.ClientConfig)
 	if err != nil {
-		return "", fmt.Errorf("SSH dial to %s failed: %w", alias, err)
+		// Do not use %w to wrap the error. The underlying error (e.g., *net.OpError)
+		// can be a complex type that causes serialization issues with the Wails IPC bridge,
+		// leading to a hung Promise on the frontend. Use %v to convert it to a simple string.
+		return "", fmt.Errorf("SSH dial to %s failed: %v", alias, err)
 	}
 
 	// 3. Create local listener
