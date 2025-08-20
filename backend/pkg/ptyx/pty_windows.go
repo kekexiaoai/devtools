@@ -47,6 +47,7 @@ func StartWithSize(cmd *exec.Cmd, ws *Winsize) (Pty, error) {
 		p.Close()
 		return nil, err
 	}
+	cmd.Process = c.Process
 	if ws != nil {
 		p.Resize(int(ws.Cols), int(ws.Rows))
 	}
