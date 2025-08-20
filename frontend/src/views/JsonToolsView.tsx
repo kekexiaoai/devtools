@@ -1,7 +1,8 @@
-import { SetStateAction, useCallback, useMemo, useState } from 'react'
+import { useState } from 'react'
 
 // --- 导入 shadcn/ui 和图标 ---
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 import {
   ArrowRightLeft,
   Download,
@@ -12,18 +13,14 @@ import {
 } from 'lucide-react'
 
 // --- 导入编辑器和JSON视图 ---
-import CodeMirror, { Extension } from '@uiw/react-codemirror'
-import { json } from '@codemirror/lang-json'
-import { oneDark } from '@codemirror/theme-one-dark'
 import ReactJson from 'react-json-view'
-import { EditorView } from '@codemirror/view'
 
 // --- 导入 Wails 原生对话框 ---
 // import { ShowErrorDialog, ShowInfoDialog } from '@wailsjs/go/backend/App'
 import { useDialog } from '@/hooks/useDialog'
 
 // React 组件就是一个函数
-export function JsonToolsView() {
+export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
   // --- 教学：使用 useState Hook 管理状态 ---
   // 每个 useState 都管理着组件中的一小块独立数据
   const [input, setInput] = useState('') // 左侧输入框的文本内容
@@ -39,30 +36,12 @@ export function JsonToolsView() {
   // --- 教学：使用 useMemo Hook 进行性能优化 ---
   // useMemo 会缓存一个计算结果。只有当它的依赖项(这里是 isDarkMode)改变时，
   // 它才会重新计算，避免了在每次组件渲染时都去检测暗黑模式。
-  const isDarkMode = useMemo(
-    () =>
-      window.matchMedia &&
-      window.matchMedia('(prefers-color-scheme: dark)').matches,
-    []
-  )
-
-  const codemirrorExtensions = useMemo(() => {
-    // 明确地为 exts 数组注解类型为 Extension[]
-    const exts: Extension[] = []
-    exts.push(json())
-    exts.push(EditorView.lineWrapping)
-    if (isDarkMode) {
-      exts.push(oneDark)
-    }
-    return exts
-  }, [isDarkMode])
-
-  // --- 教学：使用 useCallback Hook 进行性能优化 ---
-  // useCallback 会缓存一个函数定义。这可以防止在子组件中因为函数
-  // 的引用地址在每次渲染时都改变而导致不必要的重渲染。
-  const handleInputChange = useCallback((value: SetStateAction<string>) => {
-    setInput(value)
-  }, [])
+  // const isDarkMode = useMemo(
+  //   () =>
+  //     window.matchMedia &&
+  //     window.matchMedia('(prefers-color-scheme: dark)').matches,
+  //   []
+  // )
 
   const toggleInputView = () => {
     setIsInputVisible(!isInputVisible)
@@ -171,27 +150,23 @@ export function JsonToolsView() {
       )}
 
       {/* 输入/输出面板 */}
-      <div className="flex-grow flex items-stretch gap-x-2 overflow-hidden">
+      <div className="flex-grow flex items-stretch gap-x-2 overflow-hidden min-h-0">
         {/* 输入区 (可收起) */}
         {isInputVisible && (
           <div className="w-1/2 h-full flex flex-col transition-all duration-300">
             <label className="mb-1 text-sm font-semibold text-foreground">
               Input
             </label>
-            <div className="flex-grow w-full border border-border rounded-md overflow-y-auto">
-              <CodeMirror
-                value={input}
-                height="100%"
-                extensions={codemirrorExtensions}
-                onChange={handleInputChange}
-                theme={isDarkMode ? 'dark' : 'light'}
-                basicSetup={{
-                  foldGutter: true,
-                  dropCursor: true,
-                  allowMultipleSelections: true,
-                  indentOnInput: true,
-                }}
-              />
+            {/* 使用 relative/absolute 布局确保 Textarea 能正确填充 flex 容器 */}
+            <div className="flex-grow w-full relative">
+              <div className="absolute inset-0 border border-border rounded-md">
+                <Textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  className="h-full w-full resize-none border-0 bg-transparent p-2 focus-visible:ring-0"
+                  placeholder="Paste your JSON here..."
+                />
+              </div>
             </div>
           </div>
         )}

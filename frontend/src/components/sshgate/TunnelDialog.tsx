@@ -42,56 +42,125 @@ const helpContent: Record<
   { title: string; description: React.ReactNode }
 > = {
   local: {
-    title: 'Local Forwarding (-L)',
+    title: 'Local Forwarding (-L) / 本地转发',
     description: (
       <div className="space-y-4 text-sm p-4">
-        <p>
-          将 **本地计算机** 的一个端口，通过 SSH 服务器，安全地 “嫁接”
-          到目标网络中的 **某台特定机器** 的端口上。
-        </p>
-        <h4 className="font-semibold">典型场景</h4>
-        <p>
-          在本地用数据库管理工具（如 DataGrip,
-          Navicat）连接公司内网的数据库（例如，运行在 `10.0.1.50:3306`）。
-        </p>
-        <h4 className="font-semibold">使用示例</h4>
+        <div>
+          <p>
+            将 **本地计算机** 的一个端口，通过 SSH 服务器，安全地 “嫁接”
+            到目标网络中的 **某台特定机器** 的端口上。
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Securely &quot;grafts&quot; a port on your{' '}
+            <strong>local computer</strong> to a port on a{' '}
+            <strong>specific machine</strong> within the target network, via the
+            SSH server.
+          </p>
+        </div>
+        <h4 className="font-semibold">典型场景 / Typical Scenario</h4>
+        <div>
+          <p>
+            在本地用数据库管理工具（如 DataGrip,
+            Navicat）连接公司内网的数据库（例如，运行在 `10.0.1.50:3306`）。
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Using a database management tool (like DataGrip, Navicat) on your
+            local machine to connect to a database inside the company&apos;s
+            internal network (e.g., running on <code>10.0.1.50:3306</code>).
+          </p>
+        </div>
+        <h4 className="font-semibold">使用示例 / Example Usage</h4>
         <pre className="p-2 bg-gray-100 rounded-md text-xs dark:bg-gray-800">
           <code>
-            {`// 本地端口: 8888\n// 远程主机: 10.0.1.50\n// 远程端口: 3306\n\n// 连接本地的 localhost:8888 即可访问内网数据库。`}
+            {`// 本地端口 (Local Port): 8888
+// 远程主机 (Remote Host): 10.0.1.50
+// 远程端口 (Remote Port): 3306
+
+// 连接本地的 localhost:8888 即可访问内网数据库。
+// Connecting to localhost:8888 on your local machine will access the internal database.`}
           </code>
         </pre>
-        <h4 className="font-semibold">形象比喻</h4>
-        <p>在您的电脑和远程服务之间，挖了一个 **点对点的、专用的安全地道**。</p>
+        <h4 className="font-semibold">形象比喻 / Analogy</h4>
+        <div>
+          <p>
+            在您的电脑和远程服务之间，挖了一个{' '}
+            <strong>点对点的、专用的安全地道</strong>。
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            It&apos;s like digging a{' '}
+            <strong>point-to-point, dedicated, secure tunnel</strong> between
+            your computer and the remote service.
+          </p>
+        </div>
       </div>
     ),
   },
   dynamic: {
-    title: 'Dynamic Forwarding (-D)',
+    title: 'Dynamic Forwarding (-D) / 动态转发',
     description: (
       <div className="space-y-4 text-sm p-4">
-        <p>
-          在您的 **本地计算机** 上创建一个通用的 SOCKS5 代理服务。任何支持 SOCKS
-          代理的应用程序（如浏览器）都可以通过这个代理将所有网络流量安全地通过
-          SSH 服务器转发出去。
-        </p>
-        <h4 className="font-semibold">典型场景</h4>
-        <ul className="list-disc list-inside space-y-1">
-          <li>**安全浏览**: 在公共 Wi-Fi 下加密所有浏览器流量。</li>
+        <div>
+          <p>
+            在您的 **本地计算机** 上创建一个通用的 SOCKS5 代理服务。任何支持
+            SOCKS
+            代理的应用程序（如浏览器）都可以通过这个代理将所有网络流量安全地通过
+            SSH 服务器转发出去。
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Creates a general-purpose SOCKS5 proxy service on your{' '}
+            <strong>local computer</strong>. Any application that supports SOCKS
+            proxy (like a web browser) can route all its network traffic
+            securely through the SSH server via this proxy.
+          </p>
+        </div>
+        <h4 className="font-semibold">典型场景 / Typical Scenarios</h4>
+        <ul className="list-disc list-inside space-y-2">
           <li>
-            **访问内网**: 设置好代理后，可在浏览器中直接访问所有内网服务（如
-            `http://internal-wiki.corp`），就像身处内网一样。
+            <p>
+              <strong>安全浏览</strong>: 在公共 Wi-Fi 下加密所有浏览器流量。
+            </p>
+            <p className="text-xs text-muted-foreground">
+              <strong>Secure Browsing</strong>: Encrypt all browser traffic when
+              on public Wi-Fi.
+            </p>
+          </li>
+          <li>
+            <p>
+              <strong>访问内网</strong>:
+              设置好代理后，可在浏览器中直接访问所有内网服务（如
+              `http://internal-wiki.corp`），就像身处内网一样。
+            </p>
+            <p className="text-xs text-muted-foreground">
+              <strong>Accessing Internal Networks</strong>: Once the proxy is
+              set up, you can directly access all internal services (like{' '}
+              <code>http://internal-wiki.corp</code>) in your browser as if you
+              were on the internal network.
+            </p>
           </li>
         </ul>
-        <h4 className="font-semibold">形象比喻</h4>
-        <p>
-          在您本地开一个 **“万能传送门”**（SOCKS
-          代理）。您告诉浏览器：“所有出门的东西都走这个传送门”，然后它们就会被安全地传送到
-          SSH 服务器那里，再从那里走向最终目的地。
-        </p>
+        <h4 className="font-semibold">形象比喻 / Analogy</h4>
+        <div>
+          <p>
+            在您本地开一个 <strong>“万能传送门”</strong>（SOCKS
+            代理）。您告诉浏览器：“所有出门的东西都走这个传送门”，然后它们就会被安全地传送到
+            SSH 服务器那里，再从那里走向最终目的地。
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            It&apos;s like opening a{' '}
+            <strong>&quot;universal portal&quot;</strong> (the SOCKS proxy) on
+            your local machine. You tell your browser, &quot;Everything going
+            out should use this portal,&quot; and it gets securely transported
+            to the SSH server, then proceeds to its final destination from
+            there.
+          </p>
+        </div>
       </div>
     ),
   },
-  remote: { title: 'Remote Forwarding (-R)', description: '...' },
+  remote: {
+    title: 'Remote Forwarding (-R) / 远程转发',
+    description: '...',
+  },
 }
 
 function HelpSheet({
@@ -142,6 +211,15 @@ export function TunnelDial(props: TunnelDialProps) {
   // State to control the help sheet
   const [helpTopic, setHelpTopic] = useState<HelpTopic | null>(null)
 
+  // Ref to track component mount status, preventing state updates on unmounted components
+  const isMountedRef = useRef(true)
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
   const aliasRef = useRef(host.alias)
   useEffect(() => {
     aliasRef.current = host.alias
@@ -158,7 +236,7 @@ export function TunnelDial(props: TunnelDialProps) {
     spellCheck: false,
   }
 
-  const handleStartLocalForward = async () => {
+  const handleStartLocalForward = () => {
     // input validate
     const localPortNum = parseInt(localForwardForm.localPort, 10)
     const remotePortNum = parseInt(localForwardForm.remotePort, 10)
@@ -199,7 +277,6 @@ export function TunnelDial(props: TunnelDialProps) {
         gatewayPorts
       )
 
-      onOpenChange(false) // 关闭模态框
       const bindAddr = gatewayPorts ? '0.0.0.0' : '127.0.0.1'
       logger.info(
         `Local forward tunnel started successfully!\n\nTunnel ID: ${tunnelId}`
@@ -211,16 +288,25 @@ export function TunnelDial(props: TunnelDialProps) {
     // 使用toast.promise处理状态反馈
     toast.promise(promise, {
       loading: `Verifying connection to ${host.alias}...`,
-      success: (msg) => `Tunnel Started: ${msg}`,
-      error: (err: Error) =>
-        err.message.includes('cancelled')
+      success: (msg) => {
+        onOpenChange(false) // 在 toast 成功后关闭模态框
+        return `Tunnel Started: ${msg}`
+      },
+      error: (error: unknown) => {
+        const err = error instanceof Error ? error : new Error(String(error))
+        return err.message.includes('cancelled')
           ? 'Tunnel creation cancelled.'
-          : `Failed to start tunnel: ${err.message}`,
-      finally: () => setIsStartingTunnel(false),
+          : `Failed to start tunnel: ${err.message}`
+      },
+      finally: () => {
+        if (isMountedRef.current) {
+          setIsStartingTunnel(false)
+        }
+      },
     })
   }
 
-  const handleStartDynamicForward = async () => {
+  const handleStartDynamicForward = () => {
     const localPortNum = parseInt(dynamicForwardForm.localPort, 10)
     if (isNaN(localPortNum)) {
       return showDialog({
@@ -249,7 +335,6 @@ export function TunnelDial(props: TunnelDialProps) {
         password,
         gatewayPorts
       )
-      onOpenChange(false) // 成功后关闭模态框
 
       const bindAddr = gatewayPorts ? '0.0.0.0' : '127.0.0.1'
       logger.info(
@@ -261,22 +346,32 @@ export function TunnelDial(props: TunnelDialProps) {
 
     toast.promise(promise, {
       loading: `Verifying connection to ${host.alias}...`,
-      success: (msg) => `SOCKS Proxy Started: ${msg}`,
-      error: (err: Error) =>
-        err.message.includes('cancelled')
+      success: (msg) => {
+        onOpenChange(false) // 在 toast 成功后关闭模态框
+        return `SOCKS Proxy Started: ${msg}`
+      },
+      error: (error: unknown) => {
+        const err = error instanceof Error ? error : new Error(String(error))
+        return err.message.includes('cancelled')
           ? 'Proxy creation cancelled.'
-          : `Failed to start proxy: ${err.message}`,
-      finally: () => setIsStartingTunnel(false),
+          : `Failed to start proxy: ${err.message}`
+      },
+      finally: () => {
+        if (isMountedRef.current) {
+          setIsStartingTunnel(false)
+        }
+      },
+      duration: 2000,
     })
   }
 
-  const handleStartTunnel = async (tab: string) => {
+  const handleStartTunnel = (tab: string): void => {
     if (tab === 'local') {
-      await handleStartLocalForward()
+      void handleStartLocalForward()
     } else if (tab === 'dynamic') {
-      await handleStartDynamicForward()
+      void handleStartDynamicForward()
     } else {
-      await showDialog({
+      void showDialog({
         type: 'error',
         title: 'Error',
         message: `Invalid tab value: ${tab}`,
@@ -437,7 +532,7 @@ export function TunnelDial(props: TunnelDialProps) {
             Cancel
           </Button>
           <Button
-            onClick={() => void handleStartTunnel(activeTab)}
+            onClick={() => handleStartTunnel(activeTab)}
             disabled={isStartingTunnel}
           >
             {isStartingTunnel && (

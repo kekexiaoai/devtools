@@ -415,7 +415,7 @@ function AppContent() {
     // 它才会重新计算这个对象，从而避免不必要的组件创建。
     return {
       FileSyncer: <FileSyncerView isActive={activeTool === 'FileSyncer'} />,
-      JsonTools: <JsonToolsView />,
+      JsonTools: <JsonToolsView isDarkMode={isDarkMode} />,
       SshGate: (
         <SshGateView
           isActive={activeTool === 'SshGate'}
@@ -423,6 +423,7 @@ function AppContent() {
           activeTunnels={activeTunnels}
           isLoadingTunnels={isLoadingTunnels}
           onRefreshTunnels={() => void fetchTunnels()}
+          isDarkMode={isDarkMode}
         />
       ),
       Tunnel: (
@@ -444,6 +445,8 @@ function AppContent() {
           onReconnectTerminal={reconnectTerminal}
           onConnect={handleTerminalConnect}
           onStatusChange={updateTerminalStatus}
+          // 传递 isDarkMode
+          isDarkMode={isDarkMode}
         />
       ),
     }
@@ -458,6 +461,7 @@ function AppContent() {
     fetchTunnels,
     handleCreateTunnel,
     handleTerminalConnect,
+    isDarkMode,
     reconnectTerminal,
     updateTerminalStatus,
   ])

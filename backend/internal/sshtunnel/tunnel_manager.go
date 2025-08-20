@@ -144,7 +144,10 @@ func (m *Manager) createTunnel(alias string, localPort int, password string, gat
 	serverAddr := fmt.Sprintf("%s:%s", connConfig.HostName, connConfig.Port)
 	sshClient, err := ssh.Dial("tcp", serverAddr, connConfig.ClientConfig)
 	if err != nil {
-		return "", fmt.Errorf("SSH dial to %s failed: %w", alias, err)
+		// Do not use %w to wrap the error. The underlying error (e.g., *net.OpError)
+		// can be a complex type that causes serialization issues with the Wails IPC bridge,
+		// leading to a hung Promise on the frontend. Use %v to convert it to a simple string.
+		return "", fmt.Errorf("SSH dial to %s failed: %v", alias, err)
 	}
 
 	// 3. Create local listener
@@ -156,18 +159,14 @@ func (m *Manager) createTunnel(alias string, localPort int, password string, gat
 	listener, err := net.Listen("tcp", localAddr)
 	if err != nil {
 		sshClient.Close()
-		// Check for a specific "address already in use" error to provide a better message.
-		// The underlying error from net.Listen can be complex (*net.OpError), which might
-		// cause issues with the Wails bridge. We create a new, simple error string.
-		if opErr, ok := err.(*net.OpError); ok {
-			// Checking the error string is a common and reasonably portable alternative
-			// to platform-specific syscall errors.
-			if strings.Contains(strings.ToLower(opErr.Err.Error()), "address already in use") {
-				return "", fmt.Errorf("本地端口 %d 已被占用，请使用其他端口", localPort)
-			}
+		// The error from net.Listen can be a complex nested type (e.g., *net.OpError).
+		// Such types can cause serialization issues with the Wails IPC bridge, leading to
+		// a hung Promise on the frontend. To prevent this, we inspect the error's string
+		// representation and always return a new, simple error created with fmt.Errorf.
+		if strings.Contains(err.Error(), "address already in use") {
+			return "", fmt.Errorf("本地端口 %d 已被占用，请使用其他端口", localPort)
 		}
-		// For other listener errors, we also return a simplified error string.
-		return "", fmt.Errorf("无法监听本地端口 %d: %s", localPort, err)
+		return "", fmt.Errorf("无法监听本地端口 %d: %v", localPort, err)
 	}
 
 	// 4. Create and register tunnel

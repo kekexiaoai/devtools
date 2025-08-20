@@ -16,8 +16,8 @@ import (
 
 	"devtools/backend/internal/sshmanager"
 	"devtools/backend/internal/types"
+	"devtools/backend/pkg/ptyx"
 
-	"github.com/creack/pty"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ssh"
@@ -37,7 +37,7 @@ type Session struct {
 	ptyIn      io.WriteCloser
 	ptyOut     io.Reader
 	localCmd   *exec.Cmd
-	ptmx       *os.File // For local sessions, to handle resize
+	ptmx       ptyx.Pty // For local sessions, to handle resize
 	cancelFunc context.CancelFunc
 }
 
@@ -48,6 +48,7 @@ type Service struct {
 	mu         sync.RWMutex
 	sshManager *sshmanager.Manager
 	upgrader   websocket.Upgrader
+	serverAddr string // To store the actual address of the WebSocket server
 }
 
 // NewService 是终端服务的构造函数
@@ -79,27 +80,38 @@ func (s *Service) Shutdown() {
 
 // StartLocalSession 启动一个本地的 shell 会话
 func (s *Service) StartLocalSession(sessionID string) (*types.TerminalSessionInfo, error) {
-	// 决定要启动哪个 shell
-	var shell string
-	if runtime.GOOS == "windows" {
-		shell = "powershell.exe"
-	} else {
-		// 在 macOS/Linux 上，从环境变量获取用户的默认 shell
-		shell = os.Getenv("SHELL")
-		if shell == "" {
-			shell = "bash" // 作为备用
-		}
-	}
+	shell := getDefaultShell()
+	log.Printf("Attempting to start local session with shell: %s", shell)
 
 	// 创建一个执行本地 shell 的命令
 	cmd := exec.Command(shell)
 
-	// 使用 pty 库来在一个伪终端中启动这个命令
-	ptmx, err := pty.Start(cmd)
+	// On Unix-like systems, this sets Setpgid to true, creating a new process group.
+	// This is essential for properly terminating the shell and all its children.
+	// On Windows, this is a no-op as ConPTY handles process management.
+	cmd.SysProcAttr = sysProcAttr()
+	// This is crucial for built applications.
+	// When launched from a GUI, the app doesn't inherit TERM, which is essential
+	// for correct terminal behavior (e.g., backspace, arrow keys).
+	// 'xterm-256color' is a safe and widely supported default.
+	// We append it to the existing environment to preserve other important variables.
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
+		log.Printf("ERROR: Failed to get user home directory: %v", err)
+		// Optionally, return an error or proceed with a default directory
+	} else {
+		cmd.Dir = homeDir // Set the working directory to the user's home directory
+	}
+	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+	log.Printf("Starting local command with pty...")
+	// 使用 pty 库来在一个伪终端中启动这个命令
+	ptmx, err := ptyx.Start(cmd)
+	if err != nil {
+		log.Printf("ERROR: Failed to start local pty for shell '%s': %v", shell, err)
 		return nil, fmt.Errorf("failed to start local pty: %w", err)
 	}
 
+	log.Printf("Successfully started local command with pty. PID: %d", cmd.Process.Pid)
 	if sessionID == "" {
 		sessionID = uuid.NewString()
 	}
@@ -109,8 +121,8 @@ func (s *Service) StartLocalSession(sessionID string) (*types.TerminalSessionInf
 		sshConn:    nil,
 		sshSession: nil,
 		// ptyIn 和 ptyOut 现在直接就是 ptmx
-		ptyIn:    ptmx,
-		ptyOut:   ptmx,
+		ptyIn:    ptmx.In(),
+		ptyOut:   ptmx.Out(),
 		localCmd: cmd,  // 保存cmd到session中
 		ptmx:     ptmx, // 保存 ptmx 以便调整大小
 	}
@@ -127,7 +139,7 @@ func (s *Service) StartLocalSession(sessionID string) (*types.TerminalSessionInf
 			if r := recover(); r != nil {
 				log.Printf("Panic in session %s: %v", sessionID, r)
 			}
-			log.Printf("defer for session %s to ecleanup...", sessionID) // 新增验证进入等待
+			log.Printf("defer for session %s to cleanup...", sessionID) // 新增验证进入等待
 
 			s.cleanupSession(sessionID)
 		}()
@@ -141,30 +153,36 @@ func (s *Service) StartLocalSession(sessionID string) (*types.TerminalSessionInf
 	return &types.TerminalSessionInfo{
 		ID:    sessionID,
 		Alias: "local",
-		URL:   fmt.Sprintf("ws://localhost:45678/ws/terminal/%s", sessionID),
+		URL:   fmt.Sprintf("ws://%s/ws/terminal/%s", s.serverAddr, sessionID),
 		Type:  TypeLocal,
 	}, nil
 }
 
 // StartSession 使用 Go 原生 SSH 库创建一个新的终端会话
 func (s *Service) StartRemoteSession(alias, sessionID, password string) (*types.TerminalSessionInfo, error) {
+	log.Printf("Attempting to start remote session for alias: %s", alias)
 	// 获取 SSH 配置
 	config, _, err := s.sshManager.GetConnectionConfig(alias, password)
 	if err != nil {
+		log.Printf("ERROR: Could not get ssh config for %s: %v", alias, err)
 		return nil, fmt.Errorf("could not get ssh config for %s: %w", alias, err)
 	}
 
 	// 建立 SSH 连接
 	serverAddr := fmt.Sprintf("%s:%s", config.HostName, config.Port)
+	log.Printf("Dialing SSH server at %s for alias %s...", serverAddr, alias)
 	sshConn, err := ssh.Dial("tcp", serverAddr, config.ClientConfig)
 	if err != nil {
+		log.Printf("ERROR: SSH dial to %s (%s) failed: %v", alias, serverAddr, err)
 		return nil, fmt.Errorf("SSH dial to %s failed: %w", alias, err)
 	}
+	log.Printf("SSH connection established for alias %s", alias)
 
 	// Create a context for this session's lifecycle (e.g., for keep-alive)
 	sessionCtx, cancel := context.WithCancel(s.ctx)
 
 	// 创建 SSH 会话
+	log.Printf("Creating new SSH session for alias %s...", alias)
 	sshSession, err := sshConn.NewSession()
 	if err != nil {
 		sshConn.Close()
@@ -173,7 +191,9 @@ func (s *Service) StartRemoteSession(alias, sessionID, password string) (*types.
 	}
 
 	// 请求 PTY
+	log.Printf("Requesting PTY for session %s...", alias)
 	if err := sshSession.RequestPty("xterm-256color", 40, 80, ssh.TerminalModes{}); err != nil {
+		log.Printf("ERROR: Failed to request PTY for %s: %v", alias, err)
 		sshSession.Close()
 		cancel()
 		sshConn.Close()
@@ -181,8 +201,10 @@ func (s *Service) StartRemoteSession(alias, sessionID, password string) (*types.
 	}
 
 	// 获取 PTY 的输入输出流
+	log.Printf("Getting PTY pipes for %s...", alias)
 	ptyIn, err := sshSession.StdinPipe()
 	if err != nil {
+		log.Printf("ERROR: Failed to get stdin pipe for %s: %v", alias, err)
 		sshSession.Close()
 		cancel()
 		sshConn.Close()
@@ -190,6 +212,7 @@ func (s *Service) StartRemoteSession(alias, sessionID, password string) (*types.
 	}
 	ptyOut, err := sshSession.StdoutPipe()
 	if err != nil {
+		log.Printf("ERROR: Failed to get stdout pipe for %s: %v", alias, err)
 		sshSession.Close()
 		cancel()
 		sshConn.Close()
@@ -197,7 +220,9 @@ func (s *Service) StartRemoteSession(alias, sessionID, password string) (*types.
 	}
 
 	// 启动远程 Shell
+	log.Printf("Starting remote shell for %s...", alias)
 	if err := sshSession.Shell(); err != nil {
+		log.Printf("ERROR: Failed to start remote shell for %s: %v", alias, err)
 		cancel()
 		sshSession.Close()
 		sshConn.Close()
@@ -236,7 +261,7 @@ func (s *Service) StartRemoteSession(alias, sessionID, password string) (*types.
 	return &types.TerminalSessionInfo{
 		ID:    sessionID,
 		Alias: alias,
-		URL:   fmt.Sprintf("ws://localhost:45678/ws/terminal/%s", sessionID),
+		URL:   fmt.Sprintf("ws://%s/ws/terminal/%s", s.serverAddr, sessionID),
 		Type:  TypeRemote,
 	}, nil
 }
@@ -244,16 +269,19 @@ func (s *Service) StartRemoteSession(alias, sessionID, password string) (*types.
 // startWebSocketServer 在后台启动一个 HTTP 服务器来处理 WebSocket 连接
 func (s *Service) startWebSocketServer() error {
 	http.HandleFunc("/ws/terminal/", s.handleConnection)
-	port := ":45678" // 选择一个不常用的端口，避免冲突
 
-	// 创建一个 listener 来预先检查端口是否可用
-	listener, err := net.Listen("tcp", port)
+	// Listen on localhost with port 0 to let the OS choose an available ephemeral port.
+	// This is more robust than using a fixed port.
+	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
-		// 端口很可能被占用了，这是我们想要捕获的关键错误
+		// This is unlikely to fail unless there's a more fundamental networking issue.
 		return err
 	}
 
-	log.Printf("Starting terminal WebSocket server on %s", port)
+	// Store the actual address, including the chosen port.
+	s.serverAddr = listener.Addr().String()
+
+	log.Printf("Starting terminal WebSocket server on %s", s.serverAddr)
 	// 在一个 goroutine 中启动服务，这样它就不会阻塞 Startup 过程
 	go func() {
 		if err := http.Serve(listener, nil); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -261,6 +289,35 @@ func (s *Service) startWebSocketServer() error {
 		}
 	}()
 	return nil
+}
+
+// getDefaultShell determines the best default shell to use for local terminals.
+// It's more robust than just relying on os.Getenv("SHELL"), which may not be
+// set when the app is launched from a GUI.
+func getDefaultShell() string {
+	if runtime.GOOS == "windows" {
+		return "powershell.exe"
+	}
+
+	// For macOS/Linux, first try the SHELL environment variable.
+	shell := os.Getenv("SHELL")
+	if shell != "" {
+		if _, err := exec.LookPath(shell); err == nil {
+			return shell
+		}
+	}
+
+	// If SHELL is not set or invalid, try common shells in a preferred order.
+	// On modern macOS, zsh is the default.
+	commonShells := []string{"/bin/zsh", "/bin/bash"}
+	for _, s := range commonShells {
+		if _, err := os.Stat(s); err == nil {
+			return s
+		}
+	}
+
+	// As a last resort, just use "bash" and hope it's in the PATH.
+	return "bash"
 }
 
 // handleConnection 是一个 HTTP Handler，它会将一个标准的 HTTP 请求升级为 WebSocket 连接
@@ -315,7 +372,7 @@ func (s *Service) handleConnection(w http.ResponseWriter, r *http.Request) {
 
 				if session.ptmx != nil {
 					// 处理本地 PTY 的尺寸调整
-					if err := pty.Setsize(session.ptmx, &pty.Winsize{Rows: resizeMsg.Rows, Cols: resizeMsg.Cols}); err != nil {
+					if err := session.ptmx.Resize(resizeMsg.Rows, resizeMsg.Cols); err != nil {
 						log.Printf("Error resizing local pty for session %s: %v", sessionID, err)
 					}
 				} else if session.sshSession != nil {

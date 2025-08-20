@@ -20,6 +20,7 @@ import { HostFormDialog } from '@/components/sshgate/HostFormDialog'
 import { HostList } from '@/components/sshgate/HostList'
 import { HostDetail } from '@/components/sshgate/HostDetail'
 import { Save } from 'lucide-react'
+import { appLogger } from '@/lib/logger'
 
 // #############################################################################
 // #  主视图组件 (Main View Component)
@@ -35,15 +36,25 @@ interface SshGateViewProps {
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
   isLoadingTunnels: boolean
   onRefreshTunnels: () => void
+  isDarkMode: boolean
 }
 
-export function SshGateView({ onConnect, activeTunnels }: SshGateViewProps) {
+export function SshGateView({
+  isActive,
+  onConnect,
+  activeTunnels,
+  isDarkMode,
+}: SshGateViewProps) {
   // 这个 state 用于在两个 Tab 之间同步数据刷新
   // 当 RawEditor 保存了文件，或 VisualEditor 增删改了主机，
   // 我们就增加 dataVersion 的值，这会强制两个 Tab 都重新获取数据
   const [dataVersion, setDataVersion] = useState(0)
   const refreshData = () => setDataVersion((v) => v + 1)
   const [activeTab, setActiveTab] = useState('visual')
+
+  const logger = useMemo(() => appLogger.withPrefix('sshgate.SshGateView'), [])
+
+  logger.debug('render', { isActive, activeTab, dataVersion })
 
   return (
     // 根容器
@@ -78,12 +89,17 @@ export function SshGateView({ onConnect, activeTunnels }: SshGateViewProps) {
             onDataChange={refreshData}
             onConnect={onConnect}
             activeTunnels={activeTunnels}
+            isDarkMode={isDarkMode}
           />
         </TabsContent>
 
         {/* 原始文件编辑器 Tab */}
         <TabsContent value="raw" className="flex-1 mt-2 flex flex-col min-h-0">
-          <RawEditor dataVersion={dataVersion} onDataChange={refreshData} />
+          <RawEditor
+            dataVersion={dataVersion}
+            onDataChange={refreshData}
+            isDarkMode={isDarkMode}
+          />
         </TabsContent>
       </Tabs>
     </div>
@@ -107,6 +123,7 @@ const VisualEditor = React.memo(function VisualEditor({
   ) => void
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
   dataVersion: number
+  isDarkMode: boolean
 }) {
   const [hosts, setHosts] = useState<types.SSHHost[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -117,6 +134,7 @@ const VisualEditor = React.memo(function VisualEditor({
   const [editingHost, setEditingHost] = useState<types.SSHHost | null>(null)
   const { showDialog } = useDialog()
 
+  const logger = useMemo(() => appLogger.withPrefix('sshgate.VisualEditor'), [])
   const fetchHosts = useCallback(async () => {
     setIsLoading(true)
     try {
@@ -179,7 +197,7 @@ const VisualEditor = React.memo(function VisualEditor({
         { text: 'Yes, Delete', variant: 'destructive', value: 'yes' },
       ],
     })
-    console.log('handleDelete, choice', choice)
+    logger.debug('handleDelete, choice', choice)
     if (choice.buttonValue !== 'yes') return
     try {
       await DeleteSSHHost(alias)
@@ -272,17 +290,19 @@ const VisualEditor = React.memo(function VisualEditor({
 const RawEditor = React.memo(function RawEditor({
   onDataChange,
   dataVersion,
+  isDarkMode,
 }: {
   onDataChange: () => void
   dataVersion: number
+  isDarkMode: boolean
 }) {
   const [content, setContent] = useState('')
   const [isDirty, setIsDirty] = useState(false)
   const { showDialog } = useDialog()
-  const isDarkMode = useMemo(
-    () => window.matchMedia?.('(prefers-color-scheme: dark)').matches,
-    []
-  )
+  // const isDarkMode = useMemo(
+  //   () => window.matchMedia?.('(prefers-color-scheme: dark)').matches,
+  //   []
+  // )
 
   useEffect(() => {
     GetSSHConfigFileContent()
