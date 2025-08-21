@@ -25,6 +25,7 @@ import { SavedTunnelsView } from '@/components/tunnel/SavedTunnelsView'
 import { ActiveTunnels } from '@/components/sshgate/ActiveTunnels'
 import { useOnVisible } from '@/hooks/useOnVisible'
 import { EventsOn } from '@wailsjs/runtime'
+import { appLogger } from '@/lib/logger'
 
 // #############################################################################
 // #  主视图组件 (Main View Component)
@@ -51,6 +52,26 @@ export function SshGateView({
   const [dataVersion, setDataVersion] = useState(0)
   const refreshData = () => setDataVersion((v) => v + 1)
   const [activeTab, setActiveTab] = useState('hosts')
+  const { showDialog } = useDialog()
+
+  // --- Lifted State for SSH Hosts ---
+  const [hosts, setHosts] = useState<types.SSHHost[]>([])
+  const [isLoadingHosts, setIsLoadingHosts] = useState(true)
+
+  const fetchHosts = useCallback(async () => {
+    setIsLoadingHosts(true)
+    try {
+      setHosts(await GetSSHHosts())
+    } catch (error) {
+      void showDialog({
+        type: 'error',
+        title: 'Error',
+        message: `Failed to load SSH hosts: ${String(error)}`,
+      })
+    } finally {
+      setIsLoadingHosts(false)
+    }
+  }, [showDialog])
 
   // 使用Hook，告诉 useOnVisible: 当这个组件可见时，执行 refreshData 函数
   const [activeTunnels, setActiveTunnels] = useState<
@@ -88,6 +109,11 @@ export function SshGateView({
       cleanupTunnelChangedEvent()
     }
   }, [fetchTunnels])
+
+  useEffect(() => {
+    void fetchHosts()
+  }, [fetchHosts, dataVersion])
+
   useOnVisible(refreshData, isActive)
   console.log('ssh gate, data version:', dataVersion)
 
@@ -122,6 +148,8 @@ export function SshGateView({
         {/* 可视化编辑器 Tab */}
         <TabsContent value="hosts" className="flex-1 min-h-0">
           <HostsView
+            hosts={hosts}
+            isLoading={isLoadingHosts}
             dataVersion={dataVersion}
             onDataChange={refreshData}
             onConnect={onConnect}
@@ -132,7 +160,7 @@ export function SshGateView({
 
         {/* 保存的隧道配置 Tab */}
         <TabsContent value="tunnels" className="flex-1 min-h-0">
-          <SavedTunnelsView />
+          <SavedTunnelsView hosts={hosts} />
         </TabsContent>
 
         {/* 原始文件编辑器 Tab */}
@@ -161,23 +189,27 @@ export function SshGateView({
 // #  子组件：可视化编辑器 (Visual Editor)
 // #############################################################################
 const HostsView = React.memo(function HostsView({
+  hosts,
+  isLoading,
   onDataChange,
   onConnect,
   activeTunnels,
   dataVersion,
+  isDarkMode,
 }: {
+  hosts: types.SSHHost[]
+  isLoading: boolean
   onDataChange: () => void
   onConnect: (
     alias: string,
     type: 'local' | 'remote',
-    strategy: 'internal' | 'external'
+    strategy: 'internal' | 'external',
+    sessionID?: string
   ) => void
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
   dataVersion: number
   isDarkMode: boolean
 }) {
-  const [hosts, setHosts] = useState<types.SSHHost[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [selectedAlias, setSelectedAlias] = useState<string | null>(null)
   const [hoveredAlias, setHoveredAlias] = useState<string | null>(null)
 
@@ -185,24 +217,18 @@ const HostsView = React.memo(function HostsView({
   const [editingHost, setEditingHost] = useState<types.SSHHost | null>(null)
   const { showDialog } = useDialog()
 
-  const fetchHosts = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      setHosts(await GetSSHHosts())
-    } catch (error) {
-      await showDialog({
-        type: 'error',
-        title: 'Error',
-        message: `Failed to load SSH hosts: ${String(error)}`,
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }, [showDialog])
+  const logger = useMemo(() => {
+    return appLogger.withPrefix('SshGateView').withPrefix('HostsView')
+  }, [])
 
   useEffect(() => {
-    void fetchHosts()
-  }, [fetchHosts, dataVersion])
+    logger.info(
+      'HostsView, isDarkMode:',
+      isDarkMode,
+      'dataVersion:',
+      dataVersion
+    )
+  }, [isDarkMode, logger, dataVersion])
 
   // 这个 effect 只负责在 hosts 列表变化后，处理默认选中
   useEffect(() => {
@@ -251,7 +277,6 @@ const HostsView = React.memo(function HostsView({
     if (choice.buttonValue !== 'yes') return
     try {
       await DeleteSSHHost(alias)
-      await fetchHosts()
       onDataChange() // 通知父组件数据已变动
     } catch (error) {
       await showDialog({
@@ -264,9 +289,10 @@ const HostsView = React.memo(function HostsView({
 
   const handleConnect = (
     alias: string,
-    strategy: 'internal' | 'external' = 'external'
+    strategy: 'internal' | 'external' = 'external',
+    sessionID?: string
   ) => {
-    void onConnect(alias, 'remote', strategy)
+    void onConnect(alias, 'remote', strategy, sessionID)
   }
 
   const hostToDisplay = useMemo(() => {
@@ -311,7 +337,7 @@ const HostsView = React.memo(function HostsView({
             }
             activeTunnels={activeTunnels}
             onConnectInternal={() =>
-              void handleConnect(hostToDisplay.alias, 'internal')
+              void handleConnect(hostToDisplay.alias, 'internal', undefined)
             }
           />
         ) : (
@@ -325,10 +351,7 @@ const HostsView = React.memo(function HostsView({
         host={editingHost}
         isOpen={isFormOpen}
         onOpenChange={setIsFormOpen}
-        onSave={() => {
-          void fetchHosts()
-          onDataChange()
-        }}
+        onSave={onDataChange}
       />
     </div>
   )

@@ -7,6 +7,7 @@ import {
   ConnectInTerminal,
   ConnectInTerminalAndTrustHost,
   ConnectInTerminalWithPassword,
+  VerifyTunnelConfigConnection,
 } from '@wailsjs/go/sshgate/Service'
 import {
   StartLocalSession,
@@ -16,10 +17,17 @@ import { useDialog } from '@/hooks/useDialog'
 
 // --- State Machine Types ---
 interface ConnectionContext {
+  // For display purposes in dialogs
   alias: string
+  // The type of connection (for internal terminals)
   type: 'local' | 'remote'
+  // The strategy to use
   strategy: 'internal' | 'external' | 'verify'
+  // The session ID for internal terminals
   sessionID?: string
+  // The ID of a saved tunnel config to verify
+  tunnelConfigID?: string
+
   password?: string
   savePassword?: boolean
   trustHost?: boolean
@@ -80,6 +88,18 @@ interface UseSshConnectionProps {
   onOpenTerminal: (sessionInfo: types.TerminalSessionInfo) => void
 }
 
+export interface ConnectOptions {
+  alias: string
+  type?: 'local' | 'remote'
+  strategy?: 'internal' | 'external' | 'verify'
+  sessionID?: string
+  tunnelConfigID?: string
+}
+
+export interface SshConnectionHook {
+  connect: (options: ConnectOptions) => Promise<string | null>
+}
+
 /**
  * 一个用于处理 SSH 连接逻辑的自定义 Hook。
  * 它封装了密码输入、主机密钥验证以及内部/外部终端启动的复杂流程。
@@ -87,12 +107,12 @@ interface UseSshConnectionProps {
  * @param {UseSshConnectionProps} props - 包含 Hook 依赖项的对象。
  * @param {Function} props.showDialog - 用于显示模态对话框的函数。
  * @param {Function} props.onOpenTerminal - 在 'internal' 模式连接成功后用于打开新终端会话的回调函数。
- * @returns {{ connect: (alias: string, type?: 'local' | 'remote', sessionID?: string, strategy: 'internal' | 'external' | 'verify' = 'external') => Promise<string | null> }} - 返回一个 connect 函数，它返回一个 Promise，在 'verify' 模式下成功时解析为密码，失败或取消时为 null。
+ * @returns {SshConnectionHook} - 返回一个包含 connect 函数的对象。
  */
 export function useSshConnection({
   showDialog,
   onOpenTerminal,
-}: UseSshConnectionProps) {
+}: UseSshConnectionProps): SshConnectionHook {
   const [state, setState] = useState<ConnectionState>({ status: 'idle' })
 
   useEffect(() => {
@@ -108,13 +128,20 @@ export function useSshConnection({
             savePassword,
             trustHost,
             sessionID,
+            tunnelConfigID,
           } = context
           const dryRun = strategy !== 'external'
           const TIMEOUT_MS = 15000
 
           try {
             let result: types.ConnectionResult | null = null
-            if (type === 'local') {
+            if (strategy === 'verify' && tunnelConfigID) {
+              result = await withTimeout(
+                VerifyTunnelConfigConnection(tunnelConfigID, password ?? ''),
+                TIMEOUT_MS,
+                `Connection check for ${alias} timed out.`
+              )
+            } else if (type === 'local') {
               result = new types.ConnectionResult({ success: true })
             } else {
               if (trustHost) {
@@ -320,12 +347,14 @@ export function useSshConnection({
   }, [state, showDialog, onOpenTerminal])
 
   const connect = useCallback(
-    (
-      alias: string,
-      type: 'local' | 'remote' = 'remote',
-      sessionID?: string,
-      strategy: 'internal' | 'external' | 'verify' = 'external'
-    ): Promise<string | null> => {
+    (options: ConnectOptions): Promise<string | null> => {
+      const {
+        alias,
+        type = 'remote',
+        strategy = 'external',
+        sessionID,
+        tunnelConfigID,
+      } = options
       const connectionPromise = new Promise<string | null>(
         (resolve, reject) => {
           setState({
@@ -335,6 +364,7 @@ export function useSshConnection({
               type,
               strategy,
               sessionID,
+              tunnelConfigID,
               resolve,
               reject,
             },

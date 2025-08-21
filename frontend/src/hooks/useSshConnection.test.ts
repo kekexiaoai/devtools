@@ -64,7 +64,7 @@ describe('useSshConnection', () => {
 
     let promise: Promise<string | null>
     act(() => {
-      promise = result.current.connect('my-alias')
+      promise = result.current.connect({ alias: 'my-alias' })
     })
 
     await expect(promise!).resolves.toBe('Terminal for my-alias launched.')
@@ -102,7 +102,7 @@ describe('useSshConnection', () => {
 
     let promise: Promise<string | null>
     act(() => {
-      promise = result.current.connect('my-alias')
+      promise = result.current.connect({ alias: 'my-alias' })
     })
 
     // Wait for dialog to be called
@@ -143,7 +143,7 @@ describe('useSshConnection', () => {
 
     let promise: Promise<string | null>
     act(() => {
-      promise = result.current.connect('my-alias')
+      promise = result.current.connect({ alias: 'my-alias' })
     })
 
     await expect(promise!).resolves.toBeNull()
@@ -175,7 +175,7 @@ describe('useSshConnection', () => {
 
     let promise: Promise<string | null>
     act(() => {
-      promise = result.current.connect('my-alias')
+      promise = result.current.connect({ alias: 'my-alias' })
     })
 
     await waitFor(() => {
@@ -204,7 +204,7 @@ describe('useSshConnection', () => {
 
     let promise: Promise<string | null>
     act(() => {
-      promise = result.current.connect('my-alias')
+      promise = result.current.connect({ alias: 'my-alias' })
     })
 
     await expect(promise!).rejects.toThrow('Network unreachable')
@@ -239,12 +239,12 @@ describe('useSshConnection', () => {
 
     let promise: Promise<string | null>
     act(() => {
-      promise = result.current.connect(
-        'my-alias',
-        'remote',
-        'session-123',
-        'internal'
-      )
+      promise = result.current.connect({
+        alias: 'my-alias',
+        type: 'remote',
+        strategy: 'internal',
+        sessionID: 'session-123',
+      })
     })
 
     await expect(promise!).resolves.toBe('Terminal for my-alias is ready.')
@@ -271,12 +271,12 @@ describe('useSshConnection', () => {
 
     let promise: Promise<string | null>
     act(() => {
-      promise = result.current.connect(
-        'local',
-        'local',
-        'local-session-123',
-        'internal'
-      )
+      promise = result.current.connect({
+        alias: 'local',
+        type: 'local',
+        strategy: 'internal',
+        sessionID: 'local-session-123',
+      })
     })
 
     await expect(promise!).resolves.toBe('Terminal for local is ready.')
@@ -299,12 +299,12 @@ describe('useSshConnection', () => {
 
     let promise: Promise<string | null>
     act(() => {
-      promise = result.current.connect(
-        'my-alias',
-        'remote',
-        undefined,
-        'verify'
-      )
+      promise = result.current.connect({
+        alias: 'my-alias',
+        type: 'remote',
+        sessionID: undefined,
+        strategy: 'verify',
+      })
     })
 
     await expect(promise!).resolves.toBe('')

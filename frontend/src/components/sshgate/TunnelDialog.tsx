@@ -256,12 +256,12 @@ export function TunnelDial(props: TunnelDialProps) {
     // 直接使用async函数作为promise源，无需手动new Promise
     const promise = (async (): Promise<string> => {
       // 调用hook进行验证
-      const password = await verifyConnection(
-        host.alias,
-        'remote',
-        undefined,
-        'verify'
-      )
+      const password = await verifyConnection({
+        alias: host.alias,
+        type: 'remote',
+        sessionID: undefined,
+        strategy: 'verify',
+      })
 
       if (password === null) {
         // 用户取消了操作
@@ -319,12 +319,13 @@ export function TunnelDial(props: TunnelDialProps) {
     setIsStartingTunnel(true)
     const promise = (async (): Promise<string> => {
       // 1. 调用 hook 进行验证
-      const password = await verifyConnection(
-        host.alias,
-        'remote',
-        undefined,
-        'verify'
-      )
+      const password = await verifyConnection({
+        alias: host.alias,
+        type: 'remote',
+        sessionID: undefined,
+        strategy: 'verify',
+      })
+
       if (password === null) {
         throw new Error('Proxy creation cancelled.')
       }

@@ -6,18 +6,27 @@ import {
   DeleteTunnelConfig,
   StartTunnelFromConfig,
 } from '@wailsjs/go/sshgate/Service'
-import { sshtunnel } from '@wailsjs/go/models'
+import { sshtunnel, types } from '@wailsjs/go/models'
 import { useDialog } from '@/hooks/useDialog'
 import { SavedTunnelItem } from './SavedTunnelItem'
 import { useSshConnection } from '@/hooks/useSshConnection'
 import { toast } from 'sonner'
+import { CreateTunnelDialog } from './CreateTunnelDialog'
 
-export function SavedTunnelsView() {
+interface SavedTunnelsViewProps {
+  hosts: types.SSHHost[]
+}
+
+export function SavedTunnelsView({ hosts }: SavedTunnelsViewProps) {
   const [savedTunnels, setSavedTunnels] = useState<
     sshtunnel.SavedTunnelConfig[]
   >([])
   const [isLoading, setIsLoading] = useState(true)
   const [startingTunnelId, setStartingTunnelId] = useState<string | null>(null)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [editingTunnel, setEditingTunnel] = useState<
+    sshtunnel.SavedTunnelConfig | undefined
+  >(undefined)
   const { showDialog } = useDialog()
 
   const { connect: verifyAndGetPassword } = useSshConnection({
@@ -61,12 +70,11 @@ export function SavedTunnelsView() {
 
       // Use the hook to handle password/host key verification.
       // It returns the password if successful, or null if cancelled.
-      const password = await verifyAndGetPassword(
-        aliasForDisplay,
-        'remote', // type is not used in this flow
-        id, // Pass the config ID to the hook
-        'verify'
-      )
+      const password = await verifyAndGetPassword({
+        alias: aliasForDisplay,
+        strategy: 'verify',
+        tunnelConfigID: id,
+      })
 
       if (password === null) {
         throw new Error('Tunnel creation cancelled.')
@@ -119,13 +127,13 @@ export function SavedTunnelsView() {
   }
 
   const handleEdit = (tunnel: sshtunnel.SavedTunnelConfig) => {
-    // This will be implemented in the next step when we refactor the dialog
-    toast.info(`Editing for "${tunnel.name}" is not yet implemented.`)
+    setEditingTunnel(tunnel)
+    setIsDialogOpen(true)
   }
 
   const handleCreate = () => {
-    // This will be implemented in the next step when we refactor the dialog
-    toast.info('Creating a new tunnel is not yet implemented.')
+    setEditingTunnel(undefined)
+    setIsDialogOpen(true)
   }
 
   return (
@@ -161,6 +169,16 @@ export function SavedTunnelsView() {
           </div>
         )}
       </div>
+      <CreateTunnelDialog
+        isOpen={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        onSuccess={() => {
+          setIsDialogOpen(false)
+          void fetchSavedTunnels()
+        }}
+        hosts={hosts}
+        tunnelToEdit={editingTunnel}
+      />
     </div>
   )
 }
