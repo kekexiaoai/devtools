@@ -366,6 +366,66 @@ func (s *Service) StartTunnelFromConfig(configID string, password string) (strin
 	return s.tunnelManager.CreateTunnelFromConfig(aliasForDisplay, savedConfig.LocalPort, savedConfig.GatewayPorts, savedConfig.TunnelType, remoteAddr, connConfig)
 }
 
+// VerifyTunnelConfigConnection performs a pre-flight check for a saved tunnel configuration.
+func (s *Service) VerifyTunnelConfigConnection(configID string, password string) (*types.ConnectionResult, error) {
+	s.configMu.RLock()
+	var savedConfig *sshtunnel.SavedTunnelConfig
+	for i := range s.tunnelsConfig.Tunnels {
+		if s.tunnelsConfig.Tunnels[i].ID == configID {
+			savedConfig = &s.tunnelsConfig.Tunnels[i]
+			break
+		}
+	}
+	s.configMu.RUnlock()
+
+	if savedConfig == nil {
+		return &types.ConnectionResult{Success: false, ErrorMessage: fmt.Sprintf("tunnel configuration with ID %s not found", configID)}, nil
+	}
+
+	var hostToVerify *types.SSHHost
+	var err error
+	var aliasForDisplay string
+
+	// We need to get a types.SSHHost object to pass to the verification logic.
+	switch savedConfig.HostSource {
+	case "ssh_config":
+		aliasForDisplay = savedConfig.HostAlias
+		hostToVerify, err = s.sshManager.GetSSHHostByAlias(aliasForDisplay)
+		if err != nil {
+			return s.handleSSHConnectError(aliasForDisplay, nil, err)
+		}
+	case "manual":
+		if savedConfig.ManualHost == nil {
+			return &types.ConnectionResult{Success: false, ErrorMessage: "manual host info is missing"}, nil
+		}
+		aliasForDisplay = savedConfig.Name // Use tunnel name as alias for context
+		hostToVerify = &types.SSHHost{
+			Alias:        aliasForDisplay,
+			HostName:     savedConfig.ManualHost.HostName,
+			Port:         savedConfig.ManualHost.Port,
+			User:         savedConfig.ManualHost.User,
+			IdentityFile: savedConfig.ManualHost.IdentityFile,
+		}
+	default:
+		return &types.ConnectionResult{Success: false, ErrorMessage: "unknown host source"}, nil
+	}
+
+	// Replicate the core logic of sshmanager.VerifyConnection but with a constructed host object.
+	connConfig, err := s.sshManager.BuildSSHClientConfig(hostToVerify, password)
+	if err != nil {
+		return s.handleSSHConnectError(aliasForDisplay, hostToVerify, err)
+	}
+
+	serverAddr := fmt.Sprintf("%s:%s", connConfig.HostName, connConfig.Port)
+	client, err := ssh.Dial("tcp", serverAddr, connConfig.ClientConfig)
+	if err != nil {
+		return s.handleSSHConnectError(aliasForDisplay, hostToVerify, err)
+	}
+	client.Close()
+
+	return &types.ConnectionResult{Success: true}, nil
+}
+
 // -----ssh连接-------------------------------------------------
 
 // 辅助函数，用于处理“预检”阶段的错误

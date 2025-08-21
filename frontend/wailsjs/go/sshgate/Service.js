@@ -85,3 +85,7 @@ export function Startup(arg1) {
 export function StopForward(arg1) {
   return window['go']['sshgate']['Service']['StopForward'](arg1);
 }
+
+export function VerifyTunnelConfigConnection(arg1, arg2) {
+  return window['go']['sshgate']['Service']['VerifyTunnelConfigConnection'](arg1, arg2);
+}
