@@ -144,6 +144,7 @@ export function HostFormDialog(props: HostFormDialogProps) {
                     <Input
                       placeholder="my-server"
                       {...field}
+                      // Alias is special, we might want corrections, so we don't add the common props here.
                       disabled={!!host}
                     />
                   </FormControl>

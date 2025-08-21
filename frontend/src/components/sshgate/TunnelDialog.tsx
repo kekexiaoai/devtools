@@ -230,12 +230,6 @@ export function TunnelDial(props: TunnelDialProps) {
     return appLogger.withPrefix('TunnelDial').withPrefix(getDynamicPrefix)
   }, [])
 
-  // A small helper for input fields
-  const commonInputProps: React.InputHTMLAttributes<HTMLInputElement> = {
-    autoComplete: 'off',
-    spellCheck: false,
-  }
-
   const handleStartLocalForward = () => {
     // input validate
     const localPortNum = parseInt(localForwardForm.localPort, 10)
@@ -422,7 +416,6 @@ export function TunnelDial(props: TunnelDialProps) {
                   Local Port
                 </Label>
                 <Input
-                  {...commonInputProps}
                   id="local-port"
                   type="number"
                   placeholder="e.g., 8080"
@@ -441,7 +434,6 @@ export function TunnelDial(props: TunnelDialProps) {
                   Remote Host
                 </Label>
                 <Input
-                  {...commonInputProps}
                   id="remote-host"
                   placeholder="localhost or an internal IP"
                   value={localForwardForm.remoteHost}
@@ -459,7 +451,6 @@ export function TunnelDial(props: TunnelDialProps) {
                   Remote Port
                 </Label>
                 <Input
-                  {...commonInputProps}
                   id="remote-port"
                   type="number"
                   placeholder="e.g., 3306"
@@ -498,7 +489,6 @@ export function TunnelDial(props: TunnelDialProps) {
                   Local Port
                 </Label>
                 <Input
-                  {...commonInputProps}
                   id="dynamic-local-port"
                   type="number"
                   placeholder="e.g., 1080"
