@@ -2,39 +2,63 @@ package sshgate
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 
 	"devtools/backend/internal/sshmanager"
 	"devtools/backend/internal/sshtunnel"
 	"devtools/backend/internal/types"
 	"devtools/backend/pkg/sshconfig"
 
+	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 )
+
+// TunnelsConfig is the root object for the tunnels JSON configuration file.
+type TunnelsConfig struct {
+	Tunnels []sshtunnel.SavedTunnelConfig `json:"tunnels"`
+}
 
 // Service 封装了所有与 SSH Gate 功能相关的后端逻辑
 type Service struct {
 	ctx           context.Context
 	sshManager    *sshmanager.Manager
 	tunnelManager *sshtunnel.Manager
+
+	// --- For tunnel configuration persistence ---
+	tunnelsConfigPath string
+	tunnelsConfig     *TunnelsConfig
+	configMu          sync.RWMutex
 }
 
 // NewService 是 SSHGate 服务的构造函数
 func NewService(sshMgr *sshmanager.Manager) *Service {
 	tunnelMgr := sshtunnel.NewManager(sshMgr)
-	return &Service{
+	s := &Service{
 		sshManager:    sshMgr,
 		tunnelManager: tunnelMgr,
+		tunnelsConfig: &TunnelsConfig{Tunnels: []sshtunnel.SavedTunnelConfig{}},
 	}
+	return s
 }
 
 // Startup 在应用启动时被调用，接收应用上下文并启动子服务。
 func (s *Service) Startup(ctx context.Context) error {
 	s.ctx = ctx
+
+	// Load tunnel configurations at startup.
+	if err := s.loadTunnelsConfig(); err != nil {
+		log.Printf("Warning: could not load tunnel configurations: %v", err)
+		// We don't return the error, as the app can still function without saved tunnels.
+	}
+
 	return s.tunnelManager.Startup(ctx)
 }
 
@@ -129,6 +153,117 @@ func (a *Service) GetSSHConfigFileContent() (string, error) {
 // SaveSSHConfigFileContent 保存SSH配置文件的原始内容
 func (a *Service) SaveSSHConfigFileContent(content string) error {
 	return a.sshManager.SaveRawContent(content)
+}
+
+// --- Tunnel Configuration Management ---
+
+// loadTunnelsConfig loads the tunnel configurations from the JSON file.
+func (s *Service) loadTunnelsConfig() error {
+	s.configMu.Lock()
+	defer s.configMu.Unlock()
+
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return fmt.Errorf("failed to get user config directory: %w", err)
+	}
+	appConfigDir := filepath.Join(configDir, "DevTools") // Use your app's name
+	if err := os.MkdirAll(appConfigDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create app config directory: %w", err)
+	}
+	s.tunnelsConfigPath = filepath.Join(appConfigDir, "tunnels.json")
+
+	data, err := os.ReadFile(s.tunnelsConfigPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Println("Tunnels config file not found, will create a new one on save.")
+			s.tunnelsConfig = &TunnelsConfig{Tunnels: []sshtunnel.SavedTunnelConfig{}}
+			return nil
+		}
+		return fmt.Errorf("failed to read tunnels config file: %w", err)
+	}
+
+	if err := json.Unmarshal(data, s.tunnelsConfig); err != nil {
+		return fmt.Errorf("failed to unmarshal tunnels config: %w", err)
+	}
+
+	log.Printf("Successfully loaded %d saved tunnel configurations.", len(s.tunnelsConfig.Tunnels))
+	return nil
+}
+
+// saveTunnelsConfig saves the current tunnel configurations to the JSON file.
+func (s *Service) saveTunnelsConfig() error {
+	data, err := json.MarshalIndent(s.tunnelsConfig, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal tunnels config: %w", err)
+	}
+
+	if err := os.WriteFile(s.tunnelsConfigPath, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write tunnels config file: %w", err)
+	}
+
+	log.Printf("Successfully saved %d tunnel configurations to %s.", len(s.tunnelsConfig.Tunnels), s.tunnelsConfigPath)
+	return nil
+}
+
+// GetSavedTunnels retrieves all saved tunnel configurations.
+func (s *Service) GetSavedTunnels() ([]sshtunnel.SavedTunnelConfig, error) {
+	s.configMu.RLock()
+	defer s.configMu.RUnlock()
+
+	// Return a copy to avoid race conditions if the caller modifies the slice.
+	tunnels := make([]sshtunnel.SavedTunnelConfig, len(s.tunnelsConfig.Tunnels))
+	copy(tunnels, s.tunnelsConfig.Tunnels)
+	return tunnels, nil
+}
+
+// SaveTunnelConfig saves (creates or updates) a tunnel configuration.
+func (s *Service) SaveTunnelConfig(config sshtunnel.SavedTunnelConfig) error {
+	s.configMu.Lock()
+	defer s.configMu.Unlock()
+
+	if config.ID == "" {
+		config.ID = uuid.NewString()
+		log.Printf("Assigning new ID to tunnel config: %s", config.ID)
+		s.tunnelsConfig.Tunnels = append(s.tunnelsConfig.Tunnels, config)
+	} else {
+		found := false
+		for i, t := range s.tunnelsConfig.Tunnels {
+			if t.ID == config.ID {
+				s.tunnelsConfig.Tunnels[i] = config
+				found = true
+				break
+			}
+		}
+		if !found {
+			s.tunnelsConfig.Tunnels = append(s.tunnelsConfig.Tunnels, config)
+		}
+	}
+
+	return s.saveTunnelsConfig()
+}
+
+// DeleteTunnelConfig deletes a tunnel configuration by its ID.
+func (s *Service) DeleteTunnelConfig(id string) error {
+	s.configMu.Lock()
+	defer s.configMu.Unlock()
+
+	foundIndex := -1
+	for i, t := range s.tunnelsConfig.Tunnels {
+		if t.ID == id {
+			foundIndex = i
+			break
+		}
+	}
+
+	if foundIndex != -1 {
+		// Remove the element from the slice
+		s.tunnelsConfig.Tunnels = append(s.tunnelsConfig.Tunnels[:foundIndex], s.tunnelsConfig.Tunnels[foundIndex+1:]...)
+		log.Printf("Deleted tunnel config with ID: %s", id)
+		return s.saveTunnelsConfig()
+	}
+
+	log.Printf("Could not delete tunnel config: ID %s not found.", id)
+	return fmt.Errorf("tunnel config with ID %s not found", id)
 }
 
 // StopForward 停止一个正在运行的隧道

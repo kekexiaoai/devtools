@@ -52,6 +52,38 @@ const (
 	repAddressTypeNotSupported = 0x08
 )
 
+// SavedTunnelConfig represents a persistently stored tunnel configuration.
+type SavedTunnelConfig struct {
+	ID         string `json:"id"`         // Unique ID, e.g., UUID
+	Name       string `json:"name"`       // User-defined name, e.g., "Access Corp DB"
+	TunnelType string `json:"tunnelType"` // "local" or "dynamic"
+	LocalPort  int    `json:"localPort"`
+	GatewayPorts bool `json:"gatewayPorts"`
+
+	// --- Fields for Local Forwarding only ---
+	RemoteHost string `json:"remoteHost,omitempty"`
+	RemotePort int    `json:"remotePort,omitempty"`
+
+	// --- Host Connection Information ---
+	HostSource string `json:"hostSource"` // "ssh_config" or "manual"
+
+	// If HostSource is "ssh_config"
+	HostAlias string `json:"hostAlias,omitempty"` // Corresponds to the Host alias in ~/.ssh/config
+
+	// If HostSource is "manual"
+	ManualHost *ManualHostInfo `json:"manualHost,omitempty"`
+}
+
+// ManualHostInfo stores connection details for a manually entered host.
+type ManualHostInfo struct {
+	HostName     string `json:"hostName"`
+	Port         string `json:"port"`
+	User         string `json:"user"`
+	IdentityFile string `json:"identityFile,omitempty"`
+	// Note: Password is not stored here. It will be managed by the keychain service,
+	// using the SavedTunnelConfig.ID as the service key.
+}
+
 // Tunnel 代表一个活动的端口转发隧道
 type Tunnel struct {
 	ID         string
