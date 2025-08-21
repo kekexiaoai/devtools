@@ -10,7 +10,7 @@ export function ConnectInTerminalAndTrustHost(arg1:string,arg2:string,arg3:boole
 
 export function ConnectInTerminalWithPassword(arg1:string,arg2:string,arg3:boolean,arg4:boolean):Promise<types.ConnectionResult>;
 
-export function DeletePasswordForAlias(arg1:string):Promise<void>;
+export function DeletePassword(arg1:string):Promise<void>;
 
 export function DeleteSSHHost(arg1:string):Promise<void>;
 
@@ -26,7 +26,7 @@ export function GetSavedTunnels():Promise<Array<sshtunnel.SavedTunnelConfig>>;
 
 export function ReloadSSHHosts():Promise<void>;
 
-export function SavePasswordForAlias(arg1:string,arg2:string):Promise<void>;
+export function SavePassword(arg1:string,arg2:string):Promise<void>;
 
 export function SaveSSHConfigFileContent(arg1:string):Promise<void>;
 

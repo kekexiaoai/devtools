@@ -8,6 +8,7 @@ export interface PromptOptions {
 export interface CheckboxOptions {
   label: string
   value: string
+  description?: string
   CheckedState?: boolean
 }
 

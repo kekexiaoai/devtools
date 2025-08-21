@@ -4,6 +4,7 @@ import { PlusCircle, Loader2 } from 'lucide-react'
 import {
   GetSavedTunnels,
   DeleteTunnelConfig,
+  DeletePassword,
   StartTunnelFromConfig,
 } from '@wailsjs/go/sshgate/Service'
 import { sshtunnel, types } from '@wailsjs/go/models'
@@ -119,6 +120,13 @@ export function SavedTunnelsView({ hosts }: SavedTunnelsViewProps) {
 
     try {
       await DeleteTunnelConfig(id)
+      // Also attempt to delete any saved password for this tunnel.
+      // We don't need to block or show an error if this fails, as the main
+      // action (deleting the config) was successful.
+      DeletePassword(id).catch((err) => {
+        console.warn(`Could not delete password for tunnel ${id}:`, err)
+      })
+
       toast.success(`Tunnel "${tunnel.name}" deleted.`)
       await fetchSavedTunnels() // Refresh the list
     } catch (error) {

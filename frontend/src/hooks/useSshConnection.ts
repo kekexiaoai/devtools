@@ -7,6 +7,7 @@ import {
   ConnectInTerminal,
   ConnectInTerminalAndTrustHost,
   ConnectInTerminalWithPassword,
+  SavePassword,
   VerifyTunnelConfigConnection,
 } from '@wailsjs/go/sshgate/Service'
 import {
@@ -249,6 +250,8 @@ export function useSshConnection({
 
         case 'awaiting_password': {
           const { context, error } = state
+          const isForTunnel = !!context.tunnelConfigID
+
           const dialogResult = await showDialog({
             type: 'confirm',
             title: `Password Required for ${context.alias}`,
@@ -260,6 +263,11 @@ export function useSshConnection({
               {
                 label: 'Save password to system keychain',
                 value: 'save',
+                // For manual tunnels, the key is the tunnel ID. For ssh_config hosts, it's the alias.
+                // The text should reflect this.
+                description: isForTunnel
+                  ? 'Password will be stored securely for this tunnel configuration.'
+                  : 'Password will be stored securely for this host alias.',
               },
             ],
             buttons: [
@@ -272,13 +280,24 @@ export function useSshConnection({
             dialogResult.buttonValue === 'connect' &&
             dialogResult.inputValue
           ) {
+            const shouldSavePassword =
+              dialogResult.checkedValues?.includes('save') || false
+
+            if (shouldSavePassword) {
+              const key = context.tunnelConfigID ?? context.alias
+              try {
+                await SavePassword(key, dialogResult.inputValue)
+                toast.success('Password saved to keychain.')
+              } catch (saveError) {
+                toast.error(`Failed to save password: ${String(saveError)}`)
+              }
+            }
+
             setState({
               status: 'connecting',
               context: {
                 ...context,
                 password: dialogResult.inputValue,
-                savePassword:
-                  dialogResult.checkedValues?.includes('save') || false,
                 trustHost: false, // Reset trust host on password prompt
               },
             })

@@ -155,15 +155,28 @@ export function DialogProvider({ children }: { children: ReactNode }) {
             {/* 条件渲染选择框 */}
             {dialogConfig?.options.checkboxes &&
               dialogConfig.options.checkboxes.map((cb) => (
-                <div key={cb.value} className="flex items-center space-x-2">
+                <div key={cb.value} className="flex items-start space-x-3">
                   <Checkbox
                     id={`dialog-cb-${cb.value}`}
                     onCheckedChange={(checked) =>
                       handleCheckboxChange(Boolean(checked), cb.value)
                     }
                     checked={checkedValues.includes(cb.value)}
+                    className="mt-0.5"
                   />
-                  <Label htmlFor={`dialog-cb-${cb.value}`}>{cb.label}</Label>
+                  <div className="grid gap-1.5 leading-none">
+                    <Label
+                      htmlFor={`dialog-cb-${cb.value}`}
+                      className="font-normal"
+                    >
+                      {cb.label}
+                    </Label>
+                    {cb.description && (
+                      <p className="text-sm text-muted-foreground">
+                        {cb.description}
+                      </p>
+                    )}
+                  </div>
                 </div>
               ))}
           </div>

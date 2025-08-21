@@ -14,8 +14,8 @@ export function ConnectInTerminalWithPassword(arg1, arg2, arg3, arg4) {
   return window['go']['sshgate']['Service']['ConnectInTerminalWithPassword'](arg1, arg2, arg3, arg4);
 }
 
-export function DeletePasswordForAlias(arg1) {
-  return window['go']['sshgate']['Service']['DeletePasswordForAlias'](arg1);
+export function DeletePassword(arg1) {
+  return window['go']['sshgate']['Service']['DeletePassword'](arg1);
 }
 
 export function DeleteSSHHost(arg1) {
@@ -46,8 +46,8 @@ export function ReloadSSHHosts() {
   return window['go']['sshgate']['Service']['ReloadSSHHosts']();
 }
 
-export function SavePasswordForAlias(arg1, arg2) {
-  return window['go']['sshgate']['Service']['SavePasswordForAlias'](arg1, arg2);
+export function SavePassword(arg1, arg2) {
+  return window['go']['sshgate']['Service']['SavePassword'](arg1, arg2);
 }
 
 export function SaveSSHConfigFileContent(arg1) {

@@ -258,12 +258,36 @@ func (s *Service) DeleteTunnelConfig(id string) error {
 	if foundIndex != -1 {
 		// Remove the element from the slice
 		s.tunnelsConfig.Tunnels = append(s.tunnelsConfig.Tunnels[:foundIndex], s.tunnelsConfig.Tunnels[foundIndex+1:]...)
+		// Also delete any saved password for this tunnel
+		if err := s.sshManager.DeletePassword(id); err != nil {
+			// Log as a warning, as the primary operation (deleting the config) succeeded.
+			log.Printf("Warning: could not delete password for tunnel ID %s: %v", id, err)
+		}
+
 		log.Printf("Deleted tunnel config with ID: %s", id)
 		return s.saveTunnelsConfig()
 	}
 
 	log.Printf("Could not delete tunnel config: ID %s not found.", id)
 	return fmt.Errorf("tunnel config with ID %s not found", id)
+}
+
+// deletePasswordsForTunnelsUsingAlias is a helper to clean up keychain entries
+// when a host from ~/.ssh/config is deleted.
+func (s *Service) deletePasswordsForTunnelsUsingAlias(alias string) error {
+	s.configMu.RLock()
+	defer s.configMu.RUnlock()
+
+	for _, tunnel := range s.tunnelsConfig.Tunnels {
+		if tunnel.HostSource == "ssh_config" && tunnel.HostAlias == alias {
+			// This tunnel uses the deleted alias, so we should delete its password.
+			if err := s.sshManager.DeletePassword(tunnel.ID); err != nil {
+				// Log and continue, don't stop the whole process for one failure.
+				log.Printf("Warning: failed to delete password for tunnel %s (using alias %s): %v", tunnel.ID, alias, err)
+			}
+		}
+	}
+	return nil
 }
 
 // StopForward 停止一个正在运行的隧道
@@ -278,14 +302,14 @@ func (a *Service) GetActiveTunnels() []sshtunnel.ActiveTunnelInfo {
 	return a.tunnelManager.GetActiveTunnels()
 }
 
-// SavePasswordForAlias 将主机的密码安全地存储到系统钥匙串中
-func (a *Service) SavePasswordForAlias(alias string, password string) error {
-	return a.sshManager.SavePasswordForAlias(alias, password)
+// SavePassword 将密码安全地存储到系统钥匙串中
+func (a *Service) SavePassword(key string, password string) error {
+	return a.sshManager.SavePassword(key, password)
 }
 
-// DeletePasswordForAlias 当用户删除主机配置时，也从钥匙串中删除密码
-func (a *Service) DeletePasswordForAlias(alias string) error {
-	return a.sshManager.DeletePasswordForAlias(alias)
+// DeletePassword 从钥匙串中删除密码
+func (s *Service) DeletePassword(key string) error {
+	return s.sshManager.DeletePassword(key)
 }
 
 // StartTunnelWithPassword 接收前端提供的密码来完成隧道创建
@@ -345,7 +369,7 @@ func (s *Service) StartTunnelFromConfig(configID string, password string) (strin
 			IdentityFile: savedConfig.ManualHost.IdentityFile,
 		}
 
-		connConfig, err = s.sshManager.BuildSSHClientConfig(tempHost, password)
+		connConfig, err = s.sshManager.BuildSSHClientConfig(tempHost, password, savedConfig.ID)
 		if err != nil {
 			return "", fmt.Errorf("failed to build connection config for manual host: %w", err)
 		}
@@ -411,7 +435,7 @@ func (s *Service) VerifyTunnelConfigConnection(configID string, password string)
 	}
 
 	// Replicate the core logic of sshmanager.VerifyConnection but with a constructed host object.
-	connConfig, err := s.sshManager.BuildSSHClientConfig(hostToVerify, password)
+	connConfig, err := s.sshManager.BuildSSHClientConfig(hostToVerify, password, savedConfig.ID)
 	if err != nil {
 		return s.handleSSHConnectError(aliasForDisplay, hostToVerify, err)
 	}
@@ -505,9 +529,9 @@ func (a *Service) ConnectInTerminalWithPassword(alias string, password string, s
 	log.Printf("Credentials for '%s' are valid. Launching terminal.", alias)
 	// 只有在连接预检成功后，我们才保存密码，避免保存错误密码
 	if savePassword && password != "" {
-		log.Printf("Saving password to keychain for '%s'", alias)
-		if err := a.sshManager.SavePasswordForAlias(alias, password); err != nil {
-			log.Printf("Warning: failed to save password: %v", err)
+		log.Printf("Saving password to keychain for key '%s'", alias)
+		if err := a.sshManager.SavePassword(alias, password); err != nil {
+			log.Printf("Warning: failed to save password for key '%s': %v", alias, err)
 		}
 	}
 	if err := a.sshManager.ConnectInTerminal(alias, dryRun); err != nil {

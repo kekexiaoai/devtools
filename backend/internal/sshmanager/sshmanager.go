@@ -522,23 +522,23 @@ func readKeyFile(path string) ([]byte, error) {
 	return os.ReadFile(path)
 }
 
-// SavePasswordForAlias 将密码安全地存入系统钥匙串
-func (m *Manager) SavePasswordForAlias(alias string, password string) error {
-	return keyring.Set(keyringService, alias, password)
+// SavePassword 将密码安全地存入系统钥匙串
+func (m *Manager) SavePassword(key string, password string) error {
+	return keyring.Set(keyringService, key, password)
 }
 
-// DeletePasswordForAlias 从系统钥匙串中删除密码
-func (m *Manager) DeletePasswordForAlias(alias string) error {
+// DeletePassword 从系统钥匙串中删除密码
+func (m *Manager) DeletePassword(key string) error {
 	// 在删除前检查是否存在，避免keyring库在某些平台因找不到而报错
-	_, err := keyring.Get(keyringService, alias)
+	_, err := keyring.Get(keyringService, key)
 	if err == nil {
-		return keyring.Delete(keyringService, alias)
+		return keyring.Delete(keyringService, key)
 	}
 	return nil // 如果本来就不存在，也算成功
 }
 
 // _getAuthMethods 智能地构建认证方法列表
-func (m *Manager) _getAuthMethods(host *types.SSHHost, password string) ([]ssh.AuthMethod, error) {
+func (m *Manager) _getAuthMethods(host *types.SSHHost, password string, keychainKey string) ([]ssh.AuthMethod, error) {
 	var authMethods []ssh.AuthMethod
 
 	// 认证优先级 1: 用户本次在UI上输入的临时密码
@@ -547,10 +547,12 @@ func (m *Manager) _getAuthMethods(host *types.SSHHost, password string) ([]ssh.A
 	}
 
 	// 认证优先级 2: 从系统钥匙串中获取已保存的密码
-	// 优化点：在尝试密钥文件前先尝试钥匙串，因为钥匙串密码通常更明确
-	savedPassword, err := keyring.Get(keyringService, host.Alias)
-	if err == nil && savedPassword != "" {
-		authMethods = append(authMethods, ssh.Password(savedPassword))
+	// The keychainKey can be either a host alias or a tunnel ID.
+	if keychainKey != "" {
+		savedPassword, err := keyring.Get(keyringService, keychainKey)
+		if err == nil && savedPassword != "" {
+			authMethods = append(authMethods, ssh.Password(savedPassword))
+		}
 	}
 
 	// 认证优先级 3: ~/.ssh/config 中配置的 IdentityFile (密钥文件)
@@ -633,8 +635,8 @@ func (m *Manager) VerifyConnection(alias string, password string) (*types.SSHHos
 
 // BuildSSHClientConfig builds a complete SSH client configuration from a host object and a password.
 // This is the core logic, decoupled from ~/.ssh/config aliases.
-func (m *Manager) BuildSSHClientConfig(host *types.SSHHost, password string) (*ConnectionConfig, error) {
-	authMethods, err := m._getAuthMethods(host, password)
+func (m *Manager) BuildSSHClientConfig(host *types.SSHHost, password string, keychainKey string) (*ConnectionConfig, error) {
+	authMethods, err := m._getAuthMethods(host, password, keychainKey)
 	if err != nil {
 		return nil, err
 	}
@@ -675,7 +677,7 @@ func (m *Manager) GetConnectionConfig(alias string, password string) (*Connectio
 		return nil, nil, err
 	}
 
-	connConfig, err := m.BuildSSHClientConfig(host, password)
+	connConfig, err := m.BuildSSHClientConfig(host, password, host.Alias)
 	if err != nil {
 		// The host object is still useful for the caller (e.g., for error handling UI)
 		return nil, host, err
