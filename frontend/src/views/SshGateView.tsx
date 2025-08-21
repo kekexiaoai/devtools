@@ -21,6 +21,7 @@ import { HostFormDialog } from '@/components/sshgate/HostFormDialog'
 import { HostList } from '@/components/sshgate/HostList'
 import { HostDetail } from '@/components/sshgate/HostDetail'
 import { Save } from 'lucide-react'
+import { SavedTunnelsView } from '@/components/tunnel/SavedTunnelsView'
 import { ActiveTunnels } from '@/components/sshgate/ActiveTunnels'
 import { useOnVisible } from '@/hooks/useOnVisible'
 import { EventsOn } from '@wailsjs/runtime'
@@ -49,7 +50,7 @@ export function SshGateView({
   // 我们就增加 dataVersion 的值，这会强制两个 Tab 都重新获取数据
   const [dataVersion, setDataVersion] = useState(0)
   const refreshData = () => setDataVersion((v) => v + 1)
-  const [activeTab, setActiveTab] = useState('visual')
+  const [activeTab, setActiveTab] = useState('hosts')
 
   // 使用Hook，告诉 useOnVisible: 当这个组件可见时，执行 refreshData 函数
   const [activeTunnels, setActiveTunnels] = useState<
@@ -110,22 +111,28 @@ export function SshGateView({
           {/* 右侧操作区 */}
           <div className="flex items-center space-x-4">
             <TabsList>
-              <TabsTrigger value="visual">Visual Editor</TabsTrigger>
-              <TabsTrigger value="raw">Raw File Editor</TabsTrigger>
-              <TabsTrigger value="tunnels">Active Tunnels</TabsTrigger>
+              <TabsTrigger value="hosts">Hosts</TabsTrigger>
+              <TabsTrigger value="tunnels">Tunnels</TabsTrigger>
+              <TabsTrigger value="active-tunnels">Active Tunnels</TabsTrigger>
+              <TabsTrigger value="raw">Raw Editor</TabsTrigger>
             </TabsList>
           </div>
         </div>
 
         {/* 可视化编辑器 Tab */}
-        <TabsContent value="visual" className="flex-1 min-h-0">
-          <VisualEditor
+        <TabsContent value="hosts" className="flex-1 min-h-0">
+          <HostsView
             dataVersion={dataVersion}
             onDataChange={refreshData}
             onConnect={onConnect}
             activeTunnels={activeTunnels}
             isDarkMode={isDarkMode}
           />
+        </TabsContent>
+
+        {/* 保存的隧道配置 Tab */}
+        <TabsContent value="tunnels" className="flex-1 min-h-0">
+          <SavedTunnelsView />
         </TabsContent>
 
         {/* 原始文件编辑器 Tab */}
@@ -138,7 +145,7 @@ export function SshGateView({
         </TabsContent>
 
         {/* 活动隧道 Tab */}
-        <TabsContent value="tunnels" className="flex-1 min-h-0">
+        <TabsContent value="active-tunnels" className="flex-1 min-h-0">
           <ActiveTunnels
             tunnels={activeTunnels}
             isLoading={isLoadingTunnels}
@@ -153,7 +160,7 @@ export function SshGateView({
 // #############################################################################
 // #  子组件：可视化编辑器 (Visual Editor)
 // #############################################################################
-const VisualEditor = React.memo(function VisualEditor({
+const HostsView = React.memo(function HostsView({
   onDataChange,
   onConnect,
   activeTunnels,

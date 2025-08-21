@@ -22,6 +22,10 @@ export function DeleteSSHHost(arg1) {
   return window['go']['sshgate']['Service']['DeleteSSHHost'](arg1);
 }
 
+export function DeleteTunnelConfig(arg1) {
+  return window['go']['sshgate']['Service']['DeleteTunnelConfig'](arg1);
+}
+
 export function GetActiveTunnels() {
   return window['go']['sshgate']['Service']['GetActiveTunnels']();
 }
@@ -32,6 +36,10 @@ export function GetSSHConfigFileContent() {
 
 export function GetSSHHosts() {
   return window['go']['sshgate']['Service']['GetSSHHosts']();
+}
+
+export function GetSavedTunnels() {
+  return window['go']['sshgate']['Service']['GetSavedTunnels']();
 }
 
 export function ReloadSSHHosts() {
@@ -50,6 +58,10 @@ export function SaveSSHHost(arg1) {
   return window['go']['sshgate']['Service']['SaveSSHHost'](arg1);
 }
 
+export function SaveTunnelConfig(arg1) {
+  return window['go']['sshgate']['Service']['SaveTunnelConfig'](arg1);
+}
+
 export function Shutdown() {
   return window['go']['sshgate']['Service']['Shutdown']();
 }
@@ -60,6 +72,10 @@ export function StartDynamicForward(arg1, arg2, arg3, arg4) {
 
 export function StartLocalForward(arg1, arg2, arg3, arg4, arg5, arg6) {
   return window['go']['sshgate']['Service']['StartLocalForward'](arg1, arg2, arg3, arg4, arg5, arg6);
+}
+
+export function StartTunnelFromConfig(arg1, arg2) {
+  return window['go']['sshgate']['Service']['StartTunnelFromConfig'](arg1, arg2);
 }
 
 export function Startup(arg1) {
