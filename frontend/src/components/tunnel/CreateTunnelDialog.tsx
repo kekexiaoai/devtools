@@ -38,10 +38,13 @@ const formSchema = z
     id: z.string().optional(),
     name: z.string().min(1, 'Tunnel name is required.'),
     tunnelType: z.enum(['local', 'dynamic']),
-    localPort: z.number().int().min(1).max(65535),
+    localPort: z.string().regex(/^\d+$/, 'Port must be a valid number.'),
     gatewayPorts: z.boolean(),
     remoteHost: z.string().optional(),
-    remotePort: z.number().int().min(1).max(65535).optional(),
+    remotePort: z
+      .string()
+      .regex(/^\d*$/, 'Port must be a valid number.')
+      .optional(),
     hostSource: z.enum(['ssh_config', 'manual']),
     hostAlias: z.string().optional(),
     manualHost: z
@@ -55,17 +58,44 @@ const formSchema = z
   })
   .superRefine((data, ctx) => {
     if (data.tunnelType === 'local') {
-      if (!data.remoteHost) {
+      if (!data.remoteHost?.trim()) {
         ctx.addIssue({
           code: 'custom',
           message: 'Remote Host is required for local tunnels.',
           path: ['remoteHost'],
         })
       }
-      if (!data.remotePort) {
+      if (!data.remotePort?.trim()) {
         ctx.addIssue({
           code: 'custom',
           message: 'Remote Port is required for local tunnels.',
+          path: ['remotePort'],
+        })
+      }
+    }
+    // Additional validation for port ranges, since they are strings now
+    const localPortNum = parseInt(data.localPort, 10)
+    if (
+      Number.isNaN(localPortNum) ||
+      localPortNum < 1 ||
+      localPortNum > 65535
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Port must be between 1 and 65535.',
+        path: ['localPort'],
+      })
+    }
+    if (data.remotePort && data.remotePort.trim() !== '') {
+      const remotePortNum = parseInt(data.remotePort, 10)
+      if (
+        Number.isNaN(remotePortNum) ||
+        remotePortNum < 1 ||
+        remotePortNum > 65535
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Port must be between 1 and 65535.',
           path: ['remotePort'],
         })
       }
@@ -119,16 +149,16 @@ export function CreateTunnelDialog({
   hosts,
   tunnelToEdit,
 }: CreateTunnelDialogProps) {
-  const form = useForm<FormValues, unknown, FormValues>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       id: '',
       name: '',
       tunnelType: 'local',
-      localPort: 8080,
+      localPort: '8080',
       gatewayPorts: false,
       remoteHost: 'localhost',
-      remotePort: 3306,
+      remotePort: '3306',
       hostSource: 'ssh_config',
       hostAlias: '',
       manualHost: {
@@ -140,9 +170,26 @@ export function CreateTunnelDialog({
     },
   })
 
-  const { reset } = form
-  const tunnelType = form.watch('tunnelType')
-  const hostSource = form.watch('hostSource')
+  const { reset, watch, setValue } = form
+  const tunnelType = watch('tunnelType')
+  const hostSource = watch('hostSource')
+
+  useEffect(() => {
+    if (hostSource === 'ssh_config') {
+      // Clear manual host fields when switching to ssh_config
+      setValue('manualHost', { hostName: '', port: '22', user: '' })
+    } else if (hostSource === 'manual') {
+      // Clear host alias when switching to manual
+      setValue('hostAlias', undefined)
+    }
+  }, [hostSource, setValue])
+
+  useEffect(() => {
+    if (tunnelType === 'dynamic') {
+      setValue('remoteHost', undefined)
+      setValue('remotePort', undefined)
+    }
+  }, [tunnelType, setValue])
 
   useEffect(() => {
     // Only reset the form when the dialog opens to avoid unintended changes.
@@ -152,10 +199,12 @@ export function CreateTunnelDialog({
           id: tunnelToEdit.id,
           name: tunnelToEdit.name,
           tunnelType: tunnelToEdit.tunnelType as 'local' | 'dynamic',
-          localPort: tunnelToEdit.localPort,
+          localPort: String(tunnelToEdit.localPort),
           gatewayPorts: tunnelToEdit.gatewayPorts,
           remoteHost: tunnelToEdit.remoteHost,
-          remotePort: tunnelToEdit.remotePort,
+          remotePort: tunnelToEdit.remotePort
+            ? String(tunnelToEdit.remotePort)
+            : '',
           hostSource: tunnelToEdit.hostSource as 'ssh_config' | 'manual',
           hostAlias: tunnelToEdit.hostAlias,
           manualHost: {
@@ -172,7 +221,16 @@ export function CreateTunnelDialog({
   }, [isOpen, tunnelToEdit, reset])
 
   const onSubmit = async (values: FormValues) => {
-    const configToSave = new sshtunnel.SavedTunnelConfig(values)
+    // Manually convert port strings to numbers before saving
+    const configToSave = new sshtunnel.SavedTunnelConfig({
+      ...values,
+      localPort: parseInt(values.localPort, 10),
+      // Ensure remotePort is a number or undefined, not an empty string from the form
+      remotePort: values.remotePort
+        ? parseInt(values.remotePort, 10)
+        : undefined,
+    })
+
     try {
       await SaveTunnelConfig(configToSave)
       toast.success(`Tunnel "${values.name}" saved successfully.`)
@@ -191,13 +249,8 @@ export function CreateTunnelDialog({
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              void form.handleSubmit(onSubmit)(e)
-            }}
-            className="space-y-8"
-          >
+          {/* eslint-disable-next-line @typescript-eslint/no-misused-promises */}
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             {/* --- General Info --- */}
             <FormField
               control={form.control}
