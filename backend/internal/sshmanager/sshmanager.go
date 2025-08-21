@@ -631,19 +631,12 @@ func (m *Manager) VerifyConnection(alias string, password string) (*types.SSHHos
 	return host, nil
 }
 
-// GetConnectionConfig 现在调用私有的 _getAuthMethods
-func (m *Manager) GetConnectionConfig(alias string, password string) (*ConnectionConfig, *types.SSHHost, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	host, err := m.GetSSHHostByAlias(alias)
-	if err != nil {
-		return nil, nil, err
-	}
-
+// BuildSSHClientConfig builds a complete SSH client configuration from a host object and a password.
+// This is the core logic, decoupled from ~/.ssh/config aliases.
+func (m *Manager) BuildSSHClientConfig(host *types.SSHHost, password string) (*ConnectionConfig, error) {
 	authMethods, err := m._getAuthMethods(host, password)
 	if err != nil {
-		return nil, host, err
+		return nil, err
 	}
 
 	var hostKeyCallback ssh.HostKeyCallback
@@ -652,7 +645,7 @@ func (m *Manager) GetConnectionConfig(alias string, password string) (*Connectio
 	var hkcb knownhosts.HostKeyCallback
 	hkcb, err = knownhosts.New(knownHostsPath)
 	if err != nil {
-		return nil, host, fmt.Errorf("could not create known_hosts callback: %w", err)
+		return nil, fmt.Errorf("could not create known_hosts callback: %w", err)
 	}
 	hostKeyCallback = hkcb.HostKeyCallback()
 
@@ -663,14 +656,32 @@ func (m *Manager) GetConnectionConfig(alias string, password string) (*Connectio
 		Timeout:         10 * time.Second,
 	}
 
-	connectionConfig := &ConnectionConfig{
+	return &ConnectionConfig{
 		HostName:     host.HostName,
 		Port:         host.Port,
 		User:         host.User,
 		IdentityFile: host.IdentityFile,
 		ClientConfig: clientConfig,
+	}, nil
+}
+
+// GetConnectionConfig retrieves an SSH connection configuration based on a host alias from ~/.ssh/config.
+func (m *Manager) GetConnectionConfig(alias string, password string) (*ConnectionConfig, *types.SSHHost, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	host, err := m.GetSSHHostByAlias(alias)
+	if err != nil {
+		return nil, nil, err
 	}
-	return connectionConfig, host, nil
+
+	connConfig, err := m.BuildSSHClientConfig(host, password)
+	if err != nil {
+		// The host object is still useful for the caller (e.g., for error handling UI)
+		return nil, host, err
+	}
+
+	return connConfig, host, nil
 }
 
 func sshExec(sshCmd string) error {

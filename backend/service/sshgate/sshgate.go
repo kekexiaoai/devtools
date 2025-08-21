@@ -301,6 +301,71 @@ func (a *Service) StartDynamicForward(alias string, localPort int, password stri
 	return a.tunnelManager.StartDynamicForward(alias, localPort, password, gatewayPorts)
 }
 
+// StartTunnelFromConfig starts a tunnel based on a saved configuration ID.
+func (s *Service) StartTunnelFromConfig(configID string, password string) (string, error) {
+	s.configMu.RLock()
+	defer s.configMu.RUnlock()
+
+	var savedConfig *sshtunnel.SavedTunnelConfig
+	for i := range s.tunnelsConfig.Tunnels {
+		if s.tunnelsConfig.Tunnels[i].ID == configID {
+			savedConfig = &s.tunnelsConfig.Tunnels[i]
+			break
+		}
+	}
+
+	if savedConfig == nil {
+		return "", fmt.Errorf("tunnel configuration with ID %s not found", configID)
+	}
+
+	var connConfig *sshmanager.ConnectionConfig
+	var aliasForDisplay string
+	var err error
+
+	switch savedConfig.HostSource {
+	case "ssh_config":
+		aliasForDisplay = savedConfig.HostAlias
+		connConfig, _, err = s.sshManager.GetConnectionConfig(aliasForDisplay, password)
+		if err != nil {
+			return "", fmt.Errorf("failed to get connection config for alias '%s': %w", aliasForDisplay, err)
+		}
+	case "manual":
+		if savedConfig.ManualHost == nil {
+			return "", fmt.Errorf("manual host info is missing for tunnel config %s", configID)
+		}
+		// For manual hosts, we use the config Name as a unique identifier for display/logging.
+		aliasForDisplay = savedConfig.Name
+
+		// We need to build a temporary types.SSHHost to use the sshManager's builder.
+		tempHost := &types.SSHHost{
+			Alias:        aliasForDisplay, // Not strictly needed but good practice
+			HostName:     savedConfig.ManualHost.HostName,
+			Port:         savedConfig.ManualHost.Port,
+			User:         savedConfig.ManualHost.User,
+			IdentityFile: savedConfig.ManualHost.IdentityFile,
+		}
+
+		connConfig, err = s.sshManager.BuildSSHClientConfig(tempHost, password)
+		if err != nil {
+			return "", fmt.Errorf("failed to build connection config for manual host: %w", err)
+		}
+	default:
+		return "", fmt.Errorf("unknown host source '%s' for tunnel config %s", savedConfig.HostSource, configID)
+	}
+
+	var remoteAddr string
+	switch savedConfig.TunnelType {
+	case "local":
+		remoteAddr = fmt.Sprintf("%s:%d", savedConfig.RemoteHost, savedConfig.RemotePort)
+	case "dynamic":
+		remoteAddr = "SOCKS5 Proxy"
+	default:
+		return "", fmt.Errorf("unsupported tunnel type '%s'", savedConfig.TunnelType)
+	}
+
+	return s.tunnelManager.CreateTunnelFromConfig(aliasForDisplay, savedConfig.LocalPort, savedConfig.GatewayPorts, savedConfig.TunnelType, remoteAddr, connConfig)
+}
+
 // -----ssh连接-------------------------------------------------
 
 // 辅助函数，用于处理“预检”阶段的错误

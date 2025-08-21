@@ -164,15 +164,9 @@ func (m *Manager) Shutdown() {
 	log.Println("All active tunnels have been requested to stop.")
 }
 
-// createTunnel is a generic helper function to set up the common parts of a tunnel.
-func (m *Manager) createTunnel(alias string, localPort int, password string, gatewayPorts bool, tunnelType, remoteAddr string) (string, error) {
-	// 1. Get connection config
-	connConfig, _, err := m.sshManager.GetConnectionConfig(alias, password)
-	if err != nil {
-		return "", fmt.Errorf("failed to get SSH connection config for '%s': %w", alias, err)
-	}
-
-	// 2. Dial SSH server
+// CreateTunnelFromConfig is the core tunnel creation logic. It takes a pre-built connection configuration.
+func (m *Manager) CreateTunnelFromConfig(alias string, localPort int, gatewayPorts bool, tunnelType, remoteAddr string, connConfig *sshmanager.ConnectionConfig) (string, error) {
+	// 1. Dial SSH server
 	serverAddr := fmt.Sprintf("%s:%s", connConfig.HostName, connConfig.Port)
 	sshClient, err := ssh.Dial("tcp", serverAddr, connConfig.ClientConfig)
 	if err != nil {
@@ -182,7 +176,7 @@ func (m *Manager) createTunnel(alias string, localPort int, password string, gat
 		return "", fmt.Errorf("SSH dial to %s failed: %v", alias, err)
 	}
 
-	// 3. Create local listener
+	// 2. Create local listener
 	bindAddr := "127.0.0.1"
 	if gatewayPorts {
 		bindAddr = "0.0.0.0"
@@ -201,7 +195,7 @@ func (m *Manager) createTunnel(alias string, localPort int, password string, gat
 		return "", fmt.Errorf("无法监听本地端口 %d: %v", localPort, err)
 	}
 
-	// 4. Create and register tunnel
+	// 3. Create and register tunnel
 	tunnelID := uuid.NewString()
 	ctx, cancel := context.WithCancel(m.appCtx)
 	tunnel := &Tunnel{
@@ -223,7 +217,7 @@ func (m *Manager) createTunnel(alias string, localPort int, password string, gat
 
 	log.Printf("Started %s forward tunnel %s: %s -> %s (via %s)", tunnelType, tunnelID, tunnel.LocalAddr, tunnel.RemoteAddr, alias)
 
-	// 5. Start background goroutines for the tunnel's lifecycle
+	// 4. Start background goroutines for the tunnel's lifecycle
 	//    - runTunnel: Accepts and forwards connections.
 	//    - monitorSSHConnection: Passively waits for the SSH connection to close.
 	//    - startKeepAlive: Actively probes the connection to detect failures.
@@ -235,6 +229,16 @@ func (m *Manager) createTunnel(alias string, localPort int, password string, gat
 	m.debounceChangeEvent()
 
 	return tunnelID, nil
+}
+
+// CreateTunnel is a wrapper around CreateTunnelFromConfig that retrieves the connection config from an alias.
+func (m *Manager) CreateTunnel(alias string, localPort int, password string, gatewayPorts bool, tunnelType, remoteAddr string) (string, error) {
+	// Get connection config from the ssh manager
+	connConfig, _, err := m.sshManager.GetConnectionConfig(alias, password)
+	if err != nil {
+		return "", fmt.Errorf("failed to get SSH connection config for '%s': %w", alias, err)
+	}
+	return m.CreateTunnelFromConfig(alias, localPort, gatewayPorts, tunnelType, remoteAddr, connConfig)
 }
 
 // monitorSSHConnection waits for the underlying SSH client connection to be
@@ -271,7 +275,7 @@ func (m *Manager) monitorSSHConnection(tunnel *Tunnel) {
 // StartLocalForward 启动一个本地端口转发隧道
 func (m *Manager) StartLocalForward(alias string, localPort int, remoteHost string, remotePort int, password string, gatewayPorts bool) (string, error) {
 	remoteAddr := fmt.Sprintf("%s:%d", remoteHost, remotePort)
-	return m.createTunnel(alias, localPort, password, gatewayPorts, "local", remoteAddr)
+	return m.CreateTunnel(alias, localPort, password, gatewayPorts, "local", remoteAddr)
 }
 
 // --- 核心功能实现 - 动态端口转发 (-D) ---
@@ -279,7 +283,7 @@ func (m *Manager) StartLocalForward(alias string, localPort int, remoteHost stri
 // StartDynamicForward 启动一个动态 SOCKS5 代理隧道
 func (m *Manager) StartDynamicForward(alias string, localPort int, password string, gatewayPorts bool) (string, error) {
 	remoteAddr := "SOCKS5 Proxy" // 动态转发没有固定的远程地址
-	return m.createTunnel(alias, localPort, password, gatewayPorts, "dynamic", remoteAddr)
+	return m.CreateTunnel(alias, localPort, password, gatewayPorts, "dynamic", remoteAddr)
 }
 
 func (m *Manager) runTunnel(tunnel *Tunnel, ctx context.Context) {
