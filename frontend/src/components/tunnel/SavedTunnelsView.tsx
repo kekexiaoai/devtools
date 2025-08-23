@@ -1,6 +1,26 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+  forwardRef,
+  useImperativeHandle,
+} from 'react'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { PlusCircle, Loader2 } from 'lucide-react'
+import {
+  Loader2,
+  PanelLeftClose,
+  PanelLeftOpen,
+  TrainFrontTunnel,
+} from 'lucide-react'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import {
   GetSavedTunnels,
   DeleteTunnelConfig,
@@ -23,10 +43,14 @@ interface SavedTunnelsViewProps {
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
 }
 
-export function SavedTunnelsView({
-  hosts,
-  activeTunnels,
-}: SavedTunnelsViewProps) {
+export interface SavedTunnelsViewRef {
+  handleCreate: () => void
+}
+
+export const SavedTunnelsView = forwardRef<
+  SavedTunnelsViewRef,
+  SavedTunnelsViewProps
+>(({ hosts, activeTunnels }, ref) => {
   const [savedTunnels, setSavedTunnels] = useState<
     sshtunnel.SavedTunnelConfig[]
   >([])
@@ -36,6 +60,17 @@ export function SavedTunnelsView({
   const [editingTunnel, setEditingTunnel] = useState<
     sshtunnel.SavedTunnelConfig | undefined
   >(undefined)
+
+  const [isNavCollapsed, setIsNavCollapsed] = useState(
+    () => localStorage.getItem('tunnel-nav-collapsed') === 'true'
+  )
+
+  useEffect(() => {
+    localStorage.setItem('tunnel-nav-collapsed', String(isNavCollapsed))
+  }, [isNavCollapsed])
+
+  // New state for active navigation item
+  const [selectedNavId, setSelectedNavId] = useState<string | null>(null)
 
   const [shouldStartNext, setShouldStartNext] = useState(false)
   const prevTunnelsRef = useRef<sshtunnel.SavedTunnelConfig[] | undefined>(
@@ -227,9 +262,22 @@ export function SavedTunnelsView({
     setIsDialogOpen(true)
   }
 
+  useImperativeHandle(ref, () => ({
+    handleCreate,
+  }))
+
   const getTunnelKey = (tunnel: sshtunnel.SavedTunnelConfig): string => {
     const bindAddr = tunnel.gatewayPorts ? '0.0.0.0' : '127.0.0.1'
     return `${bindAddr}:${tunnel.localPort}`
+  }
+
+  const handleNavClick = (tunnelId: string) => {
+    const element = document.getElementById(`tunnel-card-${tunnelId}`)
+    if (element) {
+      // Using `block: 'nearest'` is often smoother than `start` if the item is already visible.
+      element.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      setSelectedNavId(tunnelId)
+    }
   }
 
   const activeTunnelMap = useMemo(() => {
@@ -238,42 +286,156 @@ export function SavedTunnelsView({
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex-shrink-0 flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold">Saved Tunnel Configurations</h2>
-        <Button onClick={handleCreate}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Create Tunnel
-        </Button>
-      </div>
-      <div className="flex-1 overflow-y-auto pr-2">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="flex-1 flex gap-6 min-h-0">
+        {/* Left Navigation Panel */}
+        <div
+          className={cn(
+            'flex-shrink-0 border-r transition-all duration-300 ease-in-out flex flex-col', // Adjust collapsed width
+            isNavCollapsed ? 'w-10' : 'w-52'
+          )}
+        >
+          <div className="flex-1 h-full overflow-y-auto pr-2 pt-2">
+            <div className="space-y-1">
+              {savedTunnels.map((tunnel) => {
+                const activeTunnel = activeTunnelMap.get(getTunnelKey(tunnel))
+                const status = activeTunnel?.status
+                const isRunning = status === 'active'
+                const isDisconnected = status === 'disconnected'
+                const isBusy =
+                  startingTunnelId === tunnel.id || status === 'stopping'
+
+                // Use Tailwind classes for better JIT compilation and consistency
+                let statusColorClass = 'text-gray-400'
+                let statusBgColorClass = 'bg-gray-400'
+                if (isRunning) {
+                  statusColorClass = 'text-green-500'
+                  statusBgColorClass = 'bg-green-500'
+                } else if (isDisconnected) {
+                  statusColorClass = 'text-red-500'
+                  statusBgColorClass = 'bg-red-500'
+                } else if (isBusy) {
+                  statusColorClass = 'text-yellow-500'
+                  statusBgColorClass = 'bg-yellow-500'
+                }
+
+                const navButton = (
+                  <Button
+                    variant={
+                      selectedNavId === tunnel.id ? 'secondary' : 'ghost'
+                    }
+                    className={cn(
+                      'w-full h-8',
+                      isNavCollapsed
+                        ? 'justify-center px-0'
+                        : 'justify-start pl-2'
+                    )}
+                    onClick={() => handleNavClick(tunnel.id)}
+                  >
+                    {isNavCollapsed ? (
+                      // Use TrainFrontTunnel icon
+                      <TrainFrontTunnel
+                        className={cn('h-5 w-5', statusColorClass)}
+                      />
+                    ) : (
+                      <>
+                        <span
+                          className={cn(
+                            'h-2 w-2 rounded-full flex-shrink-0 mr-2',
+                            statusBgColorClass
+                          )}
+                        />
+                        <span className="truncate">{tunnel.name}</span>
+                      </>
+                    )}
+                  </Button>
+                )
+
+                return isNavCollapsed ? (
+                  <TooltipProvider key={tunnel.id}>
+                    <Tooltip delayDuration={0}>
+                      <TooltipTrigger asChild>{navButton}</TooltipTrigger>
+                      <TooltipContent side="right">
+                        <p>{tunnel.name}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : (
+                  <div key={tunnel.id}>{navButton}</div>
+                )
+              })}
+            </div>
           </div>
-        ) : savedTunnels.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
-            <p>No saved tunnels. Click "Create Tunnel" to add one.</p>
+          <div className="flex-shrink-0 border-t p-2">
+            <TooltipProvider>
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className={cn(
+                      'w-full h-8',
+                      isNavCollapsed // Correct icon direction
+                        ? 'justify-center px-0'
+                        : 'justify-start pl-2'
+                    )}
+                    onClick={() => setIsNavCollapsed(!isNavCollapsed)}
+                  >
+                    {isNavCollapsed ? (
+                      <PanelLeftOpen className="h-4 w-4" />
+                    ) : (
+                      <>
+                        <PanelLeftClose className="h-4 w-4" />
+                        <span className="ml-2">Collapse</span>
+                      </>
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>{isNavCollapsed ? 'Expand' : 'Collapse'}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {savedTunnels.map((tunnel) => {
-              const activeTunnel = activeTunnelMap.get(getTunnelKey(tunnel))
-              return (
-                <SavedTunnelItem
-                  key={tunnel.id}
-                  tunnel={tunnel}
-                  activeTunnel={activeTunnel}
-                  onStart={handleStart}
-                  onStop={handleStop}
-                  onDelete={() => void handleDelete(tunnel.id)}
-                  onEdit={handleEdit}
-                  onDuplicate={() => void handleDuplicate(tunnel.id)}
-                  isStarting={startingTunnelId === tunnel.id}
-                />
-              )
-            })}
-          </div>
-        )}
+        </div>
+
+        {/* Right Content Panel */}
+        <div className="flex-1 overflow-y-auto pr-2">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : savedTunnels.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-muted-foreground">
+              <p>No saved tunnels. Click "Create Tunnel" to add one.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {savedTunnels.map((tunnel) => {
+                const activeTunnel = activeTunnelMap.get(getTunnelKey(tunnel))
+                return (
+                  // This div wrapper gets an ID for the scroll-to-view functionality.
+                  <div
+                    id={`tunnel-card-${tunnel.id}`}
+                    key={tunnel.id}
+                    className="scroll-mt-4"
+                    onClick={() => setSelectedNavId(tunnel.id)}
+                  >
+                    <SavedTunnelItem
+                      tunnel={tunnel}
+                      activeTunnel={activeTunnel}
+                      onStart={handleStart}
+                      onStop={handleStop}
+                      onDelete={() => void handleDelete(tunnel.id)}
+                      onEdit={handleEdit}
+                      onDuplicate={() => void handleDuplicate(tunnel.id)}
+                      isStarting={startingTunnelId === tunnel.id}
+                      isSelected={selectedNavId === tunnel.id}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
       <CreateTunnelDialog
         isOpen={isDialogOpen}
@@ -289,4 +451,4 @@ export function SavedTunnelsView({
       />
     </div>
   )
-}
+})

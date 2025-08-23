@@ -47,6 +47,7 @@ interface SavedTunnelItemProps {
   onEdit: (tunnel: sshtunnel.SavedTunnelConfig) => void
   onDuplicate: () => void
   isStarting: boolean
+  isSelected: boolean
 }
 
 const generateSshCommand = (tunnel: sshtunnel.SavedTunnelConfig): string => {
@@ -181,6 +182,7 @@ export function SavedTunnelItem({
   onEdit,
   onDuplicate,
   isStarting,
+  isSelected,
 }: SavedTunnelItemProps) {
   const status = activeTunnel?.status
   const isRunning = status === 'active'
@@ -205,7 +207,8 @@ export function SavedTunnelItem({
     <Card
       className={cn(
         'gap-3 py-3 transition-colors hover:bg-muted border-l-4',
-        cardStateStyles
+        cardStateStyles, // Apply the selected style
+        isSelected && 'bg-muted'
       )}
     >
       <CardHeader className="px-4 pt-0">
