@@ -107,10 +107,12 @@ export function SavedTunnelsView({ hosts }: SavedTunnelsViewProps) {
         // The 'tunnels:changed' event will refresh the active tunnels list automatically.
         return msg
       },
-      error: (err: Error) =>
-        err.message.includes('cancelled')
+      error: (error: unknown) => {
+        const err = error instanceof Error ? error : new Error(String(error))
+        return err.message.includes('cancelled')
           ? 'Operation cancelled.'
-          : `Failed to start tunnel: ${err.message}`,
+          : `Failed to start tunnel: ${err.message}`
+      },
       finally: () => setStartingTunnelId(null),
     })
   }

@@ -77,7 +77,7 @@ function CommandDisplay({ tunnel }: { tunnel: sshtunnel.SavedTunnelConfig }) {
       .writeText(command)
       .then(() => {
         toast.success('Command copied to clipboard!', {
-          duration: 1000,
+          duration: 1500,
         })
       })
       .catch((err) => {
