@@ -21,8 +21,6 @@ import { HostFormDialog } from '@/components/sshgate/HostFormDialog'
 import { HostList } from '@/components/sshgate/HostList'
 import { HostDetail } from '@/components/sshgate/HostDetail'
 import { Save } from 'lucide-react'
-import { SavedTunnelsView } from '@/components/tunnel/SavedTunnelsView'
-import { ActiveTunnels } from '@/components/sshgate/ActiveTunnels'
 import { useOnVisible } from '@/hooks/useOnVisible'
 import { EventsOn } from '@wailsjs/runtime'
 import { appLogger } from '@/lib/logger'
@@ -54,6 +52,10 @@ export function SshGateView({
   const [activeTab, setActiveTab] = useState('hosts')
   const { showDialog } = useDialog()
 
+  const logger = useMemo(() => {
+    return appLogger.withPrefix('SshGateView')
+  }, [])
+
   // --- Lifted State for SSH Hosts ---
   const [hosts, setHosts] = useState<types.SSHHost[]>([])
   const [isLoadingHosts, setIsLoadingHosts] = useState(true)
@@ -78,6 +80,10 @@ export function SshGateView({
     sshtunnel.ActiveTunnelInfo[]
   >([])
   const [isLoadingTunnels, setIsLoadingTunnels] = useState(true)
+
+  useEffect(() => {
+    logger.debug('isLoadingTunnels', isLoadingTunnels)
+  }, [logger, isLoadingTunnels])
 
   const fetchTunnels = useCallback(async () => {
     // For background refresh, we don't always set loading to true
@@ -138,8 +144,6 @@ export function SshGateView({
           <div className="flex items-center space-x-4">
             <TabsList>
               <TabsTrigger value="hosts">Hosts</TabsTrigger>
-              <TabsTrigger value="tunnels">Tunnels</TabsTrigger>
-              <TabsTrigger value="active-tunnels">Active Tunnels</TabsTrigger>
               <TabsTrigger value="raw">Raw Editor</TabsTrigger>
             </TabsList>
           </div>
@@ -158,26 +162,12 @@ export function SshGateView({
           />
         </TabsContent>
 
-        {/* 保存的隧道配置 Tab */}
-        <TabsContent value="tunnels" className="flex-1 min-h-0">
-          <SavedTunnelsView hosts={hosts} />
-        </TabsContent>
-
         {/* 原始文件编辑器 Tab */}
         <TabsContent value="raw" className="flex-1 mt-2 flex flex-col min-h-0">
           <RawEditor
             dataVersion={dataVersion}
             onDataChange={refreshData}
             isDarkMode={isDarkMode}
-          />
-        </TabsContent>
-
-        {/* 活动隧道 Tab */}
-        <TabsContent value="active-tunnels" className="flex-1 min-h-0">
-          <ActiveTunnels
-            tunnels={activeTunnels}
-            isLoading={isLoadingTunnels}
-            onRefresh={() => void fetchTunnels()}
           />
         </TabsContent>
       </Tabs>

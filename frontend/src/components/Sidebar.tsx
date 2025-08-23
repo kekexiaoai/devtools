@@ -2,6 +2,7 @@ import {
   ArrowRightLeft,
   Braces,
   Server,
+  TrainFrontTunnel,
   ChevronsLeft,
   ChevronsRight,
   Settings,
@@ -17,6 +18,7 @@ interface SidebarProps {
 
 const tools = [
   { id: 'SshGate', icon: Server, label: 'SSH Gate' },
+  { id: 'Tunnels', icon: TrainFrontTunnel, label: 'Tunnels' },
   { id: 'Terminal', icon: TerminalSquare, label: 'Terminal' },
   { id: 'FileSyncer', icon: ArrowRightLeft, label: 'File Syncer' },
   { id: 'JsonTools', icon: Braces, label: 'JSON Tools' },

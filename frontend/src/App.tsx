@@ -5,6 +5,7 @@ import { JsonToolsView } from './views/JsonToolsView'
 import { FileSyncerView } from './views/FileSyncerView'
 import { SshGateView } from './views/SshGateView'
 import { TerminalView } from './views/TerminalView'
+import { TunnelsView } from './views/TunnelsView'
 import { SettingsView } from './views/SettingsView'
 import { useSettingsStore } from './hooks/useSettingsStore'
 import { TitleBar } from '@/components/TitleBar'
@@ -46,7 +47,13 @@ export type TerminalSession = types.TerminalSessionInfo & {
   status: ConnectionStatus
 }
 
-const toolIds = ['FileSyncer', 'JsonTools', 'SshGate', 'Terminal'] as const
+const toolIds = [
+  'FileSyncer',
+  'JsonTools',
+  'SshGate',
+  'Tunnels',
+  'Terminal',
+] as const
 
 /**
  * AppContent contains the main application logic. It's wrapped in DialogProvider
@@ -380,6 +387,7 @@ function AppContent() {
           isDarkMode={isDarkMode}
         />
       ),
+      Tunnels: <TunnelsView />,
       Terminal: (
         <TerminalView
           isActive={activeTool === 'Terminal'}
@@ -407,6 +415,7 @@ function AppContent() {
     isDarkMode,
     reconnectTerminal,
     updateTerminalStatus,
+    // SettingsView and TunnelsView have no props, so no dependencies needed here
     // SettingsView has no props, so no dependencies needed here
   ])
 

@@ -102,7 +102,10 @@ export function HostDetail({
       >
         <CardHeader>
           {isPreview && (
-            <Badge variant="outline" className="absolute -top-4 right-4 z-10">
+            <Badge
+              variant="destructive"
+              className="absolute top-2 right-4 z-10"
+            >
               Preview
             </Badge>
           )}
