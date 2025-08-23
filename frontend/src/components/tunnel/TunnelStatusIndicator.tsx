@@ -1,11 +1,6 @@
 import React from 'react'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 
 type TunnelStatus = 'active' | 'disconnected' | 'stopping'
 
@@ -13,48 +8,45 @@ const isTunnelStatus = (s: string): s is TunnelStatus => {
   return ['active', 'disconnected', 'stopping'].includes(s)
 }
 
-export function TunnelStatusIndicator({
-  status,
-  message,
-}: {
-  status: string
-  message: string
-}) {
+export function TunnelStatusIndicator({ status }: { status: string }) {
   const statusConfig: Record<
     TunnelStatus,
-    { icon: React.JSX.Element; label: string }
+    { icon: React.JSX.Element; label: string; className: string }
   > = {
     active: {
-      icon: <CheckCircle2 className="h-4 w-4 text-green-500" />,
+      icon: <CheckCircle2 className="h-4 w-4" />,
       label: 'Active',
+      className:
+        'border-green-500/40 bg-green-500/10 text-green-700 dark:text-green-400',
     },
     disconnected: {
-      icon: <XCircle className="h-4 w-4 text-red-500" />,
+      icon: <XCircle className="h-4 w-4" />,
       label: 'Disconnected',
+      className:
+        'border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-400',
     },
     stopping: {
-      icon: <Loader2 className="h-4 w-4 animate-spin text-yellow-500" />,
+      icon: <Loader2 className="h-4 w-4 animate-spin" />,
       label: 'Stopping',
+      className:
+        'border-yellow-500/40 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400',
     },
   }
 
   const config = isTunnelStatus(status)
     ? statusConfig[status]
-    : statusConfig.disconnected
+    : {
+        ...statusConfig.disconnected,
+        label: 'Unknown',
+      }
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="flex items-center gap-2 text-sm">
-            {config.icon}
-            <span className="capitalize">{config.label}</span>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>{message}</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Badge
+      variant="outline"
+      className={`gap-1.5 px-2.5 py-1 text-sm font-medium ${config.className}`}
+    >
+      {config.icon}
+      <span className="capitalize">{config.label}</span>
+    </Badge>
   )
 }

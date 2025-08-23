@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react'
+import { cn } from '@/lib/utils'
 import { sshtunnel } from '@wailsjs/go/models'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -28,6 +29,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { TunnelStatusIndicator } from './TunnelStatusIndicator'
 import { appLogger } from '@/lib/logger'
 
@@ -181,8 +188,26 @@ export function SavedTunnelItem({
   const isDisconnected = status === 'disconnected'
   const isBusy = isStarting || isStopping
 
+  const cardStateStyles = useMemo(() => {
+    if (isRunning) {
+      return 'border-l-green-500'
+    }
+    if (isDisconnected) {
+      return 'border-l-red-500'
+    }
+    if (isBusy) {
+      return 'border-l-yellow-500'
+    }
+    return 'border-l-transparent'
+  }, [isRunning, isDisconnected, isBusy])
+
   return (
-    <Card className="gap-3 py-3 transition-colors hover:bg-muted">
+    <Card
+      className={cn(
+        'gap-3 py-3 transition-colors hover:bg-muted border-l-4',
+        cardStateStyles
+      )}
+    >
       <CardHeader className="px-4 pt-0">
         <div className="flex justify-between items-start">
           <div>
@@ -193,10 +218,16 @@ export function SavedTunnelItem({
           </div>
           <div className="flex items-center gap-4">
             {activeTunnel && (
-              <TunnelStatusIndicator
-                status={activeTunnel.status}
-                message={activeTunnel.statusMsg}
-              />
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <TunnelStatusIndicator status={activeTunnel.status} />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{activeTunnel.statusMsg}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
             {tunnel.gatewayPorts && (
               <div
