@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 	"strings"
 	"sync"
 
@@ -17,6 +18,7 @@ import (
 	"devtools/backend/pkg/sshconfig"
 
 	"github.com/google/uuid"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 )
@@ -36,15 +38,21 @@ type Service struct {
 	tunnelsConfigPath string
 	tunnelsConfig     *TunnelsConfig
 	configMu          sync.RWMutex
+
+	// For debouncing frontend events for saved tunnels
+	savedTunnelsEventDebouncer   *time.Timer
+	savedTunnelsDebounceDuration time.Duration
+	savedTunnelsEventMu          sync.Mutex
 }
 
 // NewService 是 SSHGate 服务的构造函数
 func NewService(sshMgr *sshmanager.Manager) *Service {
 	tunnelMgr := sshtunnel.NewManager(sshMgr)
 	s := &Service{
-		sshManager:    sshMgr,
-		tunnelManager: tunnelMgr,
-		tunnelsConfig: &TunnelsConfig{Tunnels: []sshtunnel.SavedTunnelConfig{}},
+		sshManager:                   sshMgr,
+		tunnelManager:                tunnelMgr,
+		tunnelsConfig:                &TunnelsConfig{Tunnels: []sshtunnel.SavedTunnelConfig{}},
+		savedTunnelsDebounceDuration: 200 * time.Millisecond,
 	}
 	return s
 }
@@ -137,6 +145,17 @@ func (a *Service) SaveSSHHost(host types.SSHHost) error {
 
 // DeleteSSHHost 删除一个 SSH 主机配置
 func (a *Service) DeleteSSHHost(alias string) error {
+	// When deleting a host, we should also clean up any associated passwords.
+	// 1. Delete the password for the host alias itself.
+	if err := a.sshManager.DeletePassword(alias); err != nil {
+		// This is a non-critical error, so we only log it.
+		log.Printf("Warning: failed to delete password for alias %s: %v", alias, err)
+	}
+
+	// 2. Delete passwords for any tunnels that depend on this host alias.
+	if err := a.deletePasswordsForTunnelsUsingAlias(alias); err != nil {
+		log.Printf("Warning: failed to delete passwords for tunnels using alias %s: %v", alias, err)
+	}
 	return a.sshManager.DeleteHost(alias)
 }
 
@@ -202,7 +221,24 @@ func (s *Service) saveTunnelsConfig() error {
 	}
 
 	log.Printf("Successfully saved %d tunnel configurations to %s.", len(s.tunnelsConfig.Tunnels), s.tunnelsConfigPath)
+	s.debounceSavedTunnelsChangeEvent()
 	return nil
+}
+
+// debounceSavedTunnelsChangeEvent schedules a "saved_tunnels_changed" event to be sent to the frontend.
+func (s *Service) debounceSavedTunnelsChangeEvent() {
+	s.savedTunnelsEventMu.Lock()
+	defer s.savedTunnelsEventMu.Unlock()
+
+	if s.savedTunnelsEventDebouncer != nil {
+		s.savedTunnelsEventDebouncer.Stop()
+	}
+
+	s.savedTunnelsEventDebouncer = time.AfterFunc(s.savedTunnelsDebounceDuration, func() {
+		log.Println("Debouncer fired: emitting 'saved_tunnels_changed' event to frontend.")
+		// This runs in a new goroutine, so we wrap it for safety.
+		runtime.EventsEmit(s.ctx, "saved_tunnels_changed")
+	})
 }
 
 // GetSavedTunnels retrieves all saved tunnel configurations.

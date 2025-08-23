@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { PlusCircle, Loader2 } from 'lucide-react'
 import {
@@ -8,12 +8,14 @@ import {
   DeletePassword,
   StartTunnelFromConfig,
 } from '@wailsjs/go/sshgate/Service'
+import { EventsOn } from '@wailsjs/runtime'
 import { sshtunnel, types } from '@wailsjs/go/models'
 import { useDialog } from '@/hooks/useDialog'
 import { SavedTunnelItem } from './SavedTunnelItem'
 import { useSshConnection } from '@/hooks/useSshConnection'
 import { toast } from 'sonner'
 import { CreateTunnelDialog } from './CreateTunnelDialog'
+import { appLogger } from '@/lib/logger'
 
 interface SavedTunnelsViewProps {
   hosts: types.SSHHost[]
@@ -36,25 +38,36 @@ export function SavedTunnelsView({ hosts }: SavedTunnelsViewProps) {
     onOpenTerminal: () => {}, // Not used in 'verify' mode
   })
 
+  const logger = useMemo(() => {
+    return appLogger.withPrefix('SavedTunnelsView')
+  }, [])
+
   const fetchSavedTunnels = useCallback(async () => {
-    setIsLoading(true)
     try {
       const tunnels = await GetSavedTunnels()
       setSavedTunnels(tunnels)
     } catch (error) {
-      void showDialog({
+      await showDialog({
         type: 'error',
         title: 'Failed to load saved tunnels',
         message: String(error),
       })
-    } finally {
-      setIsLoading(false)
     }
   }, [showDialog])
 
   useEffect(() => {
-    void fetchSavedTunnels()
-  }, [fetchSavedTunnels])
+    setIsLoading(true)
+    fetchSavedTunnels()
+      .finally(() => setIsLoading(false))
+      .catch((error) => logger.error('Failed to fetch tunnels:', error))
+
+    // Listen for changes from the backend to automatically refresh the list
+    const cleanup = EventsOn('saved_tunnels_changed', () => {
+      void fetchSavedTunnels()
+    })
+
+    return cleanup
+  }, [fetchSavedTunnels, logger]) // The dependency is stable, so this runs once on mount.
 
   const handleStart = (id: string) => {
     setStartingTunnelId(id)
@@ -129,7 +142,7 @@ export function SavedTunnelsView({ hosts }: SavedTunnelsViewProps) {
       })
 
       toast.success(`Tunnel "${tunnel.name}" deleted.`)
-      await fetchSavedTunnels() // Refresh the list
+      // The list will be refreshed automatically by the event listener.
     } catch (error) {
       toast.error(`Failed to delete tunnel: ${String(error)}`)
     }
@@ -144,7 +157,7 @@ export function SavedTunnelsView({ hosts }: SavedTunnelsViewProps) {
     toast.promise(promise, {
       loading: `Duplicating tunnel "${tunnel.name}"...`,
       success: (newTunnel) => {
-        void fetchSavedTunnels() // Refresh the list
+        // The list will be refreshed automatically by the event listener.
         return `Tunnel "${newTunnel.name}" created.`
       },
       error: (err) => `Failed to duplicate tunnel: ${String(err)}`,
@@ -200,7 +213,7 @@ export function SavedTunnelsView({ hosts }: SavedTunnelsViewProps) {
         onOpenChange={setIsDialogOpen}
         onSuccess={() => {
           setIsDialogOpen(false)
-          void fetchSavedTunnels()
+          // The list will be refreshed automatically by the event listener.
         }}
         hosts={hosts}
         tunnelToEdit={editingTunnel}
