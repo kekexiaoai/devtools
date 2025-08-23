@@ -5,6 +5,8 @@ import { JsonToolsView } from './views/JsonToolsView'
 import { FileSyncerView } from './views/FileSyncerView'
 import { SshGateView } from './views/SshGateView'
 import { TerminalView } from './views/TerminalView'
+import { SettingsView } from './views/SettingsView'
+import { useSettingsStore } from './hooks/useSettingsStore'
 import { TitleBar } from '@/components/TitleBar'
 import {
   EventsOn,
@@ -27,7 +29,7 @@ import {
 } from './components/ui/alert-dialog'
 
 import { Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button' // AlertDialogAction 本质上是一个 Button
+import { Button } from './components/ui/button'
 
 import { AlertTriangle } from 'lucide-react'
 import { useThemeDetector } from './hooks/useThemeDetector'
@@ -52,7 +54,7 @@ const toolIds = ['FileSyncer', 'JsonTools', 'SshGate', 'Terminal'] as const
  */
 function AppContent() {
   const [isBackendReady, setIsBackendReady] = useState(false)
-  const [activeTool, setActiveTool] = useState('FileSyncer')
+  const [activeTool, setActiveTool] = useState('SshGate')
 
   const [uiScale, setUiScale] = useState<UiScale>('default')
 
@@ -63,6 +65,16 @@ function AppContent() {
   const [terminalSessions, setTerminalSessions] = useState<TerminalSession[]>(
     []
   )
+
+  // --- Global Settings Integration ---
+  const appTheme = useSettingsStore((state) => state.theme)
+  const systemIsDark = useThemeDetector()
+  const isDarkMode = useMemo(() => {
+    if (appTheme === 'system') {
+      return systemIsDark
+    }
+    return appTheme === 'dark'
+  }, [appTheme, systemIsDark])
 
   const logger = useMemo(() => {
     return appLogger
@@ -98,15 +110,10 @@ function AppContent() {
   }, [logger])
 
   // 适配系统主题
-  // 调用 Hook 来获取实时的暗黑模式状态
-  const isDarkMode = useThemeDetector()
-
   // 使用 useEffect 来根据 isDarkMode 的变化，更新 <html> 标签的 class
   useEffect(() => {
     const root = window.document.documentElement
-
     root.classList.remove('light', 'dark') // 先移除旧的 class
-
     if (isDarkMode) {
       root.classList.add('dark')
     } else {
@@ -388,6 +395,7 @@ function AppContent() {
           isDarkMode={isDarkMode}
         />
       ),
+      Settings: <SettingsView />,
     }
   }, [
     activeTool,
@@ -399,6 +407,7 @@ function AppContent() {
     isDarkMode,
     reconnectTerminal,
     updateTerminalStatus,
+    // SettingsView has no props, so no dependencies needed here
   ])
 
   // 在后端准备好之前，显示一个加载界面
@@ -428,13 +437,12 @@ function AppContent() {
           <div className="flex flex-grow overflow-hidden">
             <Sidebar activeTool={activeTool} onToolChange={setActiveTool} />
             <main className="flex-1 flex flex-col overflow-hidden relative">
-              {toolIds.map((id) => (
+              {[...toolIds, 'Settings'].map((id) => (
                 <div
                   key={id}
                   className={`absolute inset-0 h-full w-full ${activeTool === id ? 'block' : 'hidden'}`}
                 >
-                  {/* 我们在这里只是简单地通过 ID 从“清单”中取出已准备好的组件 */}
-                  {toolViews[id]}
+                  {toolViews[id as keyof typeof toolViews]}
                 </div>
               ))}
             </main>

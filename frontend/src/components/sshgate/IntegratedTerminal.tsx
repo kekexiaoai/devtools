@@ -114,7 +114,7 @@ export function IntegratedTerminal({
 
   // --- 计算最终生效的设置 ---
   const effectiveTheme = localThemeKey
-    ? NAMED_THEMES[localThemeKey]?.theme
+    ? NAMED_THEMES[localThemeKey as keyof typeof NAMED_THEMES]?.theme
     : theme
   const effectiveFontFamily = localFontFamilyKey
     ? FONT_FAMILIES[localFontFamilyKey]?.value

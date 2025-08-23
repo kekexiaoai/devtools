@@ -312,7 +312,7 @@ export const atomOneLightTheme: ITheme = {
   brightWhite: '#ffffff',
 }
 
-export const NAMED_THEMES: Record<string, { name: string; theme: ITheme }> = {
+export const NAMED_THEMES = {
   'one-dark': { name: 'One Dark', theme: oneDarkTheme },
   dracula: { name: 'Dracula', theme: draculaTheme },
   'github-dark': { name: 'GitHub Dark', theme: githubDarkTheme },
@@ -359,7 +359,7 @@ export const NAMED_THEMES: Record<string, { name: string; theme: ITheme }> = {
     name: 'Atom One Light',
     theme: atomOneLightTheme,
   },
-}
+} as const
 
 // --- 字体系列定义 ---
 export const FONT_FAMILIES: Record<string, { name: string; value: string }> = {
