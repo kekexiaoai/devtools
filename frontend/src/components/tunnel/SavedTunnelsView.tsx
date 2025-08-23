@@ -207,11 +207,16 @@ export const SavedTunnelsView = forwardRef<
     const tunnel = savedTunnels.find((t) => t.id === id)
     if (!tunnel) return
 
+    const activeTunnel = activeTunnelMap.get(getTunnelKey(tunnel))
+
     const choice = await showDialog({
       type: 'confirm',
       title: `Delete Tunnel "${tunnel.name}"?`,
       message:
-        'Are you sure you want to permanently delete this tunnel configuration?',
+        'Are you sure you want to permanently delete this tunnel configuration?' +
+        (activeTunnel
+          ? '\n\nThe associated active tunnel will also be stopped.'
+          : ''),
       buttons: [
         { text: 'Cancel', variant: 'outline', value: 'cancel' },
         { text: 'Delete', variant: 'destructive', value: 'delete' },
@@ -221,6 +226,11 @@ export const SavedTunnelsView = forwardRef<
     if (choice.buttonValue !== 'delete') return
 
     try {
+      // If there's an active tunnel, stop it first.
+      if (activeTunnel) {
+        await StopForward(activeTunnel.id)
+      }
+
       await DeleteTunnelConfig(id)
       // Also attempt to delete any saved password for this tunnel.
       // We don't need to block or show an error if this fails, as the main
