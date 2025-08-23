@@ -224,7 +224,8 @@ func (s *Service) SaveTunnelConfig(config sshtunnel.SavedTunnelConfig) error {
 	if config.ID == "" {
 		config.ID = uuid.NewString()
 		log.Printf("Assigning new ID to tunnel config: %s", config.ID)
-		s.tunnelsConfig.Tunnels = append(s.tunnelsConfig.Tunnels, config)
+		// Prepend the new config to the slice so it appears at the top of the list.
+		s.tunnelsConfig.Tunnels = append([]sshtunnel.SavedTunnelConfig{config}, s.tunnelsConfig.Tunnels...)
 	} else {
 		found := false
 		for i, t := range s.tunnelsConfig.Tunnels {
@@ -235,7 +236,9 @@ func (s *Service) SaveTunnelConfig(config sshtunnel.SavedTunnelConfig) error {
 			}
 		}
 		if !found {
-			s.tunnelsConfig.Tunnels = append(s.tunnelsConfig.Tunnels, config)
+			// This case should ideally not be hit for an existing ID, but if it is,
+			// treat it as a new addition and prepend it.
+			s.tunnelsConfig.Tunnels = append([]sshtunnel.SavedTunnelConfig{config}, s.tunnelsConfig.Tunnels...)
 		}
 	}
 
@@ -300,8 +303,8 @@ func (s *Service) DuplicateTunnelConfig(id string) (*sshtunnel.SavedTunnelConfig
 	newConfig.ID = uuid.NewString()
 	newConfig.Name = fmt.Sprintf("%s (copy)", originalConfig.Name)
 
-	// Append the new config to the list
-	s.tunnelsConfig.Tunnels = append(s.tunnelsConfig.Tunnels, newConfig)
+	// Prepend the new config to the list so it appears at the top.
+	s.tunnelsConfig.Tunnels = append([]sshtunnel.SavedTunnelConfig{newConfig}, s.tunnelsConfig.Tunnels...)
 
 	return &newConfig, s.saveTunnelsConfig()
 }
