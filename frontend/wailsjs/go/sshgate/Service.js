@@ -26,6 +26,10 @@ export function DeleteTunnelConfig(arg1) {
   return window['go']['sshgate']['Service']['DeleteTunnelConfig'](arg1);
 }
 
+export function DuplicateTunnelConfig(arg1) {
+  return window['go']['sshgate']['Service']['DuplicateTunnelConfig'](arg1);
+}
+
 export function GetActiveTunnels() {
   return window['go']['sshgate']['Service']['GetActiveTunnels']();
 }

@@ -16,6 +16,8 @@ export function DeleteSSHHost(arg1:string):Promise<void>;
 
 export function DeleteTunnelConfig(arg1:string):Promise<void>;
 
+export function DuplicateTunnelConfig(arg1:string):Promise<sshtunnel.SavedTunnelConfig>;
+
 export function GetActiveTunnels():Promise<Array<sshtunnel.ActiveTunnelInfo>>;
 
 export function GetSSHConfigFileContent():Promise<string>;

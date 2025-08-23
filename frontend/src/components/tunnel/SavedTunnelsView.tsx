@@ -4,6 +4,7 @@ import { PlusCircle, Loader2 } from 'lucide-react'
 import {
   GetSavedTunnels,
   DeleteTunnelConfig,
+  DuplicateTunnelConfig,
   DeletePassword,
   StartTunnelFromConfig,
 } from '@wailsjs/go/sshgate/Service'
@@ -134,6 +135,22 @@ export function SavedTunnelsView({ hosts }: SavedTunnelsViewProps) {
     }
   }
 
+  const handleDuplicate = (id: string) => {
+    const tunnel = savedTunnels.find((t) => t.id === id)
+    if (!tunnel) return
+
+    const promise = DuplicateTunnelConfig(id)
+
+    toast.promise(promise, {
+      loading: `Duplicating tunnel "${tunnel.name}"...`,
+      success: (newTunnel) => {
+        void fetchSavedTunnels() // Refresh the list
+        return `Tunnel "${newTunnel.name}" created.`
+      },
+      error: (err) => `Failed to duplicate tunnel: ${String(err)}`,
+    })
+  }
+
   const handleEdit = (tunnel: sshtunnel.SavedTunnelConfig) => {
     setEditingTunnel(tunnel)
     setIsDialogOpen(true)
@@ -171,6 +188,7 @@ export function SavedTunnelsView({ hosts }: SavedTunnelsViewProps) {
                 onStart={handleStart}
                 onDelete={() => void handleDelete(tunnel.id)}
                 onEdit={handleEdit}
+                onDuplicate={() => void handleDuplicate(tunnel.id)}
                 isStarting={startingTunnelId === tunnel.id}
               />
             ))}

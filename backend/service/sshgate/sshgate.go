@@ -272,6 +272,40 @@ func (s *Service) DeleteTunnelConfig(id string) error {
 	return fmt.Errorf("tunnel config with ID %s not found", id)
 }
 
+// DuplicateTunnelConfig creates a copy of an existing tunnel configuration.
+func (s *Service) DuplicateTunnelConfig(id string) (*sshtunnel.SavedTunnelConfig, error) {
+	s.configMu.Lock()
+	defer s.configMu.Unlock()
+
+	var originalConfig *sshtunnel.SavedTunnelConfig
+	for i := range s.tunnelsConfig.Tunnels {
+		if s.tunnelsConfig.Tunnels[i].ID == id {
+			originalConfig = &s.tunnelsConfig.Tunnels[i]
+			break
+		}
+	}
+
+	if originalConfig == nil {
+		return nil, fmt.Errorf("tunnel config with ID %s not found", id)
+	}
+
+	// Create a deep copy to avoid pointer issues, especially with ManualHost
+	newConfig := *originalConfig
+	if originalConfig.ManualHost != nil {
+		newManualHost := *originalConfig.ManualHost
+		newConfig.ManualHost = &newManualHost
+	}
+
+	// Assign a new ID and a new name
+	newConfig.ID = uuid.NewString()
+	newConfig.Name = fmt.Sprintf("%s (copy)", originalConfig.Name)
+
+	// Append the new config to the list
+	s.tunnelsConfig.Tunnels = append(s.tunnelsConfig.Tunnels, newConfig)
+
+	return &newConfig, s.saveTunnelsConfig()
+}
+
 // deletePasswordsForTunnelsUsingAlias is a helper to clean up keychain entries
 // when a host from ~/.ssh/config is deleted.
 func (s *Service) deletePasswordsForTunnelsUsingAlias(alias string) error {

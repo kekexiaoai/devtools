@@ -9,13 +9,22 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { ArrowRight, Play, Trash2, Pencil, Globe, Loader2 } from 'lucide-react'
+import {
+  ArrowRight,
+  Play,
+  Trash2,
+  Pencil,
+  Globe,
+  Loader2,
+  Copy,
+} from 'lucide-react'
 
 interface SavedTunnelItemProps {
   tunnel: sshtunnel.SavedTunnelConfig
   onStart: (id: string) => void
   onDelete: (id: string) => void
   onEdit: (tunnel: sshtunnel.SavedTunnelConfig) => void
+  onDuplicate: (id: string) => void
   isStarting: boolean
 }
 
@@ -68,6 +77,7 @@ export function SavedTunnelItem({
   onStart,
   onDelete,
   onEdit,
+  onDuplicate,
   isStarting,
 }: SavedTunnelItemProps) {
   return (
@@ -93,6 +103,13 @@ export function SavedTunnelItem({
       </CardHeader>
       <CardContent>{formatTunnelDescription(tunnel)}</CardContent>
       <CardFooter className="flex justify-end space-x-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onDuplicate(tunnel.id)}
+        >
+          <Copy className="mr-2 h-4 w-4" /> Duplicate
+        </Button>
         <Button variant="outline" size="sm" onClick={() => onEdit(tunnel)}>
           <Pencil className="mr-2 h-4 w-4" /> Edit
         </Button>
