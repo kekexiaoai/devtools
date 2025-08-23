@@ -85,33 +85,32 @@ export function SshGateView({
     logger.debug('isLoadingTunnels', isLoadingTunnels)
   }, [logger, isLoadingTunnels])
 
-  const fetchTunnels = useCallback(async () => {
-    // For background refresh, we don't always set loading to true
-    // setIsLoadingTunnels(true);
-    try {
-      const tunnels = await GetActiveTunnels()
-      setActiveTunnels(tunnels)
-    } catch (error) {
-      // Errors are handled in the component that needs to show them,
-      // or we could use a global toast here.
-      console.error(`Failed to fetch active tunnels: ${String(error)}`)
-    } finally {
-      setIsLoadingTunnels(false)
-    }
-  }, [])
+  const fetchTunnels = useCallback(
+    async (isInitialLoad = false) => {
+      if (isInitialLoad) {
+        setIsLoadingTunnels(true)
+      }
+      try {
+        const tunnels = await GetActiveTunnels()
+        setActiveTunnels(tunnels)
+      } catch (error) {
+        logger.error(`Failed to fetch active tunnels: ${String(error)}`)
+      } finally {
+        if (isInitialLoad) {
+          setIsLoadingTunnels(false)
+        }
+      }
+    },
+    [logger]
+  )
 
   useEffect(() => {
-    void fetchTunnels()
-    const handleFocus = () => void fetchTunnels()
-    const interval = setInterval(() => void fetchTunnels(), 30000)
+    void fetchTunnels(true) // Initial load
     const cleanupTunnelChangedEvent = EventsOn(
       'tunnels:changed',
-      () => void fetchTunnels()
-    )
-    window.addEventListener('focus', handleFocus)
+      () => void fetchTunnels(false)
+    ) // Background refresh
     return () => {
-      window.removeEventListener('focus', handleFocus)
-      clearInterval(interval)
       cleanupTunnelChangedEvent()
     }
   }, [fetchTunnels])

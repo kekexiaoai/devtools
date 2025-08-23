@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SavedTunnelsView } from '@/components/tunnel/SavedTunnelsView'
 import { ActiveTunnels } from '@/components/sshgate/ActiveTunnels'
 import { GetActiveTunnels, GetSSHHosts } from '@wailsjs/go/sshgate/Service'
 import { sshtunnel, types } from '@wailsjs/go/models'
 import { EventsOn } from '@wailsjs/runtime'
+import { appLogger } from '@/lib/logger'
 
 export function TunnelsView() {
   const [activeTab, setActiveTab] = useState('saved')
@@ -12,40 +13,50 @@ export function TunnelsView() {
   const [activeTunnels, setActiveTunnels] = useState<
     sshtunnel.ActiveTunnelInfo[]
   >([])
+
+  const logger = useMemo(() => {
+    return appLogger.withPrefix('TunnelsView')
+  }, [])
+
   const [isLoadingTunnels, setIsLoadingTunnels] = useState(true)
 
   const fetchHosts = useCallback(async () => {
     try {
       setHosts(await GetSSHHosts())
     } catch (error) {
-      console.error(`Failed to load SSH hosts: ${String(error)}`)
+      logger.error(`Failed to load SSH hosts: ${String(error)}`)
     }
-  }, [])
+  }, [logger])
 
-  const fetchTunnels = useCallback(async () => {
-    setIsLoadingTunnels(true)
-    try {
-      const tunnels = await GetActiveTunnels()
-      setActiveTunnels(tunnels)
-    } catch (error) {
-      console.error(`Failed to fetch active tunnels: ${String(error)}`)
-    } finally {
-      setIsLoadingTunnels(false)
-    }
-  }, [])
+  const fetchTunnels = useCallback(
+    async (isInitialLoad = false) => {
+      if (isInitialLoad) {
+        setIsLoadingTunnels(true)
+      }
+      try {
+        const tunnels = await GetActiveTunnels()
+        setActiveTunnels(tunnels)
+      } catch (error) {
+        logger.error(`Failed to fetch active tunnels: ${String(error)}`)
+      } finally {
+        if (isInitialLoad) {
+          setIsLoadingTunnels(false)
+        }
+      }
+    },
+    [logger]
+  )
 
   useEffect(() => {
     void fetchHosts()
-    void fetchTunnels()
-
-    const cleanupTunnelChangedEvent = EventsOn('tunnels:changed', () => {
-      void fetchTunnels()
-    })
+    void fetchTunnels(true) // Initial load
+    const cleanupTunnelChangedEvent = EventsOn(
+      'tunnels:changed',
+      () => void fetchTunnels(false)
+    )
     const cleanupSavedTunnelsChangedEvent = EventsOn(
       'saved_tunnels_changed',
-      () => {
-        void fetchHosts()
-      }
+      () => void fetchHosts()
     )
 
     return () => {
@@ -81,9 +92,7 @@ export function TunnelsView() {
           <ActiveTunnels
             tunnels={activeTunnels}
             isLoading={isLoadingTunnels}
-            onRefresh={() => {
-              void fetchTunnels()
-            }}
+            onRefresh={() => void fetchTunnels(true)}
           />
         </TabsContent>
       </Tabs>
