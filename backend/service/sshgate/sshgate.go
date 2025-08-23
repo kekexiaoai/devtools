@@ -485,7 +485,9 @@ func (s *Service) StartTunnelFromConfig(configID string, password string) (strin
 		aliasForDisplay = savedConfig.HostAlias
 		connConfig, _, err = s.sshManager.GetConnectionConfig(aliasForDisplay, password)
 		if err != nil {
-			return "", fmt.Errorf("failed to get connection config for alias '%s': %w", aliasForDisplay, err)
+			// Do not use %w to wrap the error. The underlying error can be a complex type that causes
+			// serialization issues with the Wails IPC bridge. Use err.Error() to convert it to a simple string.
+			return "", fmt.Errorf("failed to get connection config for alias '%s': %s", aliasForDisplay, err.Error())
 		}
 	case "manual":
 		if savedConfig.ManualHost == nil {
@@ -505,7 +507,9 @@ func (s *Service) StartTunnelFromConfig(configID string, password string) (strin
 
 		connConfig, err = s.sshManager.BuildSSHClientConfig(tempHost, password, savedConfig.ID)
 		if err != nil {
-			return "", fmt.Errorf("failed to build connection config for manual host: %w", err)
+			// Do not use %w to wrap the error. The underlying error can be a complex type that causes
+			// serialization issues with the Wails IPC bridge. Use err.Error() to convert it to a simple string.
+			return "", fmt.Errorf("failed to build connection config for manual host: %s", err.Error())
 		}
 	default:
 		return "", fmt.Errorf("unknown host source '%s' for tunnel config %s", savedConfig.HostSource, configID)
@@ -521,7 +525,13 @@ func (s *Service) StartTunnelFromConfig(configID string, password string) (strin
 		return "", fmt.Errorf("unsupported tunnel type '%s'", savedConfig.TunnelType)
 	}
 
-	return s.tunnelManager.CreateTunnelFromConfig(aliasForDisplay, savedConfig.LocalPort, savedConfig.GatewayPorts, savedConfig.TunnelType, remoteAddr, connConfig)
+	result, err := s.tunnelManager.CreateTunnelFromConfig(aliasForDisplay, savedConfig.LocalPort, savedConfig.GatewayPorts, savedConfig.TunnelType, remoteAddr, connConfig)
+	if err != nil {
+		// Ensure complex errors from the tunnel manager are also converted to simple strings for Wails IPC.
+		// Using err.Error() is the safest way to get a plain string representation.
+		return "", fmt.Errorf("%s", err.Error())
+	}
+	return result, nil
 }
 
 // VerifyTunnelConfigConnection performs a pre-flight check for a saved tunnel configuration.
@@ -626,7 +636,8 @@ func (a *Service) handleSSHConnectError(alias string, host *types.SSHHost, err e
 	default:
 		// 其他通用错误
 		log.Printf("Error during connection pre-flight check for '%s': %v", alias, err)
-		return &types.ConnectionResult{Success: false, ErrorMessage: fmt.Sprintf("Connection pre-flight check failed, %v", err)}, nil
+		// Use err.Error() to ensure the error is a simple string for Wails IPC.
+		return &types.ConnectionResult{Success: false, ErrorMessage: fmt.Sprintf("Connection pre-flight check failed: %s", err.Error())}, nil
 	}
 }
 

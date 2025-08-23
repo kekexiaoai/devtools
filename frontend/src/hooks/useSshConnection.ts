@@ -344,7 +344,11 @@ export function useSshConnection({
 
         case 'failure': {
           const { context, error } = state
-          await showDialog({
+          // Do not `await` the dialog. Awaiting a state-updating function from
+          // within a useEffect that depends on that state can cause re-render loops.
+          // We want to reject the promise and reset the state machine immediately,
+          // while the dialog is shown to the user as a side effect.
+          void showDialog({
             type: 'error',
             title: 'Connection Failed',
             message: error.message,
@@ -400,7 +404,7 @@ export function useSshConnection({
           error: (error: unknown) =>
             error instanceof Error
               ? error.message
-              : 'An unknown error occurred.',
+              : 'An unknown error occurred: ' + String(error),
         })
       }
       return connectionPromise
