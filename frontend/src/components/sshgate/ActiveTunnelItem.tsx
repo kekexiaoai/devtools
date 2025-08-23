@@ -94,11 +94,15 @@ const formatTunnelDescription = (
   tunnel: sshtunnel.ActiveTunnelInfo
 ): React.ReactNode => {
   const localPart = <CopyableAddress address={tunnel.localAddr} />
-  const remotePart = (
-    <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
-      {tunnel.remoteAddr}
-    </span>
-  )
+  const remotePart =
+    tunnel.type !== 'dynamic' ? (
+      <CopyableAddress address={tunnel.remoteAddr} />
+    ) : (
+      // SOCKS5 Proxy is not an address, so it's not copyable
+      <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
+        {tunnel.remoteAddr}
+      </span>
+    )
 
   return (
     <div className="flex items-center space-x-2">
@@ -127,13 +131,13 @@ export function ActiveTunnelItem({ tunnel, onStop }: ActiveTunnelItemProps) {
   return (
     <Card
       data-state={isDisconnected ? 'disconnected' : 'active'}
-      className="data-[state=disconnected]:border-dashed data-[state=disconnected]:border-destructive/50"
+      className="data-[state=disconnected]:border-dashed data-[state=disconnected]:border-destructive/50 gap-3 py-3"
     >
-      <CardHeader className="p-4">
+      <CardHeader className="px-4 pt-0">
         <div className="flex justify-between items-start">
           <div>
             <CardTitle className="font-mono">{tunnel.alias}</CardTitle>
-            <CardDescription className="pt-1">
+            <CardDescription className="pt-1.5">
               {getTunnelTypeLabel(tunnel.type)}
             </CardDescription>
           </div>
@@ -143,10 +147,10 @@ export function ActiveTunnelItem({ tunnel, onStop }: ActiveTunnelItemProps) {
           />
         </div>
       </CardHeader>
-      <CardContent className="px-4 pb-4">
+      <CardContent className="px-4">
         {formatTunnelDescription(tunnel)}
       </CardContent>
-      <CardFooter className="px-4 pb-4 flex justify-end">
+      <CardFooter className="px-4 pb-0 flex justify-end">
         <Button
           variant="destructive"
           size="sm"

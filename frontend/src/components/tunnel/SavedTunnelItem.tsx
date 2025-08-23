@@ -37,14 +37,13 @@ const formatTunnelDescription = (
     <CopyableAddress address={`localhost:${tunnel.localPort}`} />
   )
   if (tunnel.tunnelType === 'local') {
-    const remotePart = `${tunnel.remoteHost}:${tunnel.remotePort}`
     return (
       <div className="flex items-center space-x-2">
         {localPart}
         <ArrowRight className="h-4 w-4 text-muted-foreground" />
-        <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
-          {remotePart}
-        </span>
+        <CopyableAddress
+          address={`${tunnel.remoteHost}:${tunnel.remotePort}`}
+        />
       </div>
     )
   }
@@ -80,12 +79,12 @@ export function SavedTunnelItem({
   isStarting,
 }: SavedTunnelItemProps) {
   return (
-    <Card>
-      <CardHeader className="p-4">
+    <Card className="gap-3 py-3">
+      <CardHeader className="px-4 pt-0">
         <div className="flex justify-between items-start">
           <div>
             <CardTitle>{tunnel.name}</CardTitle>
-            <CardDescription className="pt-1">
+            <CardDescription className="pt-1.5">
               {formatHostInfo(tunnel)}
             </CardDescription>
           </div>
@@ -100,10 +99,10 @@ export function SavedTunnelItem({
           )}
         </div>
       </CardHeader>
-      <CardContent className="px-4 pb-4">
+      <CardContent className="px-4">
         {formatTunnelDescription(tunnel)}
       </CardContent>
-      <CardFooter className="px-4 pb-4 flex justify-end space-x-2">
+      <CardFooter className="px-4 pb-0 flex justify-end space-x-2">
         <Button
           variant="outline"
           size="sm"
