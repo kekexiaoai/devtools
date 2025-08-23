@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { PlusCircle, Loader2 } from 'lucide-react'
 import {
@@ -6,6 +6,7 @@ import {
   DeleteTunnelConfig,
   DuplicateTunnelConfig,
   DeletePassword,
+  StopForward,
   StartTunnelFromConfig,
 } from '@wailsjs/go/sshgate/Service'
 import { EventsOn } from '@wailsjs/runtime'
@@ -19,9 +20,13 @@ import { appLogger } from '@/lib/logger'
 
 interface SavedTunnelsViewProps {
   hosts: types.SSHHost[]
+  activeTunnels: sshtunnel.ActiveTunnelInfo[]
 }
 
-export function SavedTunnelsView({ hosts }: SavedTunnelsViewProps) {
+export function SavedTunnelsView({
+  hosts,
+  activeTunnels,
+}: SavedTunnelsViewProps) {
   const [savedTunnels, setSavedTunnels] = useState<
     sshtunnel.SavedTunnelConfig[]
   >([])
@@ -31,6 +36,12 @@ export function SavedTunnelsView({ hosts }: SavedTunnelsViewProps) {
   const [editingTunnel, setEditingTunnel] = useState<
     sshtunnel.SavedTunnelConfig | undefined
   >(undefined)
+
+  const [shouldStartNext, setShouldStartNext] = useState(false)
+  const prevTunnelsRef = useRef<sshtunnel.SavedTunnelConfig[] | undefined>(
+    undefined
+  )
+
   const { showDialog } = useDialog()
 
   const { connect: verifyAndGetPassword } = useSshConnection({
@@ -58,8 +69,8 @@ export function SavedTunnelsView({ hosts }: SavedTunnelsViewProps) {
   useEffect(() => {
     setIsLoading(true)
     fetchSavedTunnels()
-      .finally(() => setIsLoading(false))
       .catch((error) => logger.error('Failed to fetch tunnels:', error))
+      .finally(() => setIsLoading(false))
 
     // Listen for changes from the backend to automatically refresh the list
     const cleanup = EventsOn('saved_tunnels_changed', () => {
@@ -67,7 +78,33 @@ export function SavedTunnelsView({ hosts }: SavedTunnelsViewProps) {
     })
 
     return cleanup
-  }, [fetchSavedTunnels, logger]) // The dependency is stable, so this runs once on mount.
+  }, [fetchSavedTunnels, logger])
+
+  useEffect(() => {
+    // prevTunnelsRef.current 的类型是 sshtunnel.SavedTunnelConfig[] | undefined。
+    // 尽管您在外层的 if 语句中已经检查了 prevTunnelsRef.current 是否存在，
+    // 但 TypeScript 的控制流分析（即类型收窄）有时无法将这个信息传递到嵌套的箭头函数（find 的回调函数）内部。
+    // 因此，在回调函数的作用域里，TypeScript 仍然认为 prevTunnelsRef.current 有可能是 undefined，从而导致了编译错误。
+    // 解决方案
+    // 解决这个问题的最佳实践是，在 if 检查之前，将 ref.current 的值赋给一个局部常量。
+    // 这样，TypeScript 就可以在这个 useEffect 的作用域内正确地推断出该常量的类型。
+    const prevTunnels = prevTunnelsRef.current
+    if (
+      shouldStartNext &&
+      prevTunnels &&
+      savedTunnels.length > prevTunnels.length
+    ) {
+      // Find the newly added tunnel by comparing IDs. Using a Set is efficient.
+      const prevTunnelIds = new Set(prevTunnels.map((pt) => pt.id))
+      const newTunnel = savedTunnels.find((t) => !prevTunnelIds.has(t.id))
+      if (newTunnel) {
+        handleStart(newTunnel.id)
+      }
+      setShouldStartNext(false)
+    }
+    prevTunnelsRef.current = savedTunnels
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedTunnels, shouldStartNext])
 
   const handleStart = (id: string) => {
     setStartingTunnelId(id)
@@ -114,6 +151,20 @@ export function SavedTunnelsView({ hosts }: SavedTunnelsViewProps) {
           : `Failed to start tunnel: ${err.message}`
       },
       finally: () => setStartingTunnelId(null),
+    })
+  }
+
+  const handleStop = (tunnelId: string) => {
+    const activeTunnel = activeTunnels.find((t) => t.id === tunnelId)
+    if (!activeTunnel) return
+
+    const promise = StopForward(tunnelId)
+    toast.promise(promise, {
+      loading: `Stopping tunnel "${activeTunnel.alias}"...`,
+      success: () => {
+        return `Tunnel "${activeTunnel.alias}" stopped.`
+      },
+      error: (err) => `Failed to stop tunnel: ${String(err)}`,
     })
   }
 
@@ -176,6 +227,15 @@ export function SavedTunnelsView({ hosts }: SavedTunnelsViewProps) {
     setIsDialogOpen(true)
   }
 
+  const getTunnelKey = (tunnel: sshtunnel.SavedTunnelConfig): string => {
+    const bindAddr = tunnel.gatewayPorts ? '0.0.0.0' : '127.0.0.1'
+    return `${bindAddr}:${tunnel.localPort}`
+  }
+
+  const activeTunnelMap = useMemo(() => {
+    return new Map(activeTunnels.map((t) => [t.localAddr, t]))
+  }, [activeTunnels])
+
   return (
     <div className="h-full flex flex-col">
       <div className="flex-shrink-0 flex justify-between items-center mb-4">
@@ -196,26 +256,33 @@ export function SavedTunnelsView({ hosts }: SavedTunnelsViewProps) {
           </div>
         ) : (
           <div className="space-y-4">
-            {savedTunnels.map((tunnel) => (
-              <SavedTunnelItem
-                key={tunnel.id}
-                tunnel={tunnel}
-                onStart={handleStart}
-                onDelete={() => void handleDelete(tunnel.id)}
-                onEdit={handleEdit}
-                onDuplicate={() => void handleDuplicate(tunnel.id)}
-                isStarting={startingTunnelId === tunnel.id}
-              />
-            ))}
+            {savedTunnels.map((tunnel) => {
+              const activeTunnel = activeTunnelMap.get(getTunnelKey(tunnel))
+              return (
+                <SavedTunnelItem
+                  key={tunnel.id}
+                  tunnel={tunnel}
+                  activeTunnel={activeTunnel}
+                  onStart={handleStart}
+                  onStop={handleStop}
+                  onDelete={() => void handleDelete(tunnel.id)}
+                  onEdit={handleEdit}
+                  onDuplicate={() => void handleDuplicate(tunnel.id)}
+                  isStarting={startingTunnelId === tunnel.id}
+                />
+              )
+            })}
           </div>
         )}
       </div>
       <CreateTunnelDialog
         isOpen={isDialogOpen}
         onOpenChange={setIsDialogOpen}
-        onSuccess={() => {
+        onSuccess={(shouldStart) => {
           setIsDialogOpen(false)
-          // The list will be refreshed automatically by the event listener.
+          if (shouldStart) {
+            setShouldStartNext(true)
+          }
         }}
         hosts={hosts}
         tunnelToEdit={editingTunnel}

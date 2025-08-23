@@ -18,6 +18,7 @@ import {
   Globe,
   Loader2,
   Copy,
+  StopCircle,
   Code,
   ChevronsUpDown,
 } from 'lucide-react'
@@ -27,14 +28,17 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { TunnelStatusIndicator } from './TunnelStatusIndicator'
 import { appLogger } from '@/lib/logger'
 
 interface SavedTunnelItemProps {
   tunnel: sshtunnel.SavedTunnelConfig
+  activeTunnel?: sshtunnel.ActiveTunnelInfo
   onStart: (id: string) => void
-  onDelete: (id: string) => void
+  onStop: (id: string) => void
+  onDelete: () => void
   onEdit: (tunnel: sshtunnel.SavedTunnelConfig) => void
-  onDuplicate: (id: string) => void
+  onDuplicate: () => void
   isStarting: boolean
 }
 
@@ -163,12 +167,20 @@ const formatHostInfo = (tunnel: sshtunnel.SavedTunnelConfig): string => {
 
 export function SavedTunnelItem({
   tunnel,
+  activeTunnel,
   onStart,
+  onStop,
   onDelete,
   onEdit,
   onDuplicate,
   isStarting,
 }: SavedTunnelItemProps) {
+  const status = activeTunnel?.status
+  const isRunning = status === 'active'
+  const isStopping = status === 'stopping'
+  const isDisconnected = status === 'disconnected'
+  const isBusy = isStarting || isStopping
+
   return (
     <Card className="gap-3 py-3 transition-colors hover:bg-muted">
       <CardHeader className="px-4 pt-0">
@@ -179,15 +191,23 @@ export function SavedTunnelItem({
               {formatHostInfo(tunnel)}
             </CardDescription>
           </div>
-          {tunnel.gatewayPorts && (
-            <div
-              className="flex items-center text-xs text-muted-foreground"
-              title="GatewayPorts enabled"
-            >
-              <Globe className="h-4 w-4 mr-1" />
-              <span>Public</span>
-            </div>
-          )}
+          <div className="flex items-center gap-4">
+            {activeTunnel && (
+              <TunnelStatusIndicator
+                status={activeTunnel.status}
+                message={activeTunnel.statusMsg}
+              />
+            )}
+            {tunnel.gatewayPorts && (
+              <div
+                className="flex items-center text-xs text-muted-foreground"
+                title="GatewayPorts enabled"
+              >
+                <Globe className="h-4 w-4 mr-1" />
+                <span>Public</span>
+              </div>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="px-4">
@@ -197,35 +217,43 @@ export function SavedTunnelItem({
         </div>
       </CardContent>
       <CardFooter className="px-4 pb-0 flex justify-end space-x-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onDuplicate(tunnel.id)}
-        >
+        <Button variant="outline" size="sm" onClick={onDuplicate}>
           <Copy className="mr-2 h-4 w-4" /> Duplicate
         </Button>
         <Button variant="outline" size="sm" onClick={() => onEdit(tunnel)}>
           <Pencil className="mr-2 h-4 w-4" /> Edit
         </Button>
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={() => onDelete(tunnel.id)}
-        >
+        <Button variant="destructive" size="sm" onClick={onDelete}>
           <Trash2 className="mr-2 h-4 w-4" /> Delete
         </Button>
-        <Button
-          size="sm"
-          onClick={() => onStart(tunnel.id)}
-          disabled={isStarting}
-        >
-          {isStarting ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Play className="mr-2 h-4 w-4" />
-          )}
-          {isStarting ? 'Starting...' : 'Start'}
-        </Button>
+        {isRunning ? (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => onStop(activeTunnel!.id)}
+            disabled={isBusy}
+          >
+            {isStopping ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <StopCircle className="mr-2 h-4 w-4" />
+            )}
+            {isStopping ? 'Stopping...' : 'Stop'}
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            onClick={() => onStart(tunnel.id)}
+            disabled={isBusy}
+          >
+            {isStarting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="mr-2 h-4 w-4" />
+            )}
+            {isStarting ? 'Starting...' : isDisconnected ? 'Restart' : 'Start'}
+          </Button>
+        )}
       </CardFooter>
     </Card>
   )
