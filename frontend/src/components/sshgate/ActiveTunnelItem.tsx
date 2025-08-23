@@ -131,7 +131,7 @@ export function ActiveTunnelItem({ tunnel, onStop }: ActiveTunnelItemProps) {
   return (
     <Card
       data-state={isDisconnected ? 'disconnected' : 'active'}
-      className="data-[state=disconnected]:border-dashed data-[state=disconnected]:border-destructive/50 gap-3 py-3"
+      className="data-[state=disconnected]:border-dashed data-[state=disconnected]:border-destructive/50 gap-3 py-3 transition-colors hover:bg-muted"
     >
       <CardHeader className="px-4 pt-0">
         <div className="flex justify-between items-start">
