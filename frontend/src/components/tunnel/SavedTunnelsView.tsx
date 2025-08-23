@@ -196,6 +196,12 @@ export const SavedTunnelsView = forwardRef<
     })
   )
 
+  const logger = useMemo(() => {
+    return appLogger.withPrefix('SavedTunnelsView')
+  }, [])
+
+  logger.debug('SavedTunnelsView is rendering')
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
 
@@ -267,10 +273,6 @@ export const SavedTunnelsView = forwardRef<
     onOpenTerminal: () => {}, // Not used in 'verify' mode
   })
 
-  const logger = useMemo(() => {
-    return appLogger.withPrefix('SavedTunnelsView')
-  }, [])
-
   const fetchSavedTunnels = useCallback(async () => {
     try {
       const tunnels = await GetSavedTunnels()
@@ -338,6 +340,9 @@ export const SavedTunnelsView = forwardRef<
       const aliasForDisplay =
         tunnel.hostSource === 'ssh_config' ? tunnel.hostAlias! : tunnel.name
 
+      logger.debug('handleStart', { aliasForDisplay, id })
+
+      logger.debug('Connect function(verifyAndGetPassword) is being CALLED')
       // Use the hook to handle password/host key verification.
       // It returns the password if successful, or null if cancelled.
       const password = await verifyAndGetPassword({

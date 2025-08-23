@@ -1,6 +1,4 @@
-// src/hooks/useSshConnection.ts
-
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { types } from '@wailsjs/go/models'
 import {
@@ -15,6 +13,7 @@ import {
   StartRemoteSession,
 } from '@wailsjs/go/terminal/Service'
 import { useDialog } from '@/hooks/useDialog'
+import { appLogger } from '@/lib/logger'
 
 // --- State Machine Types ---
 interface ConnectionContext {
@@ -116,7 +115,20 @@ export function useSshConnection({
 }: UseSshConnectionProps): SshConnectionHook {
   const [state, setState] = useState<ConnectionState>({ status: 'idle' })
 
+  const logger = useMemo(() => {
+    return appLogger.withPrefix('useSshConnection')
+  }, [])
+
+  logger.debug(
+    'useSshConnection hook is running, current status:',
+    state.status
+  )
+
   useEffect(() => {
+    logger.debug(
+      "useSshConnection hook's useEffect is running, current status:",
+      state.status
+    )
     const processState = async () => {
       switch (state.status) {
         case 'connecting': {
@@ -367,7 +379,7 @@ export function useSshConnection({
       }
     }
     void processState()
-  }, [state, showDialog, onOpenTerminal])
+  }, [state, showDialog, onOpenTerminal, logger])
 
   const connect = useCallback(
     (options: ConnectOptions): Promise<string | null> => {
