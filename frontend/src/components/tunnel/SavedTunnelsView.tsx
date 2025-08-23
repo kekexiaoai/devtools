@@ -6,6 +6,7 @@ import React, {
   useRef,
   forwardRef,
   useImperativeHandle,
+  useLayoutEffect,
 } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -38,6 +39,73 @@ import { toast } from 'sonner'
 import { CreateTunnelDialog } from './CreateTunnelDialog'
 import { appLogger } from '@/lib/logger'
 
+// Helper component for the navigation list item with conditional tooltip
+const NavListItem = ({
+  tunnel,
+  statusBgColorClass,
+  isSelected,
+  onClick,
+}: {
+  tunnel: sshtunnel.SavedTunnelConfig
+  statusBgColorClass: string
+  isSelected: boolean
+  onClick: () => void
+}) => {
+  const [isTruncated, setIsTruncated] = useState(false)
+  const nameRef = useRef<HTMLDivElement>(null)
+
+  // This effect now runs on every render. The parent component will be
+  // forced to re-render after the sidebar transition ends, which will
+  // trigger this effect to re-measure correctly.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    const element = nameRef.current
+    if (element) {
+      const hasOverflow = element.scrollWidth > element.clientWidth
+      // Only update state if the truncation status has changed,
+      // to prevent an infinite re-render loop.
+      if (hasOverflow !== isTruncated) {
+        setIsTruncated(hasOverflow)
+      }
+    }
+  })
+
+  const navButton = (
+    <Button
+      variant={isSelected ? 'secondary' : 'ghost'}
+      className="w-full h-8 justify-start pl-2"
+      onClick={onClick}
+    >
+      <span
+        className={cn(
+          'h-2 w-2 rounded-full flex-shrink-0 mr-2',
+          statusBgColorClass
+        )}
+      />
+      {/* Using a div as the flex item is more reliable for truncation and measurement than a span. */}
+      <div ref={nameRef} className="truncate min-w-0">
+        {tunnel.name}
+      </div>
+    </Button>
+  )
+
+  // Only wrap with TooltipProvider and Tooltip if the name is actually truncated.
+  if (isTruncated) {
+    return (
+      <TooltipProvider>
+        <Tooltip delayDuration={300}>
+          <TooltipTrigger asChild>{navButton}</TooltipTrigger>
+          <TooltipContent side="right" align="start">
+            <p>{tunnel.name}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+
+  return navButton
+}
+
 interface SavedTunnelsViewProps {
   hosts: types.SSHHost[]
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
@@ -60,6 +128,26 @@ export const SavedTunnelsView = forwardRef<
   const [editingTunnel, setEditingTunnel] = useState<
     sshtunnel.SavedTunnelConfig | undefined
   >(undefined)
+
+  // This dummy state is used to force a re-render of the component.
+  const [, setForceRender] = useState(0)
+  const navPanelRef = useRef<HTMLDivElement>(null)
+
+  // This effect adds a 'transitionend' listener to the navigation panel.
+  // When the collapse/expand animation finishes, it forces a re-render
+  // of the component. This ensures that the NavListItem components inside
+  // re-run their layout effects to correctly calculate if text is truncated.
+  useEffect(() => {
+    const panel = navPanelRef.current
+    if (!panel) return
+
+    const handleTransitionEnd = () => {
+      setForceRender((c) => c + 1)
+    }
+
+    panel.addEventListener('transitionend', handleTransitionEnd)
+    return () => panel.removeEventListener('transitionend', handleTransitionEnd)
+  }, []) // Empty array ensures this runs only on mount and unmount.
 
   const [isNavCollapsed, setIsNavCollapsed] = useState(
     () => localStorage.getItem('tunnel-nav-collapsed') === 'true'
@@ -299,9 +387,10 @@ export const SavedTunnelsView = forwardRef<
       <div className="flex-1 flex gap-6 min-h-0">
         {/* Left Navigation Panel */}
         <div
+          ref={navPanelRef}
           className={cn(
             'flex-shrink-0 border-r transition-all duration-300 ease-in-out flex flex-col', // Adjust collapsed width
-            isNavCollapsed ? 'w-10' : 'w-52'
+            isNavCollapsed ? 'w-10' : 'w-56'
           )}
         >
           <div className="flex-1 h-full overflow-y-auto pr-2 pt-2">
@@ -328,49 +417,40 @@ export const SavedTunnelsView = forwardRef<
                   statusBgColorClass = 'bg-yellow-500'
                 }
 
-                const navButton = (
-                  <Button
-                    variant={
-                      selectedNavId === tunnel.id ? 'secondary' : 'ghost'
-                    }
-                    className={cn(
-                      'w-full h-8',
-                      isNavCollapsed
-                        ? 'justify-center px-0'
-                        : 'justify-start pl-2'
-                    )}
-                    onClick={() => handleNavClick(tunnel.id)}
-                  >
-                    {isNavCollapsed ? (
-                      // Use TrainFrontTunnel icon
+                if (isNavCollapsed) {
+                  const navButton = (
+                    <Button
+                      variant={
+                        selectedNavId === tunnel.id ? 'secondary' : 'ghost'
+                      }
+                      className="w-full h-8 justify-center px-0"
+                      onClick={() => handleNavClick(tunnel.id)}
+                    >
                       <TrainFrontTunnel
                         className={cn('h-5 w-5', statusColorClass)}
                       />
-                    ) : (
-                      <>
-                        <span
-                          className={cn(
-                            'h-2 w-2 rounded-full flex-shrink-0 mr-2',
-                            statusBgColorClass
-                          )}
-                        />
-                        <span className="truncate">{tunnel.name}</span>
-                      </>
-                    )}
-                  </Button>
-                )
+                    </Button>
+                  )
+                  return (
+                    <TooltipProvider key={tunnel.id}>
+                      <Tooltip delayDuration={0}>
+                        <TooltipTrigger asChild>{navButton}</TooltipTrigger>
+                        <TooltipContent side="right">
+                          <p>{tunnel.name}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )
+                }
 
-                return isNavCollapsed ? (
-                  <TooltipProvider key={tunnel.id}>
-                    <Tooltip delayDuration={0}>
-                      <TooltipTrigger asChild>{navButton}</TooltipTrigger>
-                      <TooltipContent side="right">
-                        <p>{tunnel.name}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ) : (
-                  <div key={tunnel.id}>{navButton}</div>
+                return (
+                  <NavListItem
+                    key={tunnel.id}
+                    tunnel={tunnel}
+                    statusBgColorClass={statusBgColorClass}
+                    isSelected={selectedNavId === tunnel.id}
+                    onClick={() => handleNavClick(tunnel.id)}
+                  />
                 )
               })}
             </div>
