@@ -25,7 +25,8 @@ import (
 
 // TunnelsConfig is the root object for the tunnels JSON configuration file.
 type TunnelsConfig struct {
-	Tunnels []sshtunnel.SavedTunnelConfig `json:"tunnels"`
+	Tunnels      []sshtunnel.SavedTunnelConfig `json:"tunnels"`
+	TunnelsOrder []string                      `json:"tunnelsOrder,omitempty"`
 }
 
 // Service 封装了所有与 SSH Gate 功能相关的后端逻辑
@@ -246,10 +247,45 @@ func (s *Service) GetSavedTunnels() ([]sshtunnel.SavedTunnelConfig, error) {
 	s.configMu.RLock()
 	defer s.configMu.RUnlock()
 
-	// Return a copy to avoid race conditions if the caller modifies the slice.
-	tunnels := make([]sshtunnel.SavedTunnelConfig, len(s.tunnelsConfig.Tunnels))
-	copy(tunnels, s.tunnelsConfig.Tunnels)
-	return tunnels, nil
+	// If no custom order is defined, or if it's out of sync, return the default order.
+	if len(s.tunnelsConfig.TunnelsOrder) == 0 {
+		// Return a copy to avoid race conditions if the caller modifies the slice.
+		tunnels := make([]sshtunnel.SavedTunnelConfig, len(s.tunnelsConfig.Tunnels))
+		copy(tunnels, s.tunnelsConfig.Tunnels)
+		return tunnels, nil
+	}
+
+	// Create a map for quick lookup of tunnels by ID.
+	tunnelMap := make(map[string]sshtunnel.SavedTunnelConfig, len(s.tunnelsConfig.Tunnels))
+	for _, t := range s.tunnelsConfig.Tunnels {
+		tunnelMap[t.ID] = t
+	}
+
+	// Create the ordered list based on TunnelsOrder.
+	orderedTunnels := make([]sshtunnel.SavedTunnelConfig, 0, len(s.tunnelsConfig.Tunnels))
+	// Keep track of which tunnels have been added to the ordered list.
+	addedTunnels := make(map[string]bool)
+
+	for _, id := range s.tunnelsConfig.TunnelsOrder {
+		if tunnel, ok := tunnelMap[id]; ok {
+			orderedTunnels = append(orderedTunnels, tunnel)
+			addedTunnels[id] = true
+		}
+	}
+
+	// Find any tunnels that are in the config but not in the order list (e.g., newly created ones).
+	var unorderedTunnels []sshtunnel.SavedTunnelConfig
+	// To maintain the original order of new items (which are prepended), we iterate through the original slice.
+	for _, tunnel := range s.tunnelsConfig.Tunnels {
+		if _, ok := addedTunnels[tunnel.ID]; !ok {
+			unorderedTunnels = append(unorderedTunnels, tunnel)
+		}
+	}
+
+	// Prepend the unordered (new) tunnels to the ordered list to ensure they appear at the top.
+	finalTunnels := append(unorderedTunnels, orderedTunnels...)
+
+	return finalTunnels, nil
 }
 
 // SaveTunnelConfig saves (creates or updates) a tunnel configuration.
@@ -297,6 +333,17 @@ func (s *Service) DeleteTunnelConfig(id string) error {
 	if foundIndex != -1 {
 		// Remove the element from the slice
 		s.tunnelsConfig.Tunnels = append(s.tunnelsConfig.Tunnels[:foundIndex], s.tunnelsConfig.Tunnels[foundIndex+1:]...)
+
+		// Also remove from the order slice to keep it clean
+		if len(s.tunnelsConfig.TunnelsOrder) > 0 {
+			newOrder := make([]string, 0, len(s.tunnelsConfig.TunnelsOrder)-1)
+			for _, orderID := range s.tunnelsConfig.TunnelsOrder {
+				if orderID != id {
+					newOrder = append(newOrder, orderID)
+				}
+			}
+			s.tunnelsConfig.TunnelsOrder = newOrder
+		}
 		// Also delete any saved password for this tunnel
 		if err := s.sshManager.DeletePassword(id); err != nil {
 			// Log as a warning, as the primary operation (deleting the config) succeeded.
@@ -343,6 +390,20 @@ func (s *Service) DuplicateTunnelConfig(id string) (*sshtunnel.SavedTunnelConfig
 	s.tunnelsConfig.Tunnels = append([]sshtunnel.SavedTunnelConfig{newConfig}, s.tunnelsConfig.Tunnels...)
 
 	return &newConfig, s.saveTunnelsConfig()
+}
+
+// UpdateTunnelsOrder saves the new order of tunnels.
+func (s *Service) UpdateTunnelsOrder(order []string) error {
+	s.configMu.Lock()
+	defer s.configMu.Unlock()
+
+	s.tunnelsConfig.TunnelsOrder = order
+	log.Printf("Updating tunnels order. New order has %d items.", len(order))
+
+	// We save the entire config, which now includes the new order.
+	// This will also trigger the 'saved_tunnels_changed' event, which is what we want,
+	// so the frontend re-fetches the correctly ordered list.
+	return s.saveTunnelsConfig()
 }
 
 // deletePasswordsForTunnelsUsingAlias is a helper to clean up keychain entries

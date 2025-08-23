@@ -17,6 +17,23 @@ import {
   TrainFrontTunnel,
 } from 'lucide-react'
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -29,6 +46,7 @@ import {
   DeletePassword,
   StopForward,
   StartTunnelFromConfig,
+  UpdateTunnelsOrder,
 } from '@wailsjs/go/sshgate/Service'
 import { EventsOn } from '@wailsjs/runtime'
 import { sshtunnel, types } from '@wailsjs/go/models'
@@ -39,6 +57,43 @@ import { toast } from 'sonner'
 import { CreateTunnelDialog } from './CreateTunnelDialog'
 import { appLogger } from '@/lib/logger'
 
+// Helper for the sortable wrapper
+const SortableWrapper = ({
+  id,
+  children,
+}: {
+  id: string
+  children: React.ReactNode
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    // The listeners are spread onto this div to make it draggable.
+    // The cursor classes provide visual feedback.
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="cursor-grab active:cursor-grabbing"
+    >
+      {children}
+    </div>
+  )
+}
 // Helper component for the navigation list item with conditional tooltip
 const NavListItem = ({
   tunnel,
@@ -128,6 +183,46 @@ export const SavedTunnelsView = forwardRef<
   const [editingTunnel, setEditingTunnel] = useState<
     sshtunnel.SavedTunnelConfig | undefined
   >(undefined)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        // Require mouse to move 8px to start dragging, to avoid interfering with clicks
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      setSavedTunnels((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id)
+        const newIndex = items.findIndex((item) => item.id === over.id)
+
+        if (oldIndex === -1 || newIndex === -1) {
+          return items
+        }
+
+        const newOrder = arrayMove(items, oldIndex, newIndex)
+
+        // Persist the new order to the backend
+        const newOrderIds = newOrder.map((item) => item.id)
+        UpdateTunnelsOrder(newOrderIds).catch((err) => {
+          toast.error('Failed to save tunnel order.')
+          logger.error('Failed to update tunnel order:', err)
+          // Revert to the original order on failure
+          setSavedTunnels(items)
+        })
+
+        return newOrder
+      })
+    }
+  }
 
   // This dummy state is used to force a re-render of the component.
   const [, setForceRender] = useState(0)
@@ -324,7 +419,7 @@ export const SavedTunnelsView = forwardRef<
       // We don't need to block or show an error if this fails, as the main
       // action (deleting the config) was successful.
       DeletePassword(id).catch((err) => {
-        console.warn(`Could not delete password for tunnel ${id}:`, err)
+        logger.warn(`Could not delete password for tunnel ${id}:`, err)
       })
 
       toast.success(`Tunnel "${tunnel.name}" deleted.`)
@@ -393,68 +488,81 @@ export const SavedTunnelsView = forwardRef<
             isNavCollapsed ? 'w-10' : 'w-56'
           )}
         >
-          <div className="flex-1 h-full overflow-y-auto pr-2 pt-2">
-            <div className="space-y-1">
-              {savedTunnels.map((tunnel) => {
-                const activeTunnel = activeTunnelMap.get(getTunnelKey(tunnel))
-                const status = activeTunnel?.status
-                const isRunning = status === 'active'
-                const isDisconnected = status === 'disconnected'
-                const isBusy =
-                  startingTunnelId === tunnel.id || status === 'stopping'
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={savedTunnels.map((t) => t.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="flex-1 h-full overflow-y-auto pr-2 pt-2">
+                <div className="space-y-1">
+                  {savedTunnels.map((tunnel) => {
+                    const activeTunnel = activeTunnelMap.get(
+                      getTunnelKey(tunnel)
+                    )
+                    const status = activeTunnel?.status
+                    const isRunning = status === 'active'
+                    const isDisconnected = status === 'disconnected'
+                    const isBusy =
+                      startingTunnelId === tunnel.id || status === 'stopping'
 
-                // Use Tailwind classes for better JIT compilation and consistency
-                let statusColorClass = 'text-gray-400'
-                let statusBgColorClass = 'bg-gray-400'
-                if (isRunning) {
-                  statusColorClass = 'text-green-500'
-                  statusBgColorClass = 'bg-green-500'
-                } else if (isDisconnected) {
-                  statusColorClass = 'text-red-500'
-                  statusBgColorClass = 'bg-red-500'
-                } else if (isBusy) {
-                  statusColorClass = 'text-yellow-500'
-                  statusBgColorClass = 'bg-yellow-500'
-                }
+                    // Use Tailwind classes for better JIT compilation and consistency
+                    let statusColorClass = 'text-gray-400'
+                    let statusBgColorClass = 'bg-gray-400'
+                    if (isRunning) {
+                      statusColorClass = 'text-green-500'
+                      statusBgColorClass = 'bg-green-500'
+                    } else if (isDisconnected) {
+                      statusColorClass = 'text-red-500'
+                      statusBgColorClass = 'bg-red-500'
+                    } else if (isBusy) {
+                      statusColorClass = 'text-yellow-500'
+                      statusBgColorClass = 'bg-yellow-500'
+                    }
 
-                if (isNavCollapsed) {
-                  const navButton = (
-                    <Button
-                      variant={
-                        selectedNavId === tunnel.id ? 'secondary' : 'ghost'
-                      }
-                      className="w-full h-8 justify-center px-0"
-                      onClick={() => handleNavClick(tunnel.id)}
-                    >
-                      <TrainFrontTunnel
-                        className={cn('h-5 w-5', statusColorClass)}
-                      />
-                    </Button>
-                  )
-                  return (
-                    <TooltipProvider key={tunnel.id}>
-                      <Tooltip delayDuration={0}>
-                        <TooltipTrigger asChild>{navButton}</TooltipTrigger>
-                        <TooltipContent side="right">
-                          <p>{tunnel.name}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )
-                }
-
-                return (
-                  <NavListItem
-                    key={tunnel.id}
-                    tunnel={tunnel}
-                    statusBgColorClass={statusBgColorClass}
-                    isSelected={selectedNavId === tunnel.id}
-                    onClick={() => handleNavClick(tunnel.id)}
-                  />
-                )
-              })}
-            </div>
-          </div>
+                    return (
+                      <SortableWrapper key={tunnel.id} id={tunnel.id}>
+                        {isNavCollapsed ? (
+                          <TooltipProvider>
+                            <Tooltip delayDuration={0}>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant={
+                                    selectedNavId === tunnel.id
+                                      ? 'secondary'
+                                      : 'ghost'
+                                  }
+                                  className="w-full h-8 justify-center px-0"
+                                  onClick={() => handleNavClick(tunnel.id)}
+                                >
+                                  <TrainFrontTunnel
+                                    className={cn('h-5 w-5', statusColorClass)}
+                                  />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="right">
+                                <p>{tunnel.name}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          <NavListItem
+                            tunnel={tunnel}
+                            statusBgColorClass={statusBgColorClass}
+                            isSelected={selectedNavId === tunnel.id}
+                            onClick={() => handleNavClick(tunnel.id)}
+                          />
+                        )}
+                      </SortableWrapper>
+                    )
+                  })}
+                </div>
+              </div>
+            </SortableContext>
+          </DndContext>
           <div className="flex-shrink-0 border-t p-2">
             <TooltipProvider>
               <Tooltip delayDuration={0}>

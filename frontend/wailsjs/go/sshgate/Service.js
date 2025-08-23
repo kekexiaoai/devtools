@@ -90,6 +90,10 @@ export function StopForward(arg1) {
   return window['go']['sshgate']['Service']['StopForward'](arg1);
 }
 
+export function UpdateTunnelsOrder(arg1) {
+  return window['go']['sshgate']['Service']['UpdateTunnelsOrder'](arg1);
+}
+
 export function VerifyTunnelConfigConnection(arg1, arg2) {
   return window['go']['sshgate']['Service']['VerifyTunnelConfigConnection'](arg1, arg2);
 }
