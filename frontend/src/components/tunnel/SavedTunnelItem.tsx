@@ -18,6 +18,7 @@ import {
   Loader2,
   Copy,
 } from 'lucide-react'
+import { CopyableAddress } from '@/components/ui/copyable-address'
 
 interface SavedTunnelItemProps {
   tunnel: sshtunnel.SavedTunnelConfig
@@ -32,14 +33,14 @@ interface SavedTunnelItemProps {
 const formatTunnelDescription = (
   tunnel: sshtunnel.SavedTunnelConfig
 ): React.ReactNode => {
-  const localPart = `localhost:${tunnel.localPort}`
+  const localPart = (
+    <CopyableAddress address={`localhost:${tunnel.localPort}`} />
+  )
   if (tunnel.tunnelType === 'local') {
     const remotePart = `${tunnel.remoteHost}:${tunnel.remotePort}`
     return (
       <div className="flex items-center space-x-2">
-        <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
-          {localPart}
-        </span>
+        {localPart}
         <ArrowRight className="h-4 w-4 text-muted-foreground" />
         <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
           {remotePart}
@@ -50,9 +51,7 @@ const formatTunnelDescription = (
   if (tunnel.tunnelType === 'dynamic') {
     return (
       <div className="flex items-center space-x-2">
-        <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
-          {localPart}
-        </span>
+        {localPart}
         <ArrowRight className="h-4 w-4 text-muted-foreground" />
         <span className="font-mono text-sm">SOCKS5 Proxy</span>
       </div>
@@ -82,11 +81,11 @@ export function SavedTunnelItem({
 }: SavedTunnelItemProps) {
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="p-4">
         <div className="flex justify-between items-start">
           <div>
             <CardTitle>{tunnel.name}</CardTitle>
-            <CardDescription className="pt-2">
+            <CardDescription className="pt-1">
               {formatHostInfo(tunnel)}
             </CardDescription>
           </div>
@@ -101,8 +100,10 @@ export function SavedTunnelItem({
           )}
         </div>
       </CardHeader>
-      <CardContent>{formatTunnelDescription(tunnel)}</CardContent>
-      <CardFooter className="flex justify-end space-x-2">
+      <CardContent className="px-4 pb-4">
+        {formatTunnelDescription(tunnel)}
+      </CardContent>
+      <CardFooter className="px-4 pb-4 flex justify-end space-x-2">
         <Button
           variant="outline"
           size="sm"
