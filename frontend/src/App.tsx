@@ -1,14 +1,22 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DialogProvider } from './components/providers/DialogProvider'
 import { Sidebar } from './components/Sidebar'
 import { JsonToolsView } from './views/JsonToolsView'
 import { FileSyncerView } from './views/FileSyncerView'
 import { SshGateView } from './views/SshGateView'
 import { TerminalView } from './views/TerminalView'
+import { DashboardView } from './views/DashboardView'
 import { TunnelsView } from './views/TunnelsView'
 import { SettingsView } from './views/SettingsView'
 import { useSettingsStore } from './hooks/useSettingsStore'
 import { TitleBar } from '@/components/TitleBar'
+import { CreateTunnelDialog } from '@/components/tunnel/CreateTunnelDialog'
+import {
+  GetActiveTunnels,
+  GetSavedTunnels,
+  StartTunnelFromConfig,
+  UpdateTunnelsOrder,
+} from '@wailsjs/go/sshgate/Service'
 import {
   EventsOn,
   WindowIsFullscreen,
@@ -34,8 +42,8 @@ import { Button } from './components/ui/button'
 
 import { AlertTriangle } from 'lucide-react'
 import { useThemeDetector } from './hooks/useThemeDetector'
-import { Toaster } from 'sonner'
-import { types } from '@wailsjs/go/models'
+import { Toaster, toast } from 'sonner'
+import { sshtunnel, types } from '@wailsjs/go/models'
 import { useSshConnection } from './hooks/useSshConnection'
 import { useDialog } from './hooks/useDialog'
 import { appLogger } from './lib/logger'
@@ -47,7 +55,8 @@ export type TerminalSession = types.TerminalSessionInfo & {
   status: ConnectionStatus
 }
 
-const toolIds = [
+export const toolIds = [
+  'Dashboard',
   'FileSyncer',
   'JsonTools',
   'SshGate',
@@ -61,7 +70,7 @@ const toolIds = [
  */
 function AppContent() {
   const [isBackendReady, setIsBackendReady] = useState(false)
-  const [activeTool, setActiveTool] = useState('SshGate')
+  const [activeTool, setActiveTool] = useState('Dashboard')
 
   const [uiScale, setUiScale] = useState<UiScale>('default')
 
@@ -72,6 +81,28 @@ function AppContent() {
   const [terminalSessions, setTerminalSessions] = useState<TerminalSession[]>(
     []
   )
+  // --- State lifted from TunnelsView for global access ---
+  const [savedTunnels, setSavedTunnels] = useState<
+    sshtunnel.SavedTunnelConfig[]
+  >([])
+  const [activeTunnels, setActiveTunnels] = useState<
+    sshtunnel.ActiveTunnelInfo[]
+  >([])
+  const [startingTunnelIds, setStartingTunnelIds] = useState<string[]>([])
+  const [tunnelErrors, setTunnelErrors] = useState<Map<string, Error>>(
+    new Map()
+  )
+  const [isLoadingTunnels, setIsLoadingTunnels] = useState(true)
+  const [shouldStartNext, setShouldStartNext] = useState(false)
+  const prevTunnelsRef = useRef<sshtunnel.SavedTunnelConfig[] | undefined>(
+    undefined
+  )
+
+  // --- State for Tunnel Create/Edit Dialog (lifted from TunnelsView) ---
+  const [isTunnelDialogOpen, setIsTunnelDialogOpen] = useState(false)
+  const [editingTunnel, setEditingTunnel] = useState<
+    sshtunnel.SavedTunnelConfig | undefined
+  >(undefined)
 
   // --- Global Settings Integration ---
   const appTheme = useSettingsStore((state) => state.theme)
@@ -86,6 +117,37 @@ function AppContent() {
   const logger = useMemo(() => {
     return appLogger
   }, [])
+
+  const { showDialog } = useDialog()
+  const { connect: verifyAndGetPassword } = useSshConnection({
+    showDialog,
+    onOpenTerminal: () => {}, // Not used in 'verify' mode
+  })
+
+  // This is a workaround to satisfy the `CreateTunnelDialog`'s `hosts` prop,
+  // which expects the older `types.SSHHost[]` structure for validation.
+  // The long-term fix is to refactor `CreateTunnelDialog` to use `sshtunnel.SavedTunnelConfig[]`.
+  const sshHostsForDialog = useMemo(
+    (): types.SSHHost[] =>
+      savedTunnels.map((t) => {
+        // For manual hosts, the connection details are stored in the `manualHost` object.
+        // For ssh_config hosts, these details are not available on the SavedTunnelConfig object.
+        const hostName =
+          t.hostSource === 'manual' ? (t.manualHost?.hostName ?? '') : ''
+        const user = t.hostSource === 'manual' ? (t.manualHost?.user ?? '') : ''
+        const port = t.hostSource === 'manual' ? (t.manualHost?.port ?? '') : ''
+
+        return new types.SSHHost({
+          id: t.id,
+          name: t.name,
+          alias: t.hostAlias ?? '',
+          hostName,
+          user,
+          port,
+        })
+      }),
+    [savedTunnels]
+  )
 
   // 监听后端就绪事件
   useEffect(() => {
@@ -246,6 +308,167 @@ function AppContent() {
     await ForceQuit() // 调用后端函数，真正退出
   }
 
+  // --- tunnel ---
+
+  // --- Tunnel Dialog Handlers (lifted from TunnelsView) ---
+  const handleOpenCreateTunnel = useCallback(() => {
+    setEditingTunnel(undefined)
+    setIsTunnelDialogOpen(true)
+  }, [])
+
+  const handleEditTunnel = useCallback(
+    (tunnel: sshtunnel.SavedTunnelConfig) => {
+      setEditingTunnel(tunnel)
+      setIsTunnelDialogOpen(true)
+    },
+    []
+  )
+
+  const handleTunnelDialogSuccess = useCallback((shouldStart: boolean) => {
+    setIsTunnelDialogOpen(false)
+    if (shouldStart) setShouldStartNext(true)
+  }, [])
+
+  // --- Tunnel Management Logic (Lifted from TunnelsView) ---
+  const fetchSavedTunnels = useCallback(async () => {
+    try {
+      setSavedTunnels(await GetSavedTunnels())
+    } catch (error) {
+      logger.error(`Failed to load saved tunnels: ${String(error)}`)
+    }
+  }, [logger])
+
+  const fetchActiveTunnels = useCallback(
+    async (isInitialLoad = false) => {
+      if (isInitialLoad) {
+        setIsLoadingTunnels(true)
+      }
+      try {
+        const tunnels = await GetActiveTunnels()
+        setActiveTunnels(tunnels)
+      } catch (error) {
+        logger.error(`Failed to fetch active tunnels: ${String(error)}`)
+      } finally {
+        if (isInitialLoad) {
+          setIsLoadingTunnels(false)
+        }
+      }
+    },
+    [logger]
+  )
+
+  const handleStartTunnel = useCallback(
+    (id: string) => {
+      const tunnel = savedTunnels.find((t) => t.id === id)
+      if (!tunnel) {
+        toast.error('Could not find tunnel configuration.')
+        return
+      }
+
+      setStartingTunnelIds((prev) => [...prev, id])
+
+      const promise = (async (): Promise<string> => {
+        const aliasForDisplay =
+          tunnel.hostSource === 'ssh_config' ? tunnel.hostAlias! : tunnel.name
+
+        const password = await verifyAndGetPassword({
+          alias: aliasForDisplay,
+          strategy: 'verify',
+          tunnelConfigID: id,
+        })
+
+        if (password === null) {
+          throw new Error('Tunnel creation cancelled.')
+        }
+
+        await StartTunnelFromConfig(id, password)
+        return `Tunnel "${tunnel.name}" started successfully.`
+      })()
+
+      toast.promise(promise, {
+        loading: `Starting tunnel "${tunnel.name}"...`,
+        success: (msg) => {
+          setTunnelErrors((prev) => {
+            const newErrors = new Map(prev)
+            newErrors.delete(id)
+            return newErrors
+          })
+          return msg
+        },
+        error: (error: unknown) => {
+          const err = error instanceof Error ? error : new Error(String(error))
+          setTunnelErrors((prev) => new Map(prev).set(id, err))
+          return err.message.includes('cancelled')
+            ? 'Operation cancelled.'
+            : `Failed to start tunnel: ${err.message}`
+        },
+        finally: () => {
+          setStartingTunnelIds((prev) =>
+            prev.filter((tunnelId) => tunnelId !== id)
+          )
+        },
+      })
+    },
+    [savedTunnels, verifyAndGetPassword]
+  )
+
+  useEffect(() => {
+    // This effect handles the "start after create" feature.
+    const prevTunnels = prevTunnelsRef.current
+    if (
+      shouldStartNext &&
+      prevTunnels &&
+      savedTunnels.length > prevTunnels.length
+    ) {
+      const prevTunnelIds = new Set(prevTunnels.map((t) => t.id))
+      const newTunnel = savedTunnels.find((t) => !prevTunnelIds.has(t.id))
+
+      if (newTunnel) {
+        logger.info(`Auto-starting newly created tunnel: ${newTunnel.name}`)
+        handleStartTunnel(newTunnel.id)
+      }
+      setShouldStartNext(false)
+    }
+    prevTunnelsRef.current = savedTunnels
+  }, [savedTunnels, shouldStartNext, handleStartTunnel, logger])
+
+  const handleOrderChange = useCallback(
+    (orderedIds: string[]) => {
+      const originalTunnels = [...savedTunnels]
+      setSavedTunnels((currentTunnels) => {
+        const tunnelMap = new Map(currentTunnels.map((t) => [t.id, t]))
+        return orderedIds
+          .map((id) => tunnelMap.get(id))
+          .filter(Boolean) as sshtunnel.SavedTunnelConfig[]
+      })
+
+      UpdateTunnelsOrder(orderedIds).catch((err) => {
+        toast.error('Failed to save tunnel order.')
+        logger.error('Failed to update tunnel order:', err)
+        setSavedTunnels(originalTunnels)
+      })
+    },
+    [savedTunnels, logger]
+  )
+
+  useEffect(() => {
+    void fetchSavedTunnels()
+    void fetchActiveTunnels(true)
+    const cleanupTunnelChangedEvent = EventsOn(
+      'tunnels:changed',
+      () => void fetchActiveTunnels(false)
+    )
+    const cleanupSavedTunnelsChangedEvent = EventsOn(
+      'saved_tunnels_changed',
+      () => void fetchSavedTunnels()
+    )
+
+    return () => {
+      cleanupTunnelChangedEvent()
+      cleanupSavedTunnelsChangedEvent()
+    }
+  }, [fetchActiveTunnels, fetchSavedTunnels])
+
   // --- App 组件提供管理终端会话的函数 ---
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null)
 
@@ -340,8 +563,6 @@ function AppContent() {
     []
   )
 
-  const { showDialog } = useDialog()
-
   const { connect } = useSshConnection({
     showDialog,
     onOpenTerminal: createNewTerminalSession,
@@ -372,11 +593,24 @@ function AppContent() {
     [connect]
   )
 
+  const handleNavigate = (toolId: (typeof toolIds)[number]) => {
+    setActiveTool(toolId)
+  }
+
   const toolViews = useMemo(() => {
     // useMemo 会“记住”这个对象的计算结果。
     // 只有当它的依赖项（如 activeTool, terminalSessions 等）发生变化时，
     // 它才会重新计算这个对象，从而避免不必要的组件创建。
     return {
+      Dashboard: (
+        <DashboardView
+          onNavigate={handleNavigate}
+          onStartTunnel={handleStartTunnel}
+          savedTunnels={savedTunnels}
+          activeTunnels={activeTunnels}
+          onOpenCreateTunnel={handleOpenCreateTunnel}
+        />
+      ),
       FileSyncer: <FileSyncerView isActive={activeTool === 'FileSyncer'} />,
       JsonTools: <JsonToolsView isDarkMode={isDarkMode} />,
       SshGate: (
@@ -387,7 +621,20 @@ function AppContent() {
           isDarkMode={isDarkMode}
         />
       ),
-      Tunnels: <TunnelsView onConnect={connect} />,
+      Tunnels: (
+        <TunnelsView
+          onConnect={connect}
+          savedTunnels={savedTunnels}
+          activeTunnels={activeTunnels}
+          startingTunnelIds={startingTunnelIds}
+          tunnelErrors={tunnelErrors}
+          isLoadingTunnels={isLoadingTunnels}
+          onStartTunnel={handleStartTunnel}
+          onOrderChange={handleOrderChange}
+          onOpenCreateTunnel={handleOpenCreateTunnel}
+          onEditTunnel={handleEditTunnel}
+        />
+      ),
       Terminal: (
         <TerminalView
           isActive={activeTool === 'Terminal'}
@@ -406,18 +653,25 @@ function AppContent() {
       Settings: <SettingsView />,
     }
   }, [
+    handleStartTunnel,
+    savedTunnels,
+    activeTunnels,
+    handleOpenCreateTunnel,
     activeTool,
+    isDarkMode,
+    handleTerminalConnect,
+    connect,
+    startingTunnelIds,
+    tunnelErrors,
+    isLoadingTunnels,
+    handleOrderChange,
+    handleEditTunnel,
     terminalSessions,
     closeTerminal,
     renameTerminal,
     activeTerminalId,
-    handleTerminalConnect,
-    isDarkMode,
-    connect,
     reconnectTerminal,
     updateTerminalStatus,
-    // SettingsView and TunnelsView have no props, so no dependencies needed here
-    // SettingsView has no props, so no dependencies needed here
   ])
 
   // 在后端准备好之前，显示一个加载界面
@@ -491,6 +745,14 @@ function AppContent() {
       </AlertDialog>
       {/* 信息停靠站 */}
       <Toaster />
+      {/* Tunnel Create/Edit Dialog is now controlled at the App level */}
+      <CreateTunnelDialog
+        isOpen={isTunnelDialogOpen}
+        onOpenChange={setIsTunnelDialogOpen}
+        onSuccess={handleTunnelDialogSuccess}
+        hosts={sshHostsForDialog}
+        tunnelToEdit={editingTunnel}
+      />
     </>
   )
 }

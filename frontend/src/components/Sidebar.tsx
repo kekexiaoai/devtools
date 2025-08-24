@@ -7,6 +7,7 @@ import {
   ChevronsRight,
   Settings,
   TerminalSquare,
+  LayoutDashboard,
 } from 'lucide-react'
 import React from 'react'
 import { useSettingsStore } from '@/hooks/useSettingsStore'
@@ -17,6 +18,7 @@ interface SidebarProps {
 }
 
 const tools = [
+  { id: 'Dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { id: 'SshGate', icon: Server, label: 'SSH Gate' },
   { id: 'Tunnels', icon: TrainFrontTunnel, label: 'Tunnels' },
   { id: 'Terminal', icon: TerminalSquare, label: 'Terminal' },
