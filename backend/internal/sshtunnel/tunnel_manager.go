@@ -87,6 +87,7 @@ type ManualHostInfo struct {
 // Tunnel 代表一个活动的端口转发隧道
 type Tunnel struct {
 	ID         string
+	ConfigID   string // New field to link back to the saved config
 	Alias      string
 	Type       string // local, remote, dynamic
 	LocalAddr  string
@@ -101,6 +102,7 @@ type Tunnel struct {
 // ActiveTunnelInfo 是一个用于向前端展示的、简化的隧道信息结构
 type ActiveTunnelInfo struct {
 	ID         string       `json:"id"`
+	ConfigID   string       `json:"configId"` // New field for frontend
 	Alias      string       `json:"alias"`
 	Type       string       `json:"type"`
 	LocalAddr  string       `json:"localAddr"`
@@ -165,7 +167,7 @@ func (m *Manager) Shutdown() {
 }
 
 // CreateTunnelFromConfig is the core tunnel creation logic. It takes a pre-built connection configuration.
-func (m *Manager) CreateTunnelFromConfig(alias string, localPort int, gatewayPorts bool, tunnelType, remoteAddr string, connConfig *sshmanager.ConnectionConfig) (string, error) {
+func (m *Manager) CreateTunnelFromConfig(configID, alias string, localPort int, gatewayPorts bool, tunnelType, remoteAddr string, connConfig *sshmanager.ConnectionConfig) (string, error) {
 	// 1. Dial SSH server
 	serverAddr := fmt.Sprintf("%s:%s", connConfig.HostName, connConfig.Port)
 	sshClient, err := ssh.Dial("tcp", serverAddr, connConfig.ClientConfig)
@@ -200,6 +202,7 @@ func (m *Manager) CreateTunnelFromConfig(alias string, localPort int, gatewayPor
 	ctx, cancel := context.WithCancel(m.appCtx)
 	tunnel := &Tunnel{
 		ID:         tunnelID,
+		ConfigID:   configID, // Store the config ID
 		Alias:      alias,
 		Type:       tunnelType,
 		LocalAddr:  localAddr,
@@ -231,14 +234,29 @@ func (m *Manager) CreateTunnelFromConfig(alias string, localPort int, gatewayPor
 	return tunnelID, nil
 }
 
-// CreateTunnel is a wrapper around CreateTunnelFromConfig that retrieves the connection config from an alias.
-func (m *Manager) CreateTunnel(alias string, localPort int, password string, gatewayPorts bool, tunnelType, remoteAddr string) (string, error) {
+// createOnTheFlyTunnel is a helper for creating tunnels not based on a saved config (e.g., from TunnelDialog).
+// It retrieves the connection config from an alias and then calls the core creation logic.
+func (m *Manager) createOnTheFlyTunnel(alias string, localPort int, password string, gatewayPorts bool, tunnelType, remoteAddr string) (string, error) {
 	// Get connection config from the ssh manager
 	connConfig, _, err := m.sshManager.GetConnectionConfig(alias, password)
 	if err != nil {
-		return "", fmt.Errorf("failed to get SSH connection config for '%s': %w", alias, err)
+		// Use err.Error() to avoid complex error types for Wails IPC
+		return "", fmt.Errorf("failed to get SSH connection config for '%s': %s", alias, err.Error())
 	}
-	return m.CreateTunnelFromConfig(alias, localPort, gatewayPorts, tunnelType, remoteAddr, connConfig)
+	// For on-the-fly tunnels, the configID is empty.
+	return m.CreateTunnelFromConfig("", alias, localPort, gatewayPorts, tunnelType, remoteAddr, connConfig)
+}
+
+// StartLocalForward starts a local port forwarding tunnel (-L)
+func (m *Manager) StartLocalForward(alias string, localPort int, remoteHost string, remotePort int, password string, gatewayPorts bool) (string, error) {
+	remoteAddr := fmt.Sprintf("%s:%d", remoteHost, remotePort)
+	return m.createOnTheFlyTunnel(alias, localPort, password, gatewayPorts, "local", remoteAddr)
+}
+
+// StartDynamicForward starts a dynamic SOCKS5 proxy tunnel (-D)
+func (m *Manager) StartDynamicForward(alias string, localPort int, password string, gatewayPorts bool) (string, error) {
+	remoteAddr := "SOCKS5 Proxy" // Dynamic forwarding has no fixed remote address
+	return m.createOnTheFlyTunnel(alias, localPort, password, gatewayPorts, "dynamic", remoteAddr)
 }
 
 // monitorSSHConnection waits for the underlying SSH client connection to be
@@ -268,22 +286,6 @@ func (m *Manager) monitorSSHConnection(tunnel *Tunnel) {
 	// Close the listener to unblock the runTunnel goroutine, which will then call cleanup.
 	currentTunnel.listener.Close()
 	m.debounceChangeEvent() // Notify the frontend of the status change.
-}
-
-// --- 核心功能实现 - 本地端口转发 (-L) ---
-
-// StartLocalForward 启动一个本地端口转发隧道
-func (m *Manager) StartLocalForward(alias string, localPort int, remoteHost string, remotePort int, password string, gatewayPorts bool) (string, error) {
-	remoteAddr := fmt.Sprintf("%s:%d", remoteHost, remotePort)
-	return m.CreateTunnel(alias, localPort, password, gatewayPorts, "local", remoteAddr)
-}
-
-// --- 核心功能实现 - 动态端口转发 (-D) ---
-
-// StartDynamicForward 启动一个动态 SOCKS5 代理隧道
-func (m *Manager) StartDynamicForward(alias string, localPort int, password string, gatewayPorts bool) (string, error) {
-	remoteAddr := "SOCKS5 Proxy" // 动态转发没有固定的远程地址
-	return m.CreateTunnel(alias, localPort, password, gatewayPorts, "dynamic", remoteAddr)
 }
 
 func (m *Manager) runTunnel(tunnel *Tunnel, ctx context.Context) {
@@ -601,6 +603,7 @@ func (m *Manager) GetActiveTunnels() []ActiveTunnelInfo {
 	for _, tunnel := range m.activeTunnels {
 		info = append(info, ActiveTunnelInfo{
 			ID:         tunnel.ID,
+			ConfigID:   tunnel.ConfigID,
 			Alias:      tunnel.Alias,
 			Type:       tunnel.Type,
 			LocalAddr:  tunnel.LocalAddr,

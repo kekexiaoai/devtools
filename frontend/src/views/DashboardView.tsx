@@ -46,7 +46,7 @@ export function DashboardView({
 
   const activeTunnelMap = useMemo(() => {
     // Map by config ID for easier lookup
-    return new Map(activeTunnels.map((t) => [t.id, t]))
+    return new Map(activeTunnels.map((t) => [t.configId, t]))
   }, [activeTunnels])
 
   const recentTunnels = useMemo(() => {

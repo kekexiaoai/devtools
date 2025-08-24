@@ -525,7 +525,7 @@ func (s *Service) StartTunnelFromConfig(configID string, password string) (strin
 		return "", fmt.Errorf("unsupported tunnel type '%s'", savedConfig.TunnelType)
 	}
 
-	result, err := s.tunnelManager.CreateTunnelFromConfig(aliasForDisplay, savedConfig.LocalPort, savedConfig.GatewayPorts, savedConfig.TunnelType, remoteAddr, connConfig)
+	result, err := s.tunnelManager.CreateTunnelFromConfig(configID, aliasForDisplay, savedConfig.LocalPort, savedConfig.GatewayPorts, savedConfig.TunnelType, remoteAddr, connConfig)
 	if err != nil {
 		// Ensure complex errors from the tunnel manager are also converted to simple strings for Wails IPC.
 		// Using err.Error() is the safest way to get a plain string representation.

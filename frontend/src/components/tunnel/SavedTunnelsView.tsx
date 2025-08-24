@@ -237,11 +237,6 @@ export const SavedTunnelsView: React.FC<SavedTunnelsViewProps> = ({
   // New state for active navigation item
   const [selectedNavId, setSelectedNavId] = useState<string | null>(null)
 
-  const getTunnelKey = (tunnel: sshtunnel.SavedTunnelConfig): string => {
-    const bindAddr = tunnel.gatewayPorts ? '0.0.0.0' : '127.0.0.1'
-    return `${bindAddr}:${tunnel.localPort}`
-  }
-
   const handleNavClick = (tunnelId: string) => {
     const element = document.getElementById(`tunnel-card-${tunnelId}`)
     if (element) {
@@ -252,7 +247,7 @@ export const SavedTunnelsView: React.FC<SavedTunnelsViewProps> = ({
   }
 
   const activeTunnelMap = useMemo(() => {
-    return new Map(activeTunnels.map((t) => [t.localAddr, t]))
+    return new Map(activeTunnels.map((t) => [t.configId, t]))
   }, [activeTunnels])
 
   return (
@@ -278,9 +273,7 @@ export const SavedTunnelsView: React.FC<SavedTunnelsViewProps> = ({
               <div className="flex-1 h-full overflow-y-auto pr-2 pt-2">
                 <div className="space-y-1">
                   {savedTunnels.map((tunnel) => {
-                    const activeTunnel = activeTunnelMap.get(
-                      getTunnelKey(tunnel)
-                    )
+                    const activeTunnel = activeTunnelMap.get(tunnel.id)
                     const status = activeTunnel?.status
                     const isRunning = status === 'active'
                     const isDisconnected = status === 'disconnected'
@@ -387,7 +380,7 @@ export const SavedTunnelsView: React.FC<SavedTunnelsViewProps> = ({
           ) : (
             <div className="space-y-4">
               {savedTunnels.map((tunnel) => {
-                const activeTunnel = activeTunnelMap.get(getTunnelKey(tunnel))
+                const activeTunnel = activeTunnelMap.get(tunnel.id)
                 return (
                   // This div wrapper gets an ID for the scroll-to-view functionality.
                   <div

@@ -100,6 +100,7 @@ export namespace sshtunnel {
 	
 	export class ActiveTunnelInfo {
 	    id: string;
+	    configId: string;
 	    alias: string;
 	    type: string;
 	    localAddr: string;
@@ -114,6 +115,7 @@ export namespace sshtunnel {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
+	        this.configId = source["configId"];
 	        this.alias = source["alias"];
 	        this.type = source["type"];
 	        this.localAddr = source["localAddr"];
