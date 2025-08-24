@@ -1,12 +1,9 @@
 import React, {
-  useState,
   useEffect,
-  useCallback,
   useMemo,
   useRef,
-  forwardRef,
-  useImperativeHandle,
   useLayoutEffect,
+  useState,
 } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -39,22 +36,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import {
-  GetSavedTunnels,
-  DeleteTunnelConfig,
-  DuplicateTunnelConfig,
-  DeletePassword,
-  StopForward,
-  StartTunnelFromConfig,
-  UpdateTunnelsOrder,
-} from '@wailsjs/go/sshgate/Service'
-import { EventsOn } from '@wailsjs/runtime'
-import { sshtunnel, types } from '@wailsjs/go/models'
-import { useDialog } from '@/hooks/useDialog'
+import { sshtunnel } from '@wailsjs/go/models'
 import { SavedTunnelItem } from './SavedTunnelItem'
-import { useSshConnection } from '@/hooks/useSshConnection'
-import { toast } from 'sonner'
-import { CreateTunnelDialog } from './CreateTunnelDialog'
 import { appLogger } from '@/lib/logger'
 
 // Helper for the sortable wrapper
@@ -162,28 +145,30 @@ const NavListItem = ({
 }
 
 interface SavedTunnelsViewProps {
-  hosts: types.SSHHost[]
+  savedTunnels: sshtunnel.SavedTunnelConfig[]
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
+  isLoading: boolean
+  startingTunnelIds: string[]
+  onStartTunnel: (id: string) => void
+  onStopTunnel: (id: string) => void
+  onDeleteTunnel: (id: string) => void | Promise<void>
+  onDuplicateTunnel: (id: string) => void | Promise<void>
+  onOrderChange: (orderedIds: string[]) => void
+  onEditTunnel: (tunnel: sshtunnel.SavedTunnelConfig) => void
 }
 
-export interface SavedTunnelsViewRef {
-  handleCreate: () => void
-}
-
-export const SavedTunnelsView = forwardRef<
-  SavedTunnelsViewRef,
-  SavedTunnelsViewProps
->(({ hosts, activeTunnels }, ref) => {
-  const [savedTunnels, setSavedTunnels] = useState<
-    sshtunnel.SavedTunnelConfig[]
-  >([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [startingTunnelId, setStartingTunnelId] = useState<string | null>(null)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [editingTunnel, setEditingTunnel] = useState<
-    sshtunnel.SavedTunnelConfig | undefined
-  >(undefined)
-
+export const SavedTunnelsView: React.FC<SavedTunnelsViewProps> = ({
+  savedTunnels,
+  activeTunnels,
+  isLoading,
+  startingTunnelIds,
+  onStartTunnel,
+  onStopTunnel,
+  onDeleteTunnel,
+  onDuplicateTunnel,
+  onOrderChange,
+  onEditTunnel,
+}) => {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -206,27 +191,14 @@ export const SavedTunnelsView = forwardRef<
     const { active, over } = event
 
     if (over && active.id !== over.id) {
-      setSavedTunnels((items) => {
-        const oldIndex = items.findIndex((item) => item.id === active.id)
-        const newIndex = items.findIndex((item) => item.id === over.id)
+      const oldIndex = savedTunnels.findIndex((item) => item.id === active.id)
+      const newIndex = savedTunnels.findIndex((item) => item.id === over.id)
 
-        if (oldIndex === -1 || newIndex === -1) {
-          return items
-        }
+      if (oldIndex === -1 || newIndex === -1) return
 
-        const newOrder = arrayMove(items, oldIndex, newIndex)
-
-        // Persist the new order to the backend
-        const newOrderIds = newOrder.map((item) => item.id)
-        UpdateTunnelsOrder(newOrderIds).catch((err) => {
-          toast.error('Failed to save tunnel order.')
-          logger.error('Failed to update tunnel order:', err)
-          // Revert to the original order on failure
-          setSavedTunnels(items)
-        })
-
-        return newOrder
-      })
+      const newOrder = arrayMove(savedTunnels, oldIndex, newIndex)
+      const newOrderIds = newOrder.map((item) => item.id)
+      onOrderChange(newOrderIds)
     }
   }
 
@@ -260,209 +232,6 @@ export const SavedTunnelsView = forwardRef<
 
   // New state for active navigation item
   const [selectedNavId, setSelectedNavId] = useState<string | null>(null)
-
-  const [shouldStartNext, setShouldStartNext] = useState(false)
-  const prevTunnelsRef = useRef<sshtunnel.SavedTunnelConfig[] | undefined>(
-    undefined
-  )
-
-  const { showDialog } = useDialog()
-
-  const { connect: verifyAndGetPassword } = useSshConnection({
-    showDialog,
-    onOpenTerminal: () => {}, // Not used in 'verify' mode
-  })
-
-  const fetchSavedTunnels = useCallback(async () => {
-    try {
-      const tunnels = await GetSavedTunnels()
-      setSavedTunnels(tunnels)
-    } catch (error) {
-      await showDialog({
-        type: 'error',
-        title: 'Failed to load saved tunnels',
-        message: String(error),
-      })
-    }
-  }, [showDialog])
-
-  useEffect(() => {
-    setIsLoading(true)
-    fetchSavedTunnels()
-      .catch((error) => logger.error('Failed to fetch tunnels:', error))
-      .finally(() => setIsLoading(false))
-
-    // Listen for changes from the backend to automatically refresh the list
-    const cleanup = EventsOn('saved_tunnels_changed', () => {
-      void fetchSavedTunnels()
-    })
-
-    return cleanup
-  }, [fetchSavedTunnels, logger])
-
-  useEffect(() => {
-    // prevTunnelsRef.current 的类型是 sshtunnel.SavedTunnelConfig[] | undefined。
-    // 尽管您在外层的 if 语句中已经检查了 prevTunnelsRef.current 是否存在，
-    // 但 TypeScript 的控制流分析（即类型收窄）有时无法将这个信息传递到嵌套的箭头函数（find 的回调函数）内部。
-    // 因此，在回调函数的作用域里，TypeScript 仍然认为 prevTunnelsRef.current 有可能是 undefined，从而导致了编译错误。
-    // 解决方案
-    // 解决这个问题的最佳实践是，在 if 检查之前，将 ref.current 的值赋给一个局部常量。
-    // 这样，TypeScript 就可以在这个 useEffect 的作用域内正确地推断出该常量的类型。
-    const prevTunnels = prevTunnelsRef.current
-    if (
-      shouldStartNext &&
-      prevTunnels &&
-      savedTunnels.length > prevTunnels.length
-    ) {
-      // Find the newly added tunnel by comparing IDs. Using a Set is efficient.
-      const prevTunnelIds = new Set(prevTunnels.map((pt) => pt.id))
-      const newTunnel = savedTunnels.find((t) => !prevTunnelIds.has(t.id))
-      if (newTunnel) {
-        handleStart(newTunnel.id)
-      }
-      setShouldStartNext(false)
-    }
-    prevTunnelsRef.current = savedTunnels
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [savedTunnels, shouldStartNext])
-
-  const handleStart = (id: string) => {
-    setStartingTunnelId(id)
-    const tunnel = savedTunnels.find((t) => t.id === id)
-    if (!tunnel) {
-      toast.error('Could not find tunnel configuration.')
-      setStartingTunnelId(null)
-      return
-    }
-
-    const promise = (async (): Promise<string> => {
-      // The `alias` parameter for the hook is used for display in dialogs.
-      const aliasForDisplay =
-        tunnel.hostSource === 'ssh_config' ? tunnel.hostAlias! : tunnel.name
-
-      logger.debug('handleStart', { aliasForDisplay, id })
-
-      logger.debug('Connect function(verifyAndGetPassword) is being CALLED')
-      // Use the hook to handle password/host key verification.
-      // It returns the password if successful, or null if cancelled.
-      const password = await verifyAndGetPassword({
-        alias: aliasForDisplay,
-        strategy: 'verify',
-        tunnelConfigID: id,
-      })
-
-      if (password === null) {
-        throw new Error('Tunnel creation cancelled.')
-      }
-
-      // Now, start the tunnel with the obtained password (which could be empty for key auth)
-      await StartTunnelFromConfig(id, password)
-
-      return `Tunnel "${tunnel.name}" started successfully.`
-    })()
-
-    toast.promise(promise, {
-      loading: `Starting tunnel "${tunnel.name}"...`,
-      success: (msg) => {
-        // The 'tunnels:changed' event will refresh the active tunnels list automatically.
-        return msg
-      },
-      error: (error: unknown) => {
-        const err = error instanceof Error ? error : new Error(String(error))
-        return err.message.includes('cancelled')
-          ? 'Operation cancelled.'
-          : `Failed to start tunnel: ${err.message}`
-      },
-      finally: () => setStartingTunnelId(null),
-    })
-  }
-
-  const handleStop = (tunnelId: string) => {
-    const activeTunnel = activeTunnels.find((t) => t.id === tunnelId)
-    if (!activeTunnel) return
-
-    const promise = StopForward(tunnelId)
-    toast.promise(promise, {
-      loading: `Stopping tunnel "${activeTunnel.alias}"...`,
-      success: () => {
-        return `Tunnel "${activeTunnel.alias}" stopped.`
-      },
-      error: (err) => `Failed to stop tunnel: ${String(err)}`,
-    })
-  }
-
-  const handleDelete = async (id: string) => {
-    const tunnel = savedTunnels.find((t) => t.id === id)
-    if (!tunnel) return
-
-    const activeTunnel = activeTunnelMap.get(getTunnelKey(tunnel))
-
-    const choice = await showDialog({
-      type: 'confirm',
-      title: `Delete Tunnel "${tunnel.name}"?`,
-      message:
-        'Are you sure you want to permanently delete this tunnel configuration?' +
-        (activeTunnel
-          ? '\n\nThe associated active tunnel will also be stopped.'
-          : ''),
-      buttons: [
-        { text: 'Cancel', variant: 'outline', value: 'cancel' },
-        { text: 'Delete', variant: 'destructive', value: 'delete' },
-      ],
-    })
-
-    if (choice.buttonValue !== 'delete') return
-
-    try {
-      // If there's an active tunnel, stop it first.
-      if (activeTunnel) {
-        await StopForward(activeTunnel.id)
-      }
-
-      await DeleteTunnelConfig(id)
-      // Also attempt to delete any saved password for this tunnel.
-      // We don't need to block or show an error if this fails, as the main
-      // action (deleting the config) was successful.
-      DeletePassword(id).catch((err) => {
-        logger.warn(`Could not delete password for tunnel ${id}:`, err)
-      })
-
-      toast.success(`Tunnel "${tunnel.name}" deleted.`)
-      // The list will be refreshed automatically by the event listener.
-    } catch (error) {
-      toast.error(`Failed to delete tunnel: ${String(error)}`)
-    }
-  }
-
-  const handleDuplicate = (id: string) => {
-    const tunnel = savedTunnels.find((t) => t.id === id)
-    if (!tunnel) return
-
-    const promise = DuplicateTunnelConfig(id)
-
-    toast.promise(promise, {
-      loading: `Duplicating tunnel "${tunnel.name}"...`,
-      success: (newTunnel) => {
-        // The list will be refreshed automatically by the event listener.
-        return `Tunnel "${newTunnel.name}" created.`
-      },
-      error: (err) => `Failed to duplicate tunnel: ${String(err)}`,
-    })
-  }
-
-  const handleEdit = (tunnel: sshtunnel.SavedTunnelConfig) => {
-    setEditingTunnel(tunnel)
-    setIsDialogOpen(true)
-  }
-
-  const handleCreate = () => {
-    setEditingTunnel(undefined)
-    setIsDialogOpen(true)
-  }
-
-  useImperativeHandle(ref, () => ({
-    handleCreate,
-  }))
 
   const getTunnelKey = (tunnel: sshtunnel.SavedTunnelConfig): string => {
     const bindAddr = tunnel.gatewayPorts ? '0.0.0.0' : '127.0.0.1'
@@ -512,7 +281,8 @@ export const SavedTunnelsView = forwardRef<
                     const isRunning = status === 'active'
                     const isDisconnected = status === 'disconnected'
                     const isBusy =
-                      startingTunnelId === tunnel.id || status === 'stopping'
+                      startingTunnelIds.includes(tunnel.id) ||
+                      status === 'stopping'
 
                     // Use Tailwind classes for better JIT compilation and consistency
                     let statusColorClass = 'text-gray-400'
@@ -625,12 +395,12 @@ export const SavedTunnelsView = forwardRef<
                     <SavedTunnelItem
                       tunnel={tunnel}
                       activeTunnel={activeTunnel}
-                      onStart={handleStart}
-                      onStop={handleStop}
-                      onDelete={() => void handleDelete(tunnel.id)}
-                      onEdit={handleEdit}
-                      onDuplicate={() => void handleDuplicate(tunnel.id)}
-                      isStarting={startingTunnelId === tunnel.id}
+                      onStart={() => onStartTunnel(tunnel.id)}
+                      onStop={() => onStopTunnel(tunnel.id)}
+                      onDelete={() => void onDeleteTunnel(tunnel.id)}
+                      onEdit={() => onEditTunnel(tunnel)}
+                      onDuplicate={() => void onDuplicateTunnel(tunnel.id)}
+                      isStarting={startingTunnelIds.includes(tunnel.id)}
                       isSelected={selectedNavId === tunnel.id}
                     />
                   </div>
@@ -640,18 +410,6 @@ export const SavedTunnelsView = forwardRef<
           )}
         </div>
       </div>
-      <CreateTunnelDialog
-        isOpen={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        onSuccess={(shouldStart) => {
-          setIsDialogOpen(false)
-          if (shouldStart) {
-            setShouldStartNext(true)
-          }
-        }}
-        hosts={hosts}
-        tunnelToEdit={editingTunnel}
-      />
     </div>
   )
-})
+}

@@ -63,8 +63,6 @@ export class ErrorBoundary extends React.Component<
           </h1>
           <p className="text-muted-foreground mb-6 text-center">
             An unexpected error occurred. Please try refreshing the page.
-          </p>
-          <p className="text-muted-foreground mb-6 text-center">
             {process.env.NODE_ENV !== 'development' &&
               ' If the problem persists, please consider reporting the issue.'}
           </p>
