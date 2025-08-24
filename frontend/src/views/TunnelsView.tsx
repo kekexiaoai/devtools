@@ -19,8 +19,13 @@ import { useSshConnection } from '@/hooks/useSshConnection'
 import { useDialog } from '@/hooks/useDialog'
 import { toast } from 'sonner'
 import { CreateTunnelDialog } from '@/components/tunnel/CreateTunnelDialog'
+import { SshConnectionHook } from '@/hooks/useSshConnection'
 
-export function TunnelsView() {
+interface TunnelsViewProps {
+  onConnect: SshConnectionHook['connect']
+}
+
+export function TunnelsView({ onConnect }: TunnelsViewProps) {
   const [savedTunnels, setSavedTunnels] = useState<
     sshtunnel.SavedTunnelConfig[]
   >([])
@@ -130,6 +135,27 @@ export function TunnelsView() {
       })
     },
     [savedTunnels, verifyAndGetPassword]
+  )
+
+  const handleOpenInTerminal = useCallback(
+    (tunnel: sshtunnel.SavedTunnelConfig) => {
+      if (tunnel.hostSource !== 'ssh_config' || !tunnel.hostAlias) {
+        toast.error(
+          'This feature is only available for tunnels based on an SSH config alias.'
+        )
+        return
+      }
+      // Use the connect function passed from App.tsx, which is configured
+      // to open a new terminal session.
+      onConnect({
+        alias: tunnel.hostAlias,
+        strategy: 'internal',
+        type: 'remote',
+      }).catch((err) =>
+        logger.warn('Opening terminal failed or was cancelled', err)
+      )
+    },
+    [onConnect, logger]
   )
 
   useEffect(() => {
@@ -333,6 +359,7 @@ export function TunnelsView() {
           onDeleteTunnel={handleDeleteTunnel}
           onDuplicateTunnel={handleDuplicateTunnel}
           onOrderChange={handleOrderChange}
+          onOpenInTerminal={handleOpenInTerminal}
           onEditTunnel={handleEditTunnel}
         />
       </div>

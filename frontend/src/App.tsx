@@ -387,7 +387,7 @@ function AppContent() {
           isDarkMode={isDarkMode}
         />
       ),
-      Tunnels: <TunnelsView />,
+      Tunnels: <TunnelsView onConnect={connect} />,
       Terminal: (
         <TerminalView
           isActive={activeTool === 'Terminal'}
@@ -413,6 +413,7 @@ function AppContent() {
     activeTerminalId,
     handleTerminalConnect,
     isDarkMode,
+    connect,
     reconnectTerminal,
     updateTerminalStatus,
     // SettingsView and TunnelsView have no props, so no dependencies needed here

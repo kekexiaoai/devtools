@@ -21,6 +21,7 @@ import {
   Copy,
   StopCircle,
   Code,
+  Terminal,
   ChevronsUpDown,
 } from 'lucide-react'
 import { CopyableAddress } from '@/components/ui/copyable-address'
@@ -46,6 +47,7 @@ interface SavedTunnelItemProps {
   onDelete: () => void
   onEdit: (tunnel: sshtunnel.SavedTunnelConfig) => void
   onDuplicate: () => void
+  onOpenInTerminal: () => void
   isStarting: boolean
   isSelected: boolean
 }
@@ -181,6 +183,7 @@ export function SavedTunnelItem({
   onDelete,
   onEdit,
   onDuplicate,
+  onOpenInTerminal,
   isStarting,
   isSelected,
 }: SavedTunnelItemProps) {
@@ -189,6 +192,8 @@ export function SavedTunnelItem({
   const isStopping = status === 'stopping'
   const isDisconnected = status === 'disconnected'
   const isBusy = isStarting || isStopping
+  const canOpenInTerminal =
+    tunnel.hostSource === 'ssh_config' && !!tunnel.hostAlias
 
   const cardStateStyles = useMemo(() => {
     if (isRunning) {
@@ -251,6 +256,28 @@ export function SavedTunnelItem({
         </div>
       </CardContent>
       <CardFooter className="px-4 pb-0 flex justify-end space-x-2">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {/* The button is wrapped in a span to allow the tooltip to show even when disabled */}
+              <span tabIndex={canOpenInTerminal ? undefined : 0}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onOpenInTerminal}
+                  disabled={!canOpenInTerminal || isBusy}
+                >
+                  <Terminal className="mr-2 h-4 w-4" /> Open Terminal
+                </Button>
+              </span>
+            </TooltipTrigger>
+            {!canOpenInTerminal && (
+              <TooltipContent>
+                <p>Only available for tunnels based on an SSH config alias.</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
         <Button variant="outline" size="sm" onClick={onDuplicate}>
           <Copy className="mr-2 h-4 w-4" /> Duplicate
         </Button>
