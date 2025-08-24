@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from 'react'
 import { SavedTunnelsView } from '@/components/tunnel/SavedTunnelsView'
+import { SavedTunnelsWithMiniMapView } from '@/components/tunnel/SavedTunnelsWithMiniMapView'
 import {
   DeleteTunnelConfig,
   DeletePassword,
@@ -12,6 +13,7 @@ import { PlusCircle } from 'lucide-react'
 import { SshConnectionHook } from '@/hooks/useSshConnection'
 import { toast } from 'sonner'
 import { appLogger } from '@/lib/logger'
+import { useSettingsStore } from '@/hooks/useSettingsStore'
 import { useDialog } from '@/hooks/useDialog'
 
 interface TunnelsViewProps {
@@ -41,6 +43,8 @@ export function TunnelsView({
   onOpenCreateTunnel,
   onEditTunnel,
 }: TunnelsViewProps) {
+  const { useTunnelMiniMap } = useSettingsStore()
+
   const logger = useMemo(() => {
     return appLogger.withPrefix('TunnelsView')
   }, [])
@@ -137,20 +141,37 @@ export function TunnelsView({
         </p>
       </div>
       <div className="flex-1 min-h-0">
-        <SavedTunnelsView
-          savedTunnels={savedTunnels}
-          activeTunnels={activeTunnels}
-          isLoading={isLoadingTunnels}
-          startingTunnelIds={startingTunnelIds}
-          onStartTunnel={onStartTunnel}
-          onStopTunnel={onStopTunnel}
-          onDeleteTunnel={handleDeleteTunnel}
-          onDuplicateTunnel={handleDuplicateTunnel}
-          onOrderChange={onOrderChange}
-          tunnelErrors={tunnelErrors}
-          onOpenInTerminal={handleOpenInTerminal}
-          onEditTunnel={onEditTunnel}
-        />
+        {useTunnelMiniMap ? (
+          <SavedTunnelsWithMiniMapView
+            savedTunnels={savedTunnels}
+            activeTunnels={activeTunnels}
+            isLoading={isLoadingTunnels}
+            startingTunnelIds={startingTunnelIds}
+            onStartTunnel={onStartTunnel}
+            onStopTunnel={onStopTunnel}
+            onDeleteTunnel={handleDeleteTunnel}
+            onDuplicateTunnel={handleDuplicateTunnel}
+            onOrderChange={onOrderChange}
+            tunnelErrors={tunnelErrors}
+            onOpenInTerminal={handleOpenInTerminal}
+            onEditTunnel={onEditTunnel}
+          />
+        ) : (
+          <SavedTunnelsView
+            savedTunnels={savedTunnels}
+            activeTunnels={activeTunnels}
+            isLoading={isLoadingTunnels}
+            startingTunnelIds={startingTunnelIds}
+            onStartTunnel={onStartTunnel}
+            onStopTunnel={onStopTunnel}
+            onDeleteTunnel={handleDeleteTunnel}
+            onDuplicateTunnel={handleDuplicateTunnel}
+            onOrderChange={onOrderChange}
+            tunnelErrors={tunnelErrors}
+            onOpenInTerminal={handleOpenInTerminal}
+            onEditTunnel={onEditTunnel}
+          />
+        )}
       </div>
     </div>
   )

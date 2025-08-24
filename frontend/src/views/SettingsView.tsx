@@ -73,6 +73,23 @@ export function SettingsView() {
                 onCheckedChange={settings.setSidebarCollapsed}
               />
             </div>
+            <div className="flex items-center justify-between">
+              <Label
+                htmlFor="tunnel-minimap-view"
+                className="flex flex-col items-start gap-1.5"
+              >
+                <span>Tunnel Mini-map View</span>
+                <span className="font-normal text-muted-foreground text-xs">
+                  Use a two-panel view with a collapsible navigation map for
+                  tunnels.
+                </span>
+              </Label>
+              <Switch
+                id="tunnel-minimap-view"
+                checked={settings.useTunnelMiniMap}
+                onCheckedChange={settings.setUseTunnelMiniMap}
+              />
+            </div>
           </CardContent>
         </Card>
 

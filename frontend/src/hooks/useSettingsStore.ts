@@ -20,7 +20,21 @@ interface SettingsState {
 
   // SSH
   sshConfigPath: string
+
+  // Tunnel
+  useTunnelMiniMap: boolean
 }
+
+type TerminalSettings = Pick<
+  SettingsState,
+  | 'terminalThemeName'
+  | 'terminalFontSize'
+  | 'terminalFontFamily'
+  | 'terminalCopyOnSelect'
+  | 'terminalScrollback'
+  | 'terminalCursorStyle'
+  | 'terminalCursorBlink'
+>
 
 interface SettingsActions {
   setTheme: (theme: SettingsState['theme']) => void
@@ -34,10 +48,10 @@ interface SettingsActions {
   setTerminalCursorBlink: (enabled: boolean) => void
   setSshConfigPath: (path: string) => void
   resetTerminalSettings: () => void
+  setUseTunnelMiniMap: (enabled: boolean) => void
 }
 
-const defaultSettings: Omit<SettingsState, 'theme'> = {
-  sidebarCollapsed: false,
+const defaultTerminalSettings: TerminalSettings = {
   terminalThemeName: 'System Default',
   terminalFontSize: 12,
   terminalFontFamily: 'default',
@@ -45,7 +59,13 @@ const defaultSettings: Omit<SettingsState, 'theme'> = {
   terminalScrollback: 1000,
   terminalCursorStyle: 'block',
   terminalCursorBlink: true,
+}
+
+const defaultSettings: Omit<SettingsState, 'theme'> = {
+  sidebarCollapsed: false,
+  ...defaultTerminalSettings,
   sshConfigPath: '~/.ssh/config',
+  useTunnelMiniMap: true,
 }
 
 export const useSettingsStore = create<SettingsState & SettingsActions>()(
@@ -68,7 +88,9 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
       setTerminalCursorBlink: (terminalCursorBlink) =>
         set({ terminalCursorBlink }),
       setSshConfigPath: (sshConfigPath) => set({ sshConfigPath }),
-      resetTerminalSettings: () => set(defaultSettings),
+      resetTerminalSettings: () => set(defaultTerminalSettings),
+      useTunnelMiniMap: true,
+      setUseTunnelMiniMap: (enabled) => set({ useTunnelMiniMap: enabled }),
     }),
     {
       name: 'devtools-settings-storage',

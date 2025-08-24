@@ -184,7 +184,7 @@ export function SavedTunnelItem({
   return (
     <Card
       className={cn(
-        'gap-3 py-3 transition-colors hover:bg-muted border-l-4',
+        'w-full gap-3 py-3 transition-colors hover:bg-muted border-l-4',
         cardStateStyles, // Apply the selected style
         isSelected && 'bg-muted'
       )}
