@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react'
 import { cn } from '@/lib/utils'
-import { sshtunnel } from '@wailsjs/go/models'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,7 +11,6 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import {
-  ArrowRight,
   Play,
   Trash2,
   Pencil,
@@ -25,7 +23,6 @@ import {
   AlertTriangle,
   ChevronsUpDown,
 } from 'lucide-react'
-import { CopyableAddress } from '@/components/ui/copyable-address'
 import {
   Collapsible,
   CollapsibleContent,
@@ -39,6 +36,8 @@ import {
 } from '@/components/ui/tooltip'
 import { TunnelStatusIndicator } from './TunnelStatusIndicator'
 import { appLogger } from '@/lib/logger'
+import { sshtunnel } from '@wailsjs/go/models'
+import { formatTunnelDescription } from '@/lib/tunnel-utils'
 
 interface SavedTunnelItemProps {
   tunnel: sshtunnel.SavedTunnelConfig
@@ -136,36 +135,6 @@ function CommandDisplay({ tunnel }: { tunnel: sshtunnel.SavedTunnelConfig }) {
   )
 }
 
-// Helper to format the tunnel description
-const formatTunnelDescription = (
-  tunnel: sshtunnel.SavedTunnelConfig
-): React.ReactNode => {
-  const localPart = (
-    <CopyableAddress address={`localhost:${tunnel.localPort}`} />
-  )
-  if (tunnel.tunnelType === 'local') {
-    return (
-      <div className="flex items-center space-x-2">
-        {localPart}
-        <ArrowRight className="h-4 w-4 text-muted-foreground" />
-        <CopyableAddress
-          address={`${tunnel.remoteHost}:${tunnel.remotePort}`}
-        />
-      </div>
-    )
-  }
-  if (tunnel.tunnelType === 'dynamic') {
-    return (
-      <div className="flex items-center space-x-2">
-        {localPart}
-        <ArrowRight className="h-4 w-4 text-muted-foreground" />
-        <span className="font-mono text-sm">SOCKS5 Proxy</span>
-      </div>
-    )
-  }
-  return <span className="text-muted-foreground">Unknown Tunnel Type</span>
-}
-
 // Helper to format host information
 const formatHostInfo = (tunnel: sshtunnel.SavedTunnelConfig): string => {
   if (tunnel.hostSource === 'ssh_config' && tunnel.hostAlias) {
@@ -242,13 +211,17 @@ export function SavedTunnelItem({
               </TooltipProvider>
             )}
             {tunnel.gatewayPorts && (
-              <div
-                className="flex items-center text-xs text-muted-foreground"
-                title="GatewayPorts enabled"
-              >
-                <Globe className="h-4 w-4 mr-1" />
-                <span>Public</span>
-              </div>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <div className="flex items-center text-xs text-muted-foreground">
+                      <Globe className="h-4 w-4 mr-1" />
+                      <span>Public</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>GatewayPorts enabled</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
         </div>

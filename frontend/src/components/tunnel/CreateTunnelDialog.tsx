@@ -21,6 +21,7 @@ import { sshtunnel, types } from '@wailsjs/go/models'
 import { SaveTunnelConfig } from '@wailsjs/go/sshgate/Service'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 
 interface CreateTunnelDialogProps {
   isOpen: boolean
@@ -316,6 +317,21 @@ export function CreateTunnelDialog({
               </div>
             </>
           )}
+          {/* GatewayPorts Checkbox */}
+          <div className="grid grid-cols-4 items-center gap-4">
+            <div className="col-start-2 col-span-3 flex items-center space-x-2">
+              <Checkbox
+                id="gateway-ports"
+                checked={formData.gatewayPorts}
+                onCheckedChange={(checked) =>
+                  handleChange('gatewayPorts', Boolean(checked))
+                }
+              />
+              <Label htmlFor="gateway-ports" className="text-sm font-normal">
+                Allow remote connections (GatewayPorts)
+              </Label>
+            </div>
+          </div>
         </div>
         <DialogFooter>
           <Button

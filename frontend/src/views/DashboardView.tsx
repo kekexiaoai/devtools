@@ -18,6 +18,7 @@ import {
   StopCircle,
 } from 'lucide-react'
 import { type ToolId } from '@/types'
+import { formatTunnelDescription } from '@/lib/tunnel-utils'
 
 interface DashboardViewProps {
   onNavigate: (toolId: ToolId) => void
@@ -138,11 +139,16 @@ export function DashboardView({
                         key={tunnel.id}
                         className="flex items-center justify-between p-3 bg-muted rounded-md"
                       >
-                        <div className="flex items-center">
+                        <div className="flex items-center gap-3">
                           <span
                             className={`h-2 w-2 rounded-full mr-3 shrink-0 ${statusColorClass}`}
                           />
-                          <span className="font-medium">{tunnel.name}</span>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{tunnel.name}</span>
+                            <div className="text-xs text-muted-foreground">
+                              {formatTunnelDescription(tunnel)}
+                            </div>
+                          </div>
                         </div>
                         {isRunning ? (
                           <Button
