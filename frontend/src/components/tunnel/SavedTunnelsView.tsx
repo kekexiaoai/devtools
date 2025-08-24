@@ -153,6 +153,7 @@ interface SavedTunnelsViewProps {
   onStopTunnel: (id: string) => void
   onDeleteTunnel: (id: string) => void | Promise<void>
   onDuplicateTunnel: (id: string) => void | Promise<void>
+  tunnelErrors: Map<string, Error>
   onOrderChange: (orderedIds: string[]) => void
   onOpenInTerminal: (tunnel: sshtunnel.SavedTunnelConfig) => void
   onEditTunnel: (tunnel: sshtunnel.SavedTunnelConfig) => void
@@ -167,6 +168,7 @@ export const SavedTunnelsView: React.FC<SavedTunnelsViewProps> = ({
   onStopTunnel,
   onDeleteTunnel,
   onDuplicateTunnel,
+  tunnelErrors,
   onOpenInTerminal,
   onOrderChange,
   onEditTunnel,
@@ -402,6 +404,7 @@ export const SavedTunnelsView: React.FC<SavedTunnelsViewProps> = ({
                       onDelete={() => void onDeleteTunnel(tunnel.id)}
                       onEdit={() => onEditTunnel(tunnel)}
                       onDuplicate={() => void onDuplicateTunnel(tunnel.id)}
+                      lastError={tunnelErrors.get(tunnel.id)}
                       onOpenInTerminal={() => onOpenInTerminal(tunnel)}
                       isStarting={startingTunnelIds.includes(tunnel.id)}
                       isSelected={selectedNavId === tunnel.id}

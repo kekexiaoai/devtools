@@ -22,6 +22,7 @@ import {
   StopCircle,
   Code,
   Terminal,
+  AlertTriangle,
   ChevronsUpDown,
 } from 'lucide-react'
 import { CopyableAddress } from '@/components/ui/copyable-address'
@@ -48,6 +49,7 @@ interface SavedTunnelItemProps {
   onEdit: (tunnel: sshtunnel.SavedTunnelConfig) => void
   onDuplicate: () => void
   onOpenInTerminal: () => void
+  lastError?: Error
   isStarting: boolean
   isSelected: boolean
 }
@@ -184,6 +186,7 @@ export function SavedTunnelItem({
   onEdit,
   onDuplicate,
   onOpenInTerminal,
+  lastError,
   isStarting,
   isSelected,
 }: SavedTunnelItemProps) {
@@ -192,6 +195,7 @@ export function SavedTunnelItem({
   const isStopping = status === 'stopping'
   const isDisconnected = status === 'disconnected'
   const isBusy = isStarting || isStopping
+  const hasLastError = !!lastError && !isRunning && !isStarting
   const canOpenInTerminal =
     tunnel.hostSource === 'ssh_config' && !!tunnel.hostAlias
 
@@ -252,6 +256,12 @@ export function SavedTunnelItem({
       <CardContent className="px-4">
         <div className="space-y-2">
           {formatTunnelDescription(tunnel)}
+          {hasLastError && (
+            <div className="mt-2 text-xs text-destructive flex items-start gap-2 p-2 bg-destructive/10 rounded-md">
+              <AlertTriangle className="h-4 w-4 mt-px shrink-0" />
+              <p className="break-all leading-relaxed">{lastError.message}</p>
+            </div>
+          )}
           <CommandDisplay tunnel={tunnel} />
         </div>
       </CardContent>

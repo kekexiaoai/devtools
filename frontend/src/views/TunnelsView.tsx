@@ -37,6 +37,11 @@ export function TunnelsView({ onConnect }: TunnelsViewProps) {
   // Using an array of IDs allows handling multiple concurrent starting operations.
   const [startingTunnelIds, setStartingTunnelIds] = useState<string[]>([])
 
+  // State to track the last error for each tunnel, keyed by tunnel ID.
+  const [tunnelErrors, setTunnelErrors] = useState<Map<string, Error>>(
+    new Map()
+  )
+
   // State for the Create/Edit dialog
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingTunnel, setEditingTunnel] = useState<
@@ -119,9 +124,19 @@ export function TunnelsView({ onConnect }: TunnelsViewProps) {
 
       toast.promise(promise, {
         loading: `Starting tunnel "${tunnel.name}"...`,
-        success: (msg) => msg,
+        success: (msg) => {
+          // On success, clear any previous error for this tunnel.
+          setTunnelErrors((prev) => {
+            const newErrors = new Map(prev)
+            newErrors.delete(id)
+            return newErrors
+          })
+          return msg
+        },
         error: (error: unknown) => {
           const err = error instanceof Error ? error : new Error(String(error))
+          // On failure, store the error message.
+          setTunnelErrors((prev) => new Map(prev).set(id, err))
           return err.message.includes('cancelled')
             ? 'Operation cancelled.'
             : `Failed to start tunnel: ${err.message}`
@@ -134,7 +149,7 @@ export function TunnelsView({ onConnect }: TunnelsViewProps) {
         },
       })
     },
-    [savedTunnels, verifyAndGetPassword]
+    [savedTunnels, verifyAndGetPassword] // No dependency on tunnelErrors needed here
   )
 
   const handleOpenInTerminal = useCallback(
@@ -359,6 +374,7 @@ export function TunnelsView({ onConnect }: TunnelsViewProps) {
           onDeleteTunnel={handleDeleteTunnel}
           onDuplicateTunnel={handleDuplicateTunnel}
           onOrderChange={handleOrderChange}
+          tunnelErrors={tunnelErrors}
           onOpenInTerminal={handleOpenInTerminal}
           onEditTunnel={handleEditTunnel}
         />
