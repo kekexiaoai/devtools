@@ -234,31 +234,6 @@ func (m *Manager) CreateTunnelFromConfig(configID, alias string, localPort int, 
 	return tunnelID, nil
 }
 
-// createOnTheFlyTunnel is a helper for creating tunnels not based on a saved config (e.g., from TunnelDialog).
-// It retrieves the connection config from an alias and then calls the core creation logic.
-func (m *Manager) createOnTheFlyTunnel(alias string, localPort int, password string, gatewayPorts bool, tunnelType, remoteAddr string) (string, error) {
-	// Get connection config from the ssh manager
-	connConfig, _, err := m.sshManager.GetConnectionConfig(alias, password)
-	if err != nil {
-		// Use err.Error() to avoid complex error types for Wails IPC
-		return "", fmt.Errorf("failed to get SSH connection config for '%s': %s", alias, err.Error())
-	}
-	// For on-the-fly tunnels, the configID is empty.
-	return m.CreateTunnelFromConfig("", alias, localPort, gatewayPorts, tunnelType, remoteAddr, connConfig)
-}
-
-// StartLocalForward starts a local port forwarding tunnel (-L)
-func (m *Manager) StartLocalForward(alias string, localPort int, remoteHost string, remotePort int, password string, gatewayPorts bool) (string, error) {
-	remoteAddr := fmt.Sprintf("%s:%d", remoteHost, remotePort)
-	return m.createOnTheFlyTunnel(alias, localPort, password, gatewayPorts, "local", remoteAddr)
-}
-
-// StartDynamicForward starts a dynamic SOCKS5 proxy tunnel (-D)
-func (m *Manager) StartDynamicForward(alias string, localPort int, password string, gatewayPorts bool) (string, error) {
-	remoteAddr := "SOCKS5 Proxy" // Dynamic forwarding has no fixed remote address
-	return m.createOnTheFlyTunnel(alias, localPort, password, gatewayPorts, "dynamic", remoteAddr)
-}
-
 // monitorSSHConnection waits for the underlying SSH client connection to be
 // closed, then triggers the tunnel's cancellation context to start the
 // cleanup process. This is a passive monitoring mechanism.

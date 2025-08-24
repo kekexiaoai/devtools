@@ -446,19 +446,6 @@ func (s *Service) DeletePassword(key string) error {
 	return s.sshManager.DeletePassword(key)
 }
 
-// StartTunnelWithPassword 接收前端提供的密码来完成隧道创建
-// 注意：我们将原有的 StartLocalForward 函数签名进行扩展
-func (a *Service) StartLocalForward(alias string, localPort int, remoteHost string, remotePort int, password string, gatewayPorts bool) (string, error) {
-	// 密码保存逻辑已移至前端的 useSshConnection hook 中处理
-	return a.tunnelManager.StartLocalForward(alias, localPort, remoteHost, remotePort, password, gatewayPorts)
-}
-
-// StartDynamicForward 启动一个动态 SOCKS5 代理隧道
-func (a *Service) StartDynamicForward(alias string, localPort int, password string, gatewayPorts bool) (string, error) {
-	// 密码保存逻辑已移至前端的 useSshConnection hook 中处理
-	return a.tunnelManager.StartDynamicForward(alias, localPort, password, gatewayPorts)
-}
-
 // StartTunnelFromConfig starts a tunnel based on a saved configuration ID.
 func (s *Service) StartTunnelFromConfig(configID string, password string) (string, error) {
 	s.configMu.RLock()
@@ -532,6 +519,47 @@ func (s *Service) StartTunnelFromConfig(configID string, password string) (strin
 		return "", fmt.Errorf("%s", err.Error())
 	}
 	return result, nil
+}
+
+// CreateAndStartTunnel creates a new SavedTunnelConfig for an on-the-fly tunnel request
+// from the TunnelDialog, saves it, and then starts it. This unifies all tunnel creation.
+func (s *Service) CreateAndStartTunnel(
+	tunnelType string,
+	hostAlias string,
+	localPort int,
+	remoteHost string,
+	remotePort int,
+	gatewayPorts bool,
+	password string,
+) (string, error) {
+	// 1. Create a new SavedTunnelConfig object.
+	newConfig := sshtunnel.SavedTunnelConfig{
+		ID:           uuid.NewString(),
+		TunnelType:   tunnelType,
+		LocalPort:    localPort,
+		GatewayPorts: gatewayPorts,
+		HostSource:   "ssh_config", // Tunnels from TunnelDialog are always based on an alias.
+		HostAlias:    hostAlias,
+	}
+
+	// 2. Generate a descriptive default name.
+	if tunnelType == "local" {
+		newConfig.Name = fmt.Sprintf("L-%d -> %s:%d", localPort, remoteHost, remotePort)
+		newConfig.RemoteHost = remoteHost
+		newConfig.RemotePort = remotePort
+	} else if tunnelType == "dynamic" {
+		newConfig.Name = fmt.Sprintf("D-%d (SOCKS5)", localPort)
+	} else {
+		return "", fmt.Errorf("unsupported tunnel type: %s", tunnelType)
+	}
+
+	// 3. Save the new configuration. This will also trigger a frontend update.
+	if err := s.SaveTunnelConfig(newConfig); err != nil {
+		return "", fmt.Errorf("failed to auto-save new tunnel config: %w", err)
+	}
+
+	// 4. Now, start the tunnel using the standard, unified flow.
+	return s.StartTunnelFromConfig(newConfig.ID, password)
 }
 
 // VerifyTunnelConfigConnection performs a pre-flight check for a saved tunnel configuration.

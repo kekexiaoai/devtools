@@ -1,8 +1,5 @@
 import { useDialog } from '@/hooks/useDialog'
-import {
-  StartDynamicForward,
-  StartLocalForward,
-} from '@wailsjs/go/sshgate/Service'
+import { CreateAndStartTunnel } from '@wailsjs/go/sshgate/Service'
 import { toast } from 'sonner'
 import { types } from '@wailsjs/go/models'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
@@ -262,18 +259,20 @@ export function TunnelDial(props: TunnelDialProps) {
         throw new Error('Tunnel creation cancelled.')
       }
 
-      const tunnelId = await StartLocalForward(
+      // Call the new unified backend function
+      const configId = await CreateAndStartTunnel(
+        'local',
         host.alias,
         localPortNum,
         localForwardForm.remoteHost,
         remotePortNum,
-        password,
-        gatewayPorts
+        gatewayPorts,
+        password
       )
 
       const bindAddr = gatewayPorts ? '0.0.0.0' : '127.0.0.1'
       logger.info(
-        `Local forward tunnel started successfully!\n\nTunnel ID: ${tunnelId}`
+        `Local forward tunnel started successfully!\n\nTunnel Config ID: ${configId}`
       )
 
       return `Forwarding ${bindAddr}:${localPortNum} -> ${localForwardForm.remoteHost}:${remotePortNum}`
@@ -281,7 +280,7 @@ export function TunnelDial(props: TunnelDialProps) {
 
     // 使用toast.promise处理状态反馈
     toast.promise(promise, {
-      loading: `Verifying connection to ${host.alias}...`,
+      loading: `Starting tunnel for ${host.alias}...`,
       success: (msg) => {
         onOpenChange(false) // 在 toast 成功后关闭模态框
         return `Tunnel Started: ${msg}`
@@ -324,23 +323,23 @@ export function TunnelDial(props: TunnelDialProps) {
         throw new Error('Proxy creation cancelled.')
       }
 
-      const tunnelId = await StartDynamicForward(
+      // Call the new unified backend function
+      await CreateAndStartTunnel(
+        'dynamic',
         host.alias,
         localPortNum,
-        password,
-        gatewayPorts
+        '', // remoteHost is not applicable for dynamic
+        0, // remotePort is not applicable for dynamic
+        gatewayPorts,
+        password
       )
 
       const bindAddr = gatewayPorts ? '0.0.0.0' : '127.0.0.1'
-      logger.info(
-        `Dynamic forward tunnel started successfully!\n\nTunnel ID: ${tunnelId}`
-      )
-
       return `SOCKS5 proxy is listening on ${bindAddr}:${localPortNum}`
     })()
 
     toast.promise(promise, {
-      loading: `Verifying connection to ${host.alias}...`,
+      loading: `Starting SOCKS proxy for ${host.alias}...`,
       success: (msg) => {
         onOpenChange(false) // 在 toast 成功后关闭模态框
         return `SOCKS Proxy Started: ${msg}`

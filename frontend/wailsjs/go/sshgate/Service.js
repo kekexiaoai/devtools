@@ -14,6 +14,10 @@ export function ConnectInTerminalWithPassword(arg1, arg2, arg3, arg4) {
   return window['go']['sshgate']['Service']['ConnectInTerminalWithPassword'](arg1, arg2, arg3, arg4);
 }
 
+export function CreateAndStartTunnel(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  return window['go']['sshgate']['Service']['CreateAndStartTunnel'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+}
+
 export function DeletePassword(arg1) {
   return window['go']['sshgate']['Service']['DeletePassword'](arg1);
 }
@@ -68,14 +72,6 @@ export function SaveTunnelConfig(arg1) {
 
 export function Shutdown() {
   return window['go']['sshgate']['Service']['Shutdown']();
-}
-
-export function StartDynamicForward(arg1, arg2, arg3, arg4) {
-  return window['go']['sshgate']['Service']['StartDynamicForward'](arg1, arg2, arg3, arg4);
-}
-
-export function StartLocalForward(arg1, arg2, arg3, arg4, arg5, arg6) {
-  return window['go']['sshgate']['Service']['StartLocalForward'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
 export function StartTunnelFromConfig(arg1, arg2) {
