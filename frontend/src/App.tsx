@@ -73,6 +73,11 @@ function AppContent() {
   const [terminalSessions, setTerminalSessions] = useState<TerminalSession[]>(
     []
   )
+  // --- State for active syncs (lifted from FileSyncerView) ---
+  const [activeWatchers, setActiveWatchers] = useState<Record<string, boolean>>(
+    {}
+  )
+
   // --- State lifted from TunnelsView for global access ---
   const [savedTunnels, setSavedTunnels] = useState<
     sshtunnel.SavedTunnelConfig[]
@@ -140,6 +145,10 @@ function AppContent() {
       }),
     [savedTunnels]
   )
+
+  const activeSyncsCount = useMemo(() => {
+    return Object.values(activeWatchers).filter(Boolean).length
+  }, [activeWatchers])
 
   // 监听后端就绪事件
   useEffect(() => {
@@ -603,9 +612,9 @@ function AppContent() {
     [connect]
   )
 
-  const handleNavigate = (toolId: (typeof toolIds)[number]) => {
+  const handleNavigate = useCallback((toolId: (typeof toolIds)[number]) => {
     setActiveTool(toolId)
-  }
+  }, [])
 
   const toolViews = useMemo(() => {
     // useMemo 会“记住”这个对象的计算结果。
@@ -621,9 +630,16 @@ function AppContent() {
           activeTunnels={activeTunnels}
           startingTunnelIds={startingTunnelIds}
           onOpenCreateTunnel={handleOpenCreateTunnel}
+          activeSyncsCount={activeSyncsCount} // Pass calculated count
         />
       ),
-      FileSyncer: <FileSyncerView isActive={activeTool === 'FileSyncer'} />,
+      FileSyncer: (
+        <FileSyncerView
+          isActive={activeTool === 'FileSyncer'}
+          activeWatchers={activeWatchers}
+          setActiveWatchers={setActiveWatchers}
+        />
+      ),
       JsonTools: <JsonToolsView isDarkMode={isDarkMode} />,
       SshGate: (
         <SshGateView
@@ -686,6 +702,9 @@ function AppContent() {
     activeTerminalId,
     reconnectTerminal,
     updateTerminalStatus,
+    handleNavigate,
+    activeSyncsCount,
+    activeWatchers, // Add activeWatchers to dependencies
   ])
 
   // 在后端准备好之前，显示一个加载界面

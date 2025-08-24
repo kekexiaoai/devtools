@@ -28,6 +28,7 @@ interface DashboardViewProps {
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
   startingTunnelIds: string[]
   onOpenCreateTunnel: () => void
+  activeSyncsCount: number
 }
 
 export function DashboardView({
@@ -38,11 +39,11 @@ export function DashboardView({
   startingTunnelIds,
   onStopTunnel,
   onOpenCreateTunnel,
+  activeSyncsCount,
 }: DashboardViewProps) {
-  // In a real implementation, activeSyncs would come from props.
   const systemStatus = {
     activeTunnels: activeTunnels.length,
-    activeSyncs: 1,
+    activeSyncs: activeSyncsCount,
   }
 
   const activeTunnelMap = useMemo(() => {

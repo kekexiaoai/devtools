@@ -35,8 +35,21 @@ import { Button } from '@/components/ui/button'
 import { RadioGroup } from '@radix-ui/react-radio-group'
 import { RadioGroupItem } from '@/components/ui/radio-group'
 import { useOnVisible } from '@/hooks/useOnVisible'
+import { appLogger } from '@/lib/logger'
 
-export function FileSyncerView({ isActive }: { isActive: boolean }) {
+interface FileSyncerViewProps {
+  isActive: boolean
+  activeWatchers: Record<string, boolean>
+  setActiveWatchers: React.Dispatch<
+    React.SetStateAction<Record<string, boolean>>
+  >
+}
+
+export function FileSyncerView({
+  isActive,
+  activeWatchers,
+  setActiveWatchers,
+}: FileSyncerViewProps) {
   const [configs, setConfigs] = useState<types.SSHConfig[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
@@ -56,9 +69,12 @@ export function FileSyncerView({ isActive }: { isActive: boolean }) {
   }
   const [form, setForm] = useState<types.SSHConfig>(initialFormState)
   const [testResult, setTestResult] = useState({ status: '', message: '' })
-  const [activeWatchers, setActiveWatchers] = useState<Record<string, boolean>>(
-    {}
-  )
+
+  const logger = useMemo(() => {
+    return appLogger.withPrefix('FileSyncerView')
+  }, [])
+
+  logger.debug('FileSyncerView rendered with activeWatchers:', activeWatchers)
 
   // 解构赋值获取所需属性
   const { showDialog } = useDialog()
@@ -129,8 +145,8 @@ export function FileSyncerView({ isActive }: { isActive: boolean }) {
     try {
       const fetchedConfigs = await GetConfigs()
       // showDialog({ title: 'configs', message: JSON.stringify(fetchedConfigs) })
-      console.log('fetched configs, fetchConfigs:', fetchConfigs)
-      console.log('fetched configs, fetchedConfigs:', fetchedConfigs)
+      logger.debug('fetched configs, fetchConfigs:', fetchConfigs)
+      logger.debug('fetched configs, fetchedConfigs:', fetchedConfigs)
       setConfigs(fetchedConfigs)
       return fetchedConfigs
     } catch (error) {
@@ -161,7 +177,7 @@ export function FileSyncerView({ isActive }: { isActive: boolean }) {
       .then((fetchedConfigs) => {
         // 当 Promise 成功完成时，.then() 里的回调函数会被执行
         // 这里的 fetchedConfigs 才是我们真正从后端拿到的数据！
-        console.log('configs from .then()', fetchedConfigs)
+        logger.debug('configs from .then()', fetchedConfigs)
 
         // 我们可以在这里继续执行依赖这些数据的逻辑
         if (fetchedConfigs && fetchedConfigs.length > 0) {
@@ -201,7 +217,7 @@ export function FileSyncerView({ isActive }: { isActive: boolean }) {
     // // 3. 立即调用这个函数
     // void fetchData()
     // --IIFE-----------------------------------------------------------------------------------------------
-  }, [fetchConfigs]) // 因为 fetchConfigs 不会变，所以这个 effect 只运行一次
+  }, [fetchConfigs, logger]) // 因为 fetchConfigs 不会变，所以这个 effect 只运行一次
 
   // 只在 configs 数组本身发生变化时运行，用于设置默认选中项
   useEffect(() => {
