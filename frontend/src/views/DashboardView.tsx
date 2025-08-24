@@ -9,20 +9,23 @@ import {
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
+  Loader2,
   Play,
   PlusCircle,
   FileJson,
   Terminal,
-  TrainFrontTunnel,
   RefreshCw,
+  StopCircle,
 } from 'lucide-react'
-import { type toolIds } from '@/App'
+import { type ToolId } from '@/types'
 
 interface DashboardViewProps {
-  onNavigate: (toolId: (typeof toolIds)[number]) => void
+  onNavigate: (toolId: ToolId) => void
   onStartTunnel: (id: string) => void
+  onStopTunnel: (runtimeId: string) => void
   savedTunnels: sshtunnel.SavedTunnelConfig[]
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
+  startingTunnelIds: string[]
   onOpenCreateTunnel: () => void
 }
 
@@ -31,6 +34,8 @@ export function DashboardView({
   onStartTunnel,
   savedTunnels,
   activeTunnels,
+  startingTunnelIds,
+  onStopTunnel,
   onOpenCreateTunnel,
 }: DashboardViewProps) {
   // In a real implementation, activeSyncs would come from props.
@@ -38,6 +43,11 @@ export function DashboardView({
     activeTunnels: activeTunnels.length,
     activeSyncs: 1,
   }
+
+  const activeTunnelMap = useMemo(() => {
+    // Map by config ID for easier lookup
+    return new Map(activeTunnels.map((t) => [t.id, t]))
+  }, [activeTunnels])
 
   const recentTunnels = useMemo(() => {
     return savedTunnels.slice(0, 5) // Show the 5 most recent tunnels
@@ -107,24 +117,64 @@ export function DashboardView({
             <CardContent>
               {recentTunnels.length > 0 ? (
                 <div className="space-y-2">
-                  {recentTunnels.map((tunnel) => (
-                    <div
-                      key={tunnel.id}
-                      className="flex items-center justify-between p-3 bg-muted rounded-md"
-                    >
-                      <div className="flex items-center">
-                        <TrainFrontTunnel className="h-5 w-5 mr-3 text-muted-foreground" />
-                        <span className="font-medium">{tunnel.name}</span>
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => onStartTunnel(tunnel.id)}
+                  {recentTunnels.map((tunnel) => {
+                    const activeTunnel = activeTunnelMap.get(tunnel.id)
+                    const isStarting = startingTunnelIds.includes(tunnel.id)
+                    const isRunning = activeTunnel?.status === 'active'
+                    const isStopping = activeTunnel?.status === 'stopping'
+                    const isBusy = isStarting || isStopping
+
+                    let statusColorClass = 'bg-gray-400'
+                    if (isRunning) {
+                      statusColorClass = 'bg-green-500'
+                    } else if (isBusy) {
+                      statusColorClass = 'bg-yellow-500 animate-pulse'
+                    } else if (activeTunnel?.status === 'disconnected') {
+                      statusColorClass = 'bg-red-500'
+                    }
+
+                    return (
+                      <div
+                        key={tunnel.id}
+                        className="flex items-center justify-between p-3 bg-muted rounded-md"
                       >
-                        <Play className="mr-2 h-4 w-4" />
-                        Start
-                      </Button>
-                    </div>
-                  ))}
+                        <div className="flex items-center">
+                          <span
+                            className={`h-2 w-2 rounded-full mr-3 shrink-0 ${statusColorClass}`}
+                          />
+                          <span className="font-medium">{tunnel.name}</span>
+                        </div>
+                        {isRunning ? (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => onStopTunnel(activeTunnel.id)}
+                            disabled={isBusy}
+                          >
+                            {isStopping ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <StopCircle className="mr-2 h-4 w-4" />
+                            )}
+                            {isStopping ? 'Stopping' : 'Stop'}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => onStartTunnel(tunnel.id)}
+                            disabled={isBusy}
+                          >
+                            {isStarting ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Play className="mr-2 h-4 w-4" />
+                            )}
+                            {isStarting ? 'Starting' : 'Start'}
+                          </Button>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               ) : (
                 <div className="text-center text-muted-foreground py-4">
@@ -148,19 +198,25 @@ export function DashboardView({
             <CardHeader>
               <CardTitle>System Status</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
+            <CardContent className="space-y-1">
+              <button
+                className="flex items-center justify-between w-full p-3 -m-3 rounded-lg hover:bg-accent text-left"
+                onClick={() => onNavigate('Tunnels')}
+              >
                 <span className="text-muted-foreground">Active Tunnels</span>
                 <span className="font-bold text-lg">
                   {systemStatus.activeTunnels}
                 </span>
-              </div>
-              <div className="flex items-center justify-between">
+              </button>
+              <button
+                className="flex items-center justify-between w-full p-3 -m-3 rounded-lg hover:bg-accent text-left"
+                onClick={() => onNavigate('FileSyncer')}
+              >
                 <span className="text-muted-foreground">Active Syncs</span>
                 <span className="font-bold text-lg">
                   {systemStatus.activeSyncs}
                 </span>
-              </div>
+              </button>
             </CardContent>
           </Card>
         </div>

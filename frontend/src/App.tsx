@@ -15,6 +15,7 @@ import {
   GetActiveTunnels,
   GetSavedTunnels,
   StartTunnelFromConfig,
+  StopForward,
   UpdateTunnelsOrder,
 } from '@wailsjs/go/sshgate/Service'
 import {
@@ -23,7 +24,7 @@ import {
   Environment,
 } from '@wailsjs/runtime/runtime'
 
-import type { UiScale } from './types'
+import { toolIds, type UiScale } from './types'
 import { DomReady, ForceQuit } from '@wailsjs/go/backend/App'
 import { logToServer } from '@/lib/utils'
 import {
@@ -54,15 +55,6 @@ export type TerminalSession = types.TerminalSessionInfo & {
   displayName: string
   status: ConnectionStatus
 }
-
-export const toolIds = [
-  'Dashboard',
-  'FileSyncer',
-  'JsonTools',
-  'SshGate',
-  'Tunnels',
-  'Terminal',
-] as const
 
 /**
  * AppContent contains the main application logic. It's wrapped in DialogProvider
@@ -328,6 +320,24 @@ function AppContent() {
     setIsTunnelDialogOpen(false)
     if (shouldStart) setShouldStartNext(true)
   }, [])
+
+  const handleStopTunnel = useCallback(
+    (runtimeId: string) => {
+      const activeTunnel = activeTunnels.find((t) => t.id === runtimeId)
+      if (!activeTunnel) {
+        logger.warn(`Stop request for non-existent active tunnel: ${runtimeId}`)
+        return
+      }
+
+      const promise = StopForward(runtimeId)
+      toast.promise(promise, {
+        loading: `Stopping tunnel "${activeTunnel.alias}"...`,
+        success: () => `Tunnel "${activeTunnel.alias}" stopped.`,
+        error: (err) => `Failed to stop tunnel: ${String(err)}`,
+      })
+    },
+    [activeTunnels, logger]
+  )
 
   // --- Tunnel Management Logic (Lifted from TunnelsView) ---
   const fetchSavedTunnels = useCallback(async () => {
@@ -606,8 +616,10 @@ function AppContent() {
         <DashboardView
           onNavigate={handleNavigate}
           onStartTunnel={handleStartTunnel}
+          onStopTunnel={handleStopTunnel}
           savedTunnels={savedTunnels}
           activeTunnels={activeTunnels}
+          startingTunnelIds={startingTunnelIds}
           onOpenCreateTunnel={handleOpenCreateTunnel}
         />
       ),
@@ -630,6 +642,7 @@ function AppContent() {
           tunnelErrors={tunnelErrors}
           isLoadingTunnels={isLoadingTunnels}
           onStartTunnel={handleStartTunnel}
+          onStopTunnel={handleStopTunnel}
           onOrderChange={handleOrderChange}
           onOpenCreateTunnel={handleOpenCreateTunnel}
           onEditTunnel={handleEditTunnel}
@@ -654,14 +667,15 @@ function AppContent() {
     }
   }, [
     handleStartTunnel,
+    handleStopTunnel,
     savedTunnels,
     activeTunnels,
+    startingTunnelIds,
     handleOpenCreateTunnel,
     activeTool,
     isDarkMode,
     handleTerminalConnect,
     connect,
-    startingTunnelIds,
     tunnelErrors,
     isLoadingTunnels,
     handleOrderChange,

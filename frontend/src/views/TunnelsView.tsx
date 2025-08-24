@@ -1,10 +1,10 @@
 import React, { useCallback, useMemo } from 'react'
 import { SavedTunnelsView } from '@/components/tunnel/SavedTunnelsView'
 import {
-  StopForward,
   DeleteTunnelConfig,
   DeletePassword,
   DuplicateTunnelConfig,
+  StopForward,
 } from '@wailsjs/go/sshgate/Service'
 import { sshtunnel } from '@wailsjs/go/models'
 import { Button } from '@/components/ui/button'
@@ -22,6 +22,7 @@ interface TunnelsViewProps {
   tunnelErrors: Map<string, Error>
   isLoadingTunnels: boolean
   onStartTunnel: (id: string) => void
+  onStopTunnel: (runtimeId: string) => void
   onOrderChange: (orderedIds: string[]) => void
   onOpenCreateTunnel: () => void
   onEditTunnel: (tunnel: sshtunnel.SavedTunnelConfig) => void
@@ -35,6 +36,7 @@ export function TunnelsView({
   tunnelErrors,
   isLoadingTunnels,
   onStartTunnel,
+  onStopTunnel,
   onOrderChange,
   onOpenCreateTunnel,
   onEditTunnel,
@@ -64,23 +66,6 @@ export function TunnelsView({
       )
     },
     [onConnect, logger]
-  )
-
-  const handleStopTunnel = useCallback(
-    (tunnelId: string) => {
-      const activeTunnel = activeTunnels.find((t) => t.id === tunnelId)
-      if (!activeTunnel) return
-
-      const promise = StopForward(activeTunnel.id)
-      toast.promise(promise, {
-        loading: `Stopping tunnel "${activeTunnel.alias}"...`,
-        success: () => {
-          return `Tunnel "${activeTunnel.alias}" stopped.`
-        },
-        error: (err) => `Failed to stop tunnel: ${String(err)}`,
-      })
-    },
-    [activeTunnels]
   )
 
   const handleDeleteTunnel = useCallback(
@@ -158,7 +143,7 @@ export function TunnelsView({
           isLoading={isLoadingTunnels}
           startingTunnelIds={startingTunnelIds}
           onStartTunnel={onStartTunnel}
-          onStopTunnel={handleStopTunnel}
+          onStopTunnel={onStopTunnel}
           onDeleteTunnel={handleDeleteTunnel}
           onDuplicateTunnel={handleDuplicateTunnel}
           onOrderChange={onOrderChange}
