@@ -8,9 +8,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"time"
 	"strings"
 	"sync"
+	"time"
 
 	"devtools/backend/internal/sshmanager"
 	"devtools/backend/internal/sshtunnel"
@@ -521,8 +521,10 @@ func (s *Service) StartTunnelFromConfig(configID string, password string) (strin
 	return result, nil
 }
 
-// CreateAndStartTunnel creates a new SavedTunnelConfig for an on-the-fly tunnel request
-// from the TunnelDialog, saves it, and then starts it. This unifies all tunnel creation.
+// CreateAndStartTunnel handles an on-the-fly tunnel request from the TunnelDialog.
+// It checks if a matching configuration already exists. If so, it starts that one.
+// If not, it creates a new SavedTunnelConfig, saves it, and then starts it.
+// This approach prevents creating duplicate tunnel configurations.
 func (s *Service) CreateAndStartTunnel(
 	tunnelType string,
 	hostAlias string,
@@ -532,34 +534,70 @@ func (s *Service) CreateAndStartTunnel(
 	gatewayPorts bool,
 	password string,
 ) (string, error) {
-	// 1. Create a new SavedTunnelConfig object.
-	newConfig := sshtunnel.SavedTunnelConfig{
-		ID:           uuid.NewString(),
-		TunnelType:   tunnelType,
-		LocalPort:    localPort,
-		GatewayPorts: gatewayPorts,
-		HostSource:   "ssh_config", // Tunnels from TunnelDialog are always based on an alias.
-		HostAlias:    hostAlias,
+	s.configMu.Lock()
+
+	var configIDToStart string
+	found := false
+
+	// --- Check for existing tunnel config ---
+	for _, t := range s.tunnelsConfig.Tunnels {
+		if t.TunnelType == tunnelType && t.HostSource == "ssh_config" && t.HostAlias == hostAlias && t.LocalPort == localPort && t.GatewayPorts == gatewayPorts {
+			isMatch := false
+			switch tunnelType {
+			case "local":
+				if t.RemoteHost == remoteHost && t.RemotePort == remotePort {
+					isMatch = true
+				}
+			case "dynamic":
+				isMatch = true
+			}
+
+			if isMatch {
+				log.Printf("Found existing tunnel configuration with ID %s.", t.ID)
+				configIDToStart = t.ID
+				found = true
+				break
+			}
+		}
 	}
 
-	// 2. Generate a descriptive default name.
-	if tunnelType == "local" {
-		newConfig.Name = fmt.Sprintf("L-%d -> %s:%d", localPort, remoteHost, remotePort)
-		newConfig.RemoteHost = remoteHost
-		newConfig.RemotePort = remotePort
-	} else if tunnelType == "dynamic" {
-		newConfig.Name = fmt.Sprintf("D-%d (SOCKS5)", localPort)
-	} else {
-		return "", fmt.Errorf("unsupported tunnel type: %s", tunnelType)
+	if !found {
+		log.Println("No existing tunnel configuration found. Creating a new one.")
+		newConfig := sshtunnel.SavedTunnelConfig{
+			ID:           uuid.NewString(),
+			TunnelType:   tunnelType,
+			LocalPort:    localPort,
+			GatewayPorts: gatewayPorts,
+			HostSource:   "ssh_config",
+			HostAlias:    hostAlias,
+			RemoteHost:   remoteHost,
+			RemotePort:   remotePort,
+		}
+		newConfig.Name = generateTunnelName(&newConfig)
+
+		s.tunnelsConfig.Tunnels = append([]sshtunnel.SavedTunnelConfig{newConfig}, s.tunnelsConfig.Tunnels...)
+		if err := s.saveTunnelsConfig(); err != nil {
+			s.configMu.Unlock()
+			return "", fmt.Errorf("failed to auto-save new tunnel config: %w", err)
+		}
+		configIDToStart = newConfig.ID
 	}
 
-	// 3. Save the new configuration. This will also trigger a frontend update.
-	if err := s.SaveTunnelConfig(newConfig); err != nil {
-		return "", fmt.Errorf("failed to auto-save new tunnel config: %w", err)
-	}
+	s.configMu.Unlock() // Unlock before calling StartTunnelFromConfig to avoid deadlock.
 
-	// 4. Now, start the tunnel using the standard, unified flow.
-	return s.StartTunnelFromConfig(newConfig.ID, password)
+	return s.StartTunnelFromConfig(configIDToStart, password)
+}
+
+// generateTunnelName creates a descriptive name for a tunnel configuration.
+func generateTunnelName(config *sshtunnel.SavedTunnelConfig) string {
+	switch config.TunnelType {
+	case "local":
+		return fmt.Sprintf("L-%d -> %s:%d", config.LocalPort, config.RemoteHost, config.RemotePort)
+	case "dynamic":
+		return fmt.Sprintf("D-%d (SOCKS5)", config.LocalPort)
+	default:
+		return "Unnamed Tunnel"
+	}
 }
 
 // VerifyTunnelConfigConnection performs a pre-flight check for a saved tunnel configuration.
