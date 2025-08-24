@@ -399,10 +399,10 @@ export const SavedTunnelsView: React.FC<SavedTunnelsViewProps> = ({
                     <SavedTunnelItem
                       tunnel={tunnel}
                       activeTunnel={activeTunnel}
-                      onStart={() => onStartTunnel(tunnel.id)}
-                      onStop={() => onStopTunnel(tunnel.id)}
+                      onStart={onStartTunnel}
+                      onStop={onStopTunnel}
                       onDelete={() => void onDeleteTunnel(tunnel.id)}
-                      onEdit={() => onEditTunnel(tunnel)}
+                      onEdit={onEditTunnel}
                       onDuplicate={() => void onDuplicateTunnel(tunnel.id)}
                       lastError={tunnelErrors.get(tunnel.id)}
                       onOpenInTerminal={() => onOpenInTerminal(tunnel)}
