@@ -14,6 +14,7 @@ import { CreateTunnelDialog } from '@/components/tunnel/CreateTunnelDialog'
 import {
   GetActiveTunnels,
   GetSavedTunnels,
+  GetSSHHosts,
   StartTunnelFromConfig,
   StopForward,
   UpdateTunnelsOrder,
@@ -95,6 +96,9 @@ function AppContent() {
     undefined
   )
 
+  // --- State for SSH Hosts from ~/.ssh/config for dialogs ---
+  const [sshHosts, setSshHosts] = useState<types.SSHHost[]>([])
+
   // --- State for Tunnel Create/Edit Dialog (lifted from TunnelsView) ---
   const [isTunnelDialogOpen, setIsTunnelDialogOpen] = useState(false)
   const [editingTunnel, setEditingTunnel] = useState<
@@ -124,6 +128,7 @@ function AppContent() {
   // This is a workaround to satisfy the `CreateTunnelDialog`'s `hosts` prop,
   // which expects the older `types.SSHHost[]` structure for validation.
   // The long-term fix is to refactor `CreateTunnelDialog` to use `sshtunnel.SavedTunnelConfig[]`.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const sshHostsForDialog = useMemo(
     (): types.SSHHost[] =>
       savedTunnels.map((t) => {
@@ -170,6 +175,18 @@ function AppContent() {
       logger.error('Failed to signal DomReady to backend:', err)
     })
   }, [logger])
+
+  // Fetch the list of hosts from ~/.ssh/config for use in dialogs
+  const fetchSshHosts = useCallback(async () => {
+    try {
+      setSshHosts(await GetSSHHosts())
+    } catch (error) {
+      logger.error(`Failed to load SSH hosts for dialogs: ${String(error)}`)
+    }
+  }, [logger])
+  useEffect(() => {
+    void fetchSshHosts()
+  }, [fetchSshHosts, logger])
 
   useEffect(() => {
     Environment()
@@ -783,7 +800,7 @@ function AppContent() {
         isOpen={isTunnelDialogOpen}
         onOpenChange={setIsTunnelDialogOpen}
         onSuccess={handleTunnelDialogSuccess}
-        hosts={sshHostsForDialog}
+        hosts={sshHosts}
         tunnelToEdit={editingTunnel}
       />
     </>
