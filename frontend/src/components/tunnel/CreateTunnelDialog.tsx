@@ -474,6 +474,7 @@ export function CreateTunnelDialog({
                   <div className="col-start-2 col-span-3 flex items-center space-x-2">
                     <FormControl>
                       <Checkbox
+                        id="gateway-ports"
                         checked={field.value}
                         onCheckedChange={field.onChange}
                       />
