@@ -64,7 +64,8 @@ export type TerminalSession = types.TerminalSessionInfo & {
 function AppContent() {
   const [isBackendReady, setIsBackendReady] = useState(false)
   const [activeTool, setActiveTool] = useState('Dashboard')
-
+  const activeToolRef = useRef(activeTool)
+  activeToolRef.current = activeTool
   const [uiScale, setUiScale] = useState<UiScale>('default')
 
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -74,6 +75,8 @@ function AppContent() {
   const [terminalSessions, setTerminalSessions] = useState<TerminalSession[]>(
     []
   )
+  const terminalSessionsRef = useRef(terminalSessions)
+  terminalSessionsRef.current = terminalSessions
   // --- State for active syncs (lifted from FileSyncerView) ---
   const [activeWatchers, setActiveWatchers] = useState<Record<string, boolean>>(
     {}
@@ -83,6 +86,10 @@ function AppContent() {
   const [savedTunnels, setSavedTunnels] = useState<
     sshtunnel.SavedTunnelConfig[]
   >([])
+
+  const savedTunnelsRef = useRef(savedTunnels)
+  savedTunnelsRef.current = savedTunnels
+
   const [activeTunnels, setActiveTunnels] = useState<
     sshtunnel.ActiveTunnelInfo[]
   >([])
@@ -95,8 +102,6 @@ function AppContent() {
   const prevTunnelsRef = useRef<sshtunnel.SavedTunnelConfig[] | undefined>(
     undefined
   )
-  const savedTunnelsRef = useRef(savedTunnels)
-  savedTunnelsRef.current = savedTunnels
 
   // --- State for SSH Hosts from ~/.ssh/config for dialogs ---
   const [sshHosts, setSshHosts] = useState<types.SSHHost[]>([])
@@ -514,7 +519,7 @@ function AppContent() {
   const createNewTerminalSession = useCallback(
     (sessionInfo: types.TerminalSessionInfo) => {
       // 检查这是否是一个已存在会话的重连
-      const existingSession = terminalSessions.find(
+      const existingSession = terminalSessionsRef.current.find(
         (s) => s.id === sessionInfo.id
       )
       if (existingSession) {
@@ -535,7 +540,9 @@ function AppContent() {
         const baseName = sessionInfo.alias
         let displayName = baseName
         let counter = 1
-        while (terminalSessions.some((s) => s.displayName === displayName)) {
+        while (
+          terminalSessionsRef.current.some((s) => s.displayName === displayName)
+        ) {
           counter++
           displayName = `${baseName} (${counter})`
         }
@@ -550,12 +557,12 @@ function AppContent() {
       // 打开新终端后，立即将其设为激活状态
       setActiveTerminalId(sessionInfo.id)
       // 切换到 Terminal 工具视图
-      if (activeTool !== 'Terminal') {
+      if (activeToolRef.current !== 'Terminal') {
         setActiveTool('Terminal')
       }
     },
-    [terminalSessions, activeTool]
-  ) // 依赖 terminalSessions 来正确计算序号
+    []
+  ) // 移除依赖项，使其稳定
 
   useEffect(() => {
     // 判断标签列表是否为空
