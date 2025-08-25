@@ -119,16 +119,16 @@ export function useSshConnection({
     return appLogger.withPrefix('useSshConnection')
   }, [])
 
-  logger.debug(
-    'useSshConnection hook is running, current status:',
-    state.status
-  )
+  // logger.debug(
+  //   'useSshConnection hook is running, current status:',
+  //   state.status
+  // )
 
   useEffect(() => {
-    logger.debug(
-      "useSshConnection hook's useEffect is running, current status:",
-      state.status
-    )
+    // logger.debug(
+    //   "useSshConnection hook's useEffect is running, current status:",
+    //   state.status
+    // )
     const processState = async () => {
       switch (state.status) {
         case 'connecting': {

@@ -56,7 +56,7 @@ export function DashboardView({
   }, [savedTunnels])
 
   return (
-    <div className="p-6 h-full overflow-y-auto">
+    <div className="px-6 h-full overflow-y-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold">Dashboard</h1>
         <p className="text-muted-foreground">
@@ -138,7 +138,7 @@ export function DashboardView({
                     return (
                       <div
                         key={tunnel.id}
-                        className="flex items-center justify-between p-3 bg-muted rounded-md"
+                        className="flex items-center justify-between px-3 py-2 bg-muted rounded-md"
                       >
                         <div className="flex items-center gap-3">
                           <span

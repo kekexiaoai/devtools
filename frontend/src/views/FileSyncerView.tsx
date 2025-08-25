@@ -99,39 +99,42 @@ export function FileSyncerView({
   //   closeDialog() // 任务完成后，程序自动关闭对话框！
   // }
 
-  const toggleWatcher = async (configId: string, isActive: boolean) => {
-    try {
-      if (isActive) {
-        await StartWatching(configId)
-        // 更新对象 state 的正确方式
-        // 我们传入一个函数，它接收前一个状态 (prevWatchers)
-        // 然后返回一个全新的对象，这个对象是旧对象的拷贝，并更新了对应的键值
-        // 为什么用 [configId]: true？
-        // 在 JavaScript 和 TypeScript 中，对象字面量（如 { key: value }）的键可以是静态的（直接写死的字符串）或动态的（通过表达式计算）。[configId]: true 使用中括号表示动态键
-        // 在对象字面量中，[expression]: value 允许使用表达式的结果作为对象的键。
-        // configId 是一个变量（类型为 string），其值在运行时确定（例如 "config1"、"config2"）。
-        // [configId]: true 表示将 configId 的值（例如 "config1"）作为键，true 作为值，生成类似 { "config1": true } 的对象。
-        setActiveWatchers((prevWatchers) => ({
-          ...prevWatchers,
-          [configId]: true,
-        }))
-      } else {
-        await StopWatching(configId)
-        // 从对象 state 中移除一个键的正确方式
-        setActiveWatchers((prevWatchers) => {
-          const newWatchers = { ...prevWatchers } // 创建一个新对象
-          delete newWatchers[configId] // 从新对象中删除键
-          return newWatchers // 返回新对象
+  const toggleWatcher = useCallback(
+    async (configId: string, isActive: boolean) => {
+      try {
+        if (isActive) {
+          await StartWatching(configId)
+          // 更新对象 state 的正确方式
+          // 我们传入一个函数，它接收前一个状态 (prevWatchers)
+          // 然后返回一个全新的对象，这个对象是旧对象的拷贝，并更新了对应的键值
+          // 为什么用 [configId]: true？
+          // 在 JavaScript 和 TypeScript 中，对象字面量（如 { key: value }）的键可以是静态的（直接写死的字符串）或动态的（通过表达式计算）。[configId]: true 使用中括号表示动态键
+          // 在对象字面量中，[expression]: value 允许使用表达式的结果作为对象的键。
+          // configId 是一个变量（类型为 string），其值在运行时确定（例如 "config1"、"config2"）。
+          // [configId]: true 表示将 configId 的值（例如 "config1"）作为键，true 作为值，生成类似 { "config1": true } 的对象。
+          setActiveWatchers((prevWatchers) => ({
+            ...prevWatchers,
+            [configId]: true,
+          }))
+        } else {
+          await StopWatching(configId)
+          // 从对象 state 中移除一个键的正确方式
+          setActiveWatchers((prevWatchers) => {
+            const newWatchers = { ...prevWatchers } // 创建一个新对象
+            delete newWatchers[configId] // 从新对象中删除键
+            return newWatchers // 返回新对象
+          })
+        }
+      } catch (error) {
+        await showDialog({
+          title: 'Error',
+          message: `Failed to ${isActive ? 'start' : 'stop'} watching: ${String(error)}`,
+          type: 'error',
         })
       }
-    } catch (error) {
-      await showDialog({
-        title: 'Error',
-        message: `Failed to ${isActive ? 'start' : 'stop'} watching: ${String(error)}`,
-        type: 'error',
-      })
-    }
-  }
+    },
+    [setActiveWatchers, showDialog]
+  )
 
   // const selectedIdRef = useRef(selectedId)
   // // 更新 selectedIdRef 每次 selectedId 变化
@@ -528,10 +531,9 @@ export function FileSyncerView({
             config={selectedConfig}
             onConfigUpdate={() => void fetchConfigs()}
             isWatching={activeWatchers[selectedConfig.id] || false}
-            onToggleWatcher={function (id: string, isActive: boolean): void {
-              console.log(id, isActive)
-              void toggleWatcher(id, isActive)
-            }}
+            onToggleWatcher={() =>
+              void toggleWatcher(selectedConfig.id, isActive)
+            }
           />
         ) : (
           <div className="flex items-center justify-center h-full text-muted-foreground">
