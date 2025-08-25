@@ -95,6 +95,8 @@ function AppContent() {
   const prevTunnelsRef = useRef<sshtunnel.SavedTunnelConfig[] | undefined>(
     undefined
   )
+  const savedTunnelsRef = useRef(savedTunnels)
+  savedTunnelsRef.current = savedTunnels
 
   // --- State for SSH Hosts from ~/.ssh/config for dialogs ---
   const [sshHosts, setSshHosts] = useState<types.SSHHost[]>([])
@@ -120,9 +122,10 @@ function AppContent() {
   }, [])
 
   const { showDialog } = useDialog()
+  const noOpOnOpenTerminal = useCallback(() => {}, [])
   const { connect: verifyAndGetPassword } = useSshConnection({
     showDialog,
-    onOpenTerminal: () => {}, // Not used in 'verify' mode
+    onOpenTerminal: noOpOnOpenTerminal, // Not used in 'verify' mode
   })
 
   // This is a workaround to satisfy the `CreateTunnelDialog`'s `hosts` prop,
@@ -395,7 +398,7 @@ function AppContent() {
 
   const handleStartTunnel = useCallback(
     (id: string) => {
-      const tunnel = savedTunnels.find((t) => t.id === id)
+      const tunnel = savedTunnelsRef.current.find((t) => t.id === id)
       if (!tunnel) {
         toast.error('Could not find tunnel configuration.')
         return
@@ -445,7 +448,7 @@ function AppContent() {
         },
       })
     },
-    [savedTunnels, verifyAndGetPassword]
+    [verifyAndGetPassword]
   )
 
   useEffect(() => {
