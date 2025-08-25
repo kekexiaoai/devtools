@@ -66,10 +66,17 @@ export function CreateTunnelDialog({
   useEffect(() => {
     if (isOpen) {
       if (tunnelToEdit) {
+        // Editing an existing tunnel
         setFormData({ ...initialFormState, ...tunnelToEdit })
       } else {
-        const defaultHostAlias = hosts.length > 0 ? hosts[0].alias : ''
-        setFormData({ ...initialFormState, hostAlias: defaultHostAlias })
+        // Creating a new tunnel, set defaults
+        const newForm = { ...initialFormState }
+        if (newForm.hostSource === 'ssh_config' && hosts.length > 0) {
+          newForm.hostAlias = hosts[0].alias
+        } else {
+          newForm.hostAlias = ''
+        }
+        setFormData(newForm)
       }
     }
   }, [isOpen, tunnelToEdit, hosts])
@@ -78,7 +85,19 @@ export function CreateTunnelDialog({
     field: keyof typeof formData,
     value: string | number | boolean
   ) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
+    setFormData((prev) => {
+      const newState = { ...prev, [field]: value }
+      // If hostSource is changed, adjust other fields
+      if (field === 'hostSource') {
+        if (value === 'manual') {
+          newState.hostAlias = '' // Clear alias for manual host
+        } else if (value === 'ssh_config') {
+          // Set default alias if available
+          newState.hostAlias = hosts.length > 0 ? hosts[0].alias : ''
+        }
+      }
+      return newState
+    })
   }
 
   const handleManualHostChange = (
@@ -100,7 +119,31 @@ export function CreateTunnelDialog({
     }))
   }
 
+  const validateForm = (): boolean => {
+    if (!formData.name.trim()) {
+      toast.error('Tunnel Name is required.')
+      return false
+    }
+    if (formData.hostSource === 'ssh_config' && !formData.hostAlias) {
+      toast.error('Host Alias must be selected for an SSH Config host.')
+      return false
+    }
+    if (formData.hostSource === 'manual') {
+      if (!formData.manualHost?.hostName.trim()) {
+        toast.error('Host Name is required for a manual host.')
+        return false
+      }
+      if (!formData.manualHost?.user.trim()) {
+        toast.error('User is required for a manual host.')
+        return false
+      }
+    }
+    return true
+  }
+
   const handleSave = async (shouldStart: boolean) => {
+    if (!validateForm()) return
+
     setIsSaving(true)
     try {
       const configToSave: sshtunnel.SavedTunnelConfig = {
