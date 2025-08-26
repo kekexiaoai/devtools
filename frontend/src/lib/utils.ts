@@ -43,3 +43,16 @@ export function logToServer(
     void LogFromFrontend(entry)
   }
 }
+
+// A simple debounce utility to prevent excessive calls
+export function debounce<A extends unknown[], R>(
+  func: (...args: A) => R,
+  wait: number
+): (...args: A) => void {
+  let timeout: NodeJS.Timeout
+  return function executedFunction(...args: A) {
+    const later = () => func(...args)
+    clearTimeout(timeout)
+    timeout = setTimeout(later, wait)
+  }
+}

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useEffect } from 'react'
 import { sshtunnel } from '@wailsjs/go/models'
 import {
   Card,
@@ -18,7 +18,10 @@ import {
   StopCircle,
 } from 'lucide-react'
 import { type ToolId } from '@/types'
+
 import { formatTunnelDescription } from '@/lib/tunnel-utils'
+import { appLogger, logMeta } from '@/lib/logger'
+import { debounce } from '@/lib/utils'
 
 interface DashboardViewProps {
   onNavigate: (toolId: ToolId) => void
@@ -46,10 +49,36 @@ export function DashboardView({
     activeSyncs: activeSyncsCount,
   }
 
+  const logger = useMemo(() => {
+    return appLogger.withPrefix('DashboardView')
+  }, [])
+
   const activeTunnelMap = useMemo(() => {
     // Map by config ID for easier lookup
     return new Map(activeTunnels.map((t) => [t.configId, t]))
   }, [activeTunnels])
+
+  // --- Window Size Logging ---
+  useEffect(() => {
+    // Create a debounced version of our Go backend call
+    const debouncedLogSize = debounce((width: number, height: number) => {
+      logger.info('Logging window size', { width, height }, logMeta)
+    }, 500) // Wait 500ms after the last resize event before sending
+
+    const handleResize = () => {
+      debouncedLogSize(window.innerWidth, window.innerHeight)
+    }
+
+    // Log the initial size when the component mounts
+    handleResize()
+
+    // Add the event listener for window resize
+    window.addEventListener('resize', handleResize)
+
+    // Cleanup: remove the event listener when the component unmounts
+    return () => window.removeEventListener('resize', handleResize)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // The empty dependency array [] means this effect runs only once on mount.
 
   const recentTunnels = useMemo(() => {
     return savedTunnels.slice(0, 5) // Show the 5 most recent tunnels

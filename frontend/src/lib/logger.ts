@@ -1,6 +1,7 @@
 import {
   createAdvancedLogger,
   wailsReportTask,
+  LogMeta,
 } from '@/utils/logger/advancedLogger'
 
 /**
@@ -20,3 +21,7 @@ export const appLogger = createAdvancedLogger('App', {
   useColors: true,
   tasks: [wailsReportTask], // Centralized task configuration
 })
+
+export const logMeta: LogMeta = {
+  upload: true,
+}

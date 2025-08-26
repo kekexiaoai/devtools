@@ -1,6 +1,6 @@
 module devtools
 
-go 1.25.0
+go 1.23.12
 
 require (
 	github.com/aymanbagabas/go-pty v0.2.2
