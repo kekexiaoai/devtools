@@ -46,10 +46,17 @@ func main() {
 	}
 	app.Menu(appMenu)
 
+	// 解决 Windows 和 macOS 窗口尺寸计算差异问题
+	// Windows 的宽度计算包括边框，所以我们需要增加边框宽度以获得期望的内容区宽度
+	windowWidth := 1024
+	if _runtime.GOOS == "windows" {
+		windowWidth += 16 // 补偿 Windows 边框 (通常左右各 8px)
+	}
+
 	// 创建一个 Wails 应用
 	err := wails.Run(&options.App{
 		Title:     appName,
-		Width:     1024,
+		Width:     windowWidth,
 		Height:    768,
 		Frameless: false,
 		Menu:      appMenu,
