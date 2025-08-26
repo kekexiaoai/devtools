@@ -5,6 +5,14 @@ import type { ConnectionStatus, TerminalSession } from '@/App'
 import { Button } from '@/components/ui/button'
 import { Plus, XIcon } from 'lucide-react'
 import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  // ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu'
+// import { toast } from 'sonner'
+import {
   NAMED_THEMES,
   FONT_FAMILIES,
   atomOneLightTheme,
@@ -129,26 +137,53 @@ export function TerminalView({
               className="relative pr-8 flex items-center gap-2"
               onDoubleClick={() => handleStartRename(session)}
             >
-              <span
-                className={`h-2 w-2 rounded-full flex-shrink-0 ${getStatusIndicatorClass(session.status)}`}
-                aria-label={`Status: ${session.status}`}
-              />
-              {editingTabId === session.id ? (
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  onBlur={() => handleCommitRename(session.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleCommitRename(session.id)
-                    if (e.key === 'Escape') setEditingTabId(null)
-                  }}
-                  className="bg-transparent outline-none ring-0"
-                />
-              ) : (
-                session.displayName
-              )}
+              <ContextMenu>
+                <ContextMenuTrigger className="flex items-center gap-2">
+                  <span
+                    className={`h-2 w-2 rounded-full flex-shrink-0 ${getStatusIndicatorClass(session.status)}`}
+                    aria-label={`Status: ${session.status}`}
+                  />
+                  {editingTabId === session.id ? (
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onBlur={() => handleCommitRename(session.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleCommitRename(session.id)
+                        if (e.key === 'Escape') setEditingTabId(null)
+                      }}
+                      className="bg-transparent outline-none ring-0"
+                    />
+                  ) : (
+                    session.displayName
+                  )}
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  {/* <ContextMenuItem
+                  onClick={() =>
+                    navigator.clipboard.writeText(session.id).then(() => {
+                      toast.success('Session ID copied to clipboard.')
+                    })
+                  }
+                >
+                  Copy Session ID
+                </ContextMenuItem>
+                <ContextMenuSeparator /> */}
+                  <ContextMenuItem
+                    onClick={() =>
+                      onConnect(
+                        session.alias,
+                        session.type as 'local' | 'remote',
+                        'internal'
+                      )
+                    }
+                  >
+                    Duplicate Tab
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
               <span
                 role="button"
                 aria-label="Close Tab"
