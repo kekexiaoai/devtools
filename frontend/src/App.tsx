@@ -406,7 +406,7 @@ function AppContent() {
       // This function is now synchronous and returns void, satisfying ESLint.
       // The async logic is wrapped in an immediately-invoked function expression (IIFE).
       void (async () => {
-        const tunnel = savedTunnels.find((t) => t.id === id)
+        const tunnel = savedTunnelsRef.current.find((t) => t.id === id)
         if (!tunnel) {
           toast.error('Could not find tunnel configuration.')
           return
@@ -463,7 +463,7 @@ function AppContent() {
         }
       })()
     },
-    [savedTunnels, verifyAndGetPassword]
+    [verifyAndGetPassword]
   )
 
   useEffect(() => {
