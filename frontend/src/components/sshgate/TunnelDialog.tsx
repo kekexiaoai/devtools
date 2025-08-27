@@ -185,10 +185,11 @@ export function TunnelDial(props: TunnelDialProps) {
   const { host, isOpen, onOpenChange } = props
 
   const { showDialog } = useDialog()
+  const noOpOnOpenTerminal = React.useCallback(() => {}, [])
 
   const { connect: verifyConnection } = useSshConnection({
     showDialog,
-    onOpenTerminal: () => {}, // 在 'verify' 模式下不会被调用
+    onOpenTerminal: noOpOnOpenTerminal, // 在 'verify' 模式下不会被调用
   })
 
   const [localForwardForm, setLocalForwardForm] = useState({
@@ -227,7 +228,7 @@ export function TunnelDial(props: TunnelDialProps) {
     return appLogger.withPrefix('TunnelDial').withPrefix(getDynamicPrefix)
   }, [])
 
-  const handleStartLocalForward = () => {
+  const handleStartLocalForward = async () => {
     // input validate
     const localPortNum = parseInt(localForwardForm.localPort, 10)
     const remotePortNum = parseInt(localForwardForm.remotePort, 10)
@@ -236,30 +237,33 @@ export function TunnelDial(props: TunnelDialProps) {
       isNaN(remotePortNum) ||
       !localForwardForm.remoteHost
     ) {
-      return showDialog({
+      void showDialog({
         type: 'error',
         title: 'Validation',
         message: 'All fields are required and ports must be numbers',
       })
+      return
     }
 
-    setIsStartingTunnel(true) // 进入加载状态
-    // 直接使用async函数作为promise源，无需手动new Promise
-    const promise = (async (): Promise<string> => {
-      // 调用hook进行验证
+    try {
+      // Step 1: Perform interactive verification. NO TOASTS should be shown here.
+      // Do NOT set loading state here.
+
       const password = await verifyConnection({
         alias: host.alias,
-        type: 'remote',
-        sessionID: undefined,
         strategy: 'verify',
       })
 
+      // If user cancelled, the hook shows its own toast. We just exit.
       if (password === null) {
-        // 用户取消了操作
-        throw new Error('Tunnel creation cancelled.')
+        // No state change needed, just exit.
+        return
       }
 
-      // Call the new unified backend function
+      // Step 2: Interactive part is done. Now show loading toast and start the tunnel.
+      const toastId = toast.loading(`Starting tunnel for ${host.alias}...`)
+      setIsStartingTunnel(true) // Set loading state NOW.
+
       const configId = await CreateAndStartTunnel(
         'local',
         host.alias,
@@ -271,59 +275,53 @@ export function TunnelDial(props: TunnelDialProps) {
       )
 
       const bindAddr = gatewayPorts ? '0.0.0.0' : '127.0.0.1'
+      const successMessage = `Forwarding ${bindAddr}:${localPortNum} -> ${localForwardForm.remoteHost}:${remotePortNum}`
       logger.info(
-        `Local forward tunnel started successfully!\n\nTunnel Config ID: ${configId}`
+        `Local forward tunnel started successfully! Tunnel Config ID: ${configId}`
       )
 
-      return `Forwarding ${bindAddr}:${localPortNum} -> ${localForwardForm.remoteHost}:${remotePortNum}`
-    })()
-
-    // 使用toast.promise处理状态反馈
-    toast.promise(promise, {
-      loading: `Starting tunnel for ${host.alias}...`,
-      success: (msg) => {
-        onOpenChange(false) // 在 toast 成功后关闭模态框
-        return `Tunnel Started: ${msg}`
-      },
-      error: (error: unknown) => {
-        const err = error instanceof Error ? error : new Error(String(error))
-        return err.message.includes('cancelled')
-          ? 'Tunnel creation cancelled.'
-          : `Failed to start tunnel: ${err.message}`
-      },
-      finally: () => {
-        if (isMountedRef.current) {
-          setIsStartingTunnel(false)
-        }
-      },
-    })
+      toast.success(`Tunnel Started: ${successMessage}`, { id: toastId })
+      onOpenChange(false) // Close dialog on success
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error))
+      // The cancellation case is handled above, so we don't need to check for 'cancelled' here.
+      toast.error(`Failed to start tunnel: ${err.message}`)
+    } finally {
+      // This will run for success, error, and cancellation cases.
+      if (isMountedRef.current) {
+        setIsStartingTunnel(false)
+      }
+    }
   }
 
-  const handleStartDynamicForward = () => {
+  const handleStartDynamicForward = async () => {
     const localPortNum = parseInt(dynamicForwardForm.localPort, 10)
     if (isNaN(localPortNum)) {
-      return showDialog({
+      void showDialog({
         type: 'error',
         title: 'Validation',
         message: 'Local Port must be a number.',
       })
+      return
     }
 
-    setIsStartingTunnel(true)
-    const promise = (async (): Promise<string> => {
-      // 1. 调用 hook 进行验证
+    try {
+      // Step 1: Perform interactive verification.
+      // Do NOT set loading state here.
+
       const password = await verifyConnection({
         alias: host.alias,
-        type: 'remote',
-        sessionID: undefined,
         strategy: 'verify',
       })
 
       if (password === null) {
-        throw new Error('Proxy creation cancelled.')
+        return // User cancelled.
       }
 
-      // Call the new unified backend function
+      // Step 2: Start the operation with a loading toast.
+      const toastId = toast.loading(`Starting SOCKS proxy for ${host.alias}...`)
+      setIsStartingTunnel(true) // Set loading state NOW.
+
       await CreateAndStartTunnel(
         'dynamic',
         host.alias,
@@ -335,28 +333,21 @@ export function TunnelDial(props: TunnelDialProps) {
       )
 
       const bindAddr = gatewayPorts ? '0.0.0.0' : '127.0.0.1'
-      return `SOCKS5 proxy is listening on ${bindAddr}:${localPortNum}`
-    })()
+      const successMessage = `SOCKS5 proxy is listening on ${bindAddr}:${localPortNum}`
 
-    toast.promise(promise, {
-      loading: `Starting SOCKS proxy for ${host.alias}...`,
-      success: (msg) => {
-        onOpenChange(false) // 在 toast 成功后关闭模态框
-        return `SOCKS Proxy Started: ${msg}`
-      },
-      error: (error: unknown) => {
-        const err = error instanceof Error ? error : new Error(String(error))
-        return err.message.includes('cancelled')
-          ? 'Proxy creation cancelled.'
-          : `Failed to start proxy: ${err.message}`
-      },
-      finally: () => {
-        if (isMountedRef.current) {
-          setIsStartingTunnel(false)
-        }
-      },
-      duration: 2000,
-    })
+      toast.success(`SOCKS Proxy Started: ${successMessage}`, {
+        id: toastId,
+        duration: 2000,
+      })
+      onOpenChange(false)
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error))
+      toast.error(`Failed to start proxy: ${err.message}`)
+    } finally {
+      if (isMountedRef.current) {
+        setIsStartingTunnel(false)
+      }
+    }
   }
 
   const handleStartTunnel = (tab: string): void => {

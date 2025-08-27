@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { toast } from 'sonner'
 import { types } from '@wailsjs/go/models'
 import {
@@ -7,6 +7,7 @@ import {
   ConnectInTerminalWithPassword,
   SavePassword,
   VerifyTunnelConfigConnection,
+  TrustHostKeyForTunnel,
 } from '@wailsjs/go/sshgate/Service'
 import {
   StartLocalSession,
@@ -28,6 +29,8 @@ interface ConnectionContext {
   // The ID of a saved tunnel config to verify
   tunnelConfigID?: string
 
+  // Internal flag to prevent re-showing toasts during multi-step auth
+  isContinuation?: boolean
   password?: string
   savePassword?: boolean
   trustHost?: boolean
@@ -115,6 +118,8 @@ export function useSshConnection({
 }: UseSshConnectionProps): SshConnectionHook {
   const [state, setState] = useState<ConnectionState>({ status: 'idle' })
 
+  const toastIdRef = useRef<string | number | undefined>(undefined)
+
   const logger = useMemo(() => {
     return appLogger.withPrefix('useSshConnection')
   }, [])
@@ -142,12 +147,23 @@ export function useSshConnection({
             trustHost,
             sessionID,
             tunnelConfigID,
+            isContinuation,
           } = context
+
+          // Show a toast for all continuations, or for initial non-verify connections.
+          // The only time we DON'T show a toast is the very first step of a 'verify' strategy,
+          // because the calling function (e.g., handleStartTunnel) manages its own initial toast.
+          if (isContinuation) {
+            toastIdRef.current = toast.loading(`Verifying...`)
+          } else if (strategy !== 'verify') {
+            toastIdRef.current = toast.loading(`Connecting to ${alias}...`)
+          }
           const dryRun = strategy !== 'external'
           const TIMEOUT_MS = 15000
 
           try {
             let result: types.ConnectionResult | null = null
+
             if (strategy === 'verify' && tunnelConfigID) {
               result = await withTimeout(
                 VerifyTunnelConfigConnection(tunnelConfigID, password ?? ''),
@@ -189,6 +205,11 @@ export function useSshConnection({
             }
 
             if (result.success) {
+              // Dismiss loading toast on success
+              if (toastIdRef.current) {
+                toast.dismiss(toastIdRef.current)
+                toastIdRef.current = undefined
+              }
               switch (strategy) {
                 case 'verify':
                   setState({
@@ -226,24 +247,44 @@ export function useSshConnection({
                   break
               }
             } else if (result.passwordRequired) {
+              // Dismiss loading toast if interactive prompt is needed
+              if (toastIdRef.current) {
+                toast.dismiss(toastIdRef.current)
+                toastIdRef.current = undefined
+              }
               setState({
                 status: 'awaiting_password',
                 context,
                 error: result.passwordRequired,
               })
             } else if (result.hostKeyVerificationRequired) {
+              // Dismiss loading toast if interactive prompt is needed
+              if (toastIdRef.current) {
+                toast.dismiss(toastIdRef.current)
+                toastIdRef.current = undefined
+              }
               setState({
                 status: 'awaiting_host_key',
                 context,
                 error: result.hostKeyVerificationRequired,
               })
             } else if (result.errorMessage) {
+              // Dismiss loading toast on error
+              if (toastIdRef.current) {
+                toast.dismiss(toastIdRef.current)
+                toastIdRef.current = undefined
+              }
               setState({
                 status: 'failure',
                 context,
                 error: new Error(result.errorMessage),
               })
             } else {
+              // Dismiss loading toast on unknown error
+              if (toastIdRef.current) {
+                toast.dismiss(toastIdRef.current)
+                toastIdRef.current = undefined
+              }
               setState({
                 status: 'failure',
                 context,
@@ -251,6 +292,11 @@ export function useSshConnection({
               })
             }
           } catch (error) {
+            // Ensure toast is dismissed on any caught error
+            if (toastIdRef.current) {
+              toast.dismiss(toastIdRef.current)
+              toastIdRef.current = undefined
+            }
             setState({
               status: 'failure',
               context,
@@ -263,6 +309,11 @@ export function useSshConnection({
         case 'awaiting_password': {
           const { context, error } = state
           const isForTunnel = !!context.tunnelConfigID
+
+          // HACK: Wait a moment for any previous UI (like a loading toast) to animate out
+          // before showing the new dialog. This prevents the "ghost overlay" issue where
+          // the new dialog is rendered under the closing overlay of the previous UI element.
+          await new Promise((resolve) => setTimeout(resolve, 250))
 
           const dialogResult = await showDialog({
             type: 'confirm',
@@ -299,7 +350,10 @@ export function useSshConnection({
               const key = context.tunnelConfigID ?? context.alias
               try {
                 await SavePassword(key, dialogResult.inputValue)
-                toast.success('Password saved to keychain.')
+                // Do not show a success toast here. It's a "nice-to-have" that can
+                // obscure the subsequent host key verification dialog if it appears
+                // quickly. The user's explicit action of checking the box is
+                // sufficient feedback for the success case.
               } catch (saveError) {
                 toast.error(`Failed to save password: ${String(saveError)}`)
               }
@@ -310,6 +364,7 @@ export function useSshConnection({
               context: {
                 ...context,
                 password: dialogResult.inputValue,
+                isContinuation: true, // Mark this as a continuation
                 trustHost: false, // Reset trust host on password prompt
               },
             })
@@ -322,6 +377,10 @@ export function useSshConnection({
         case 'awaiting_host_key': {
           const { context, error } = state
           const { fingerprint, hostAddress } = error
+
+          // HACK: See explanation in 'awaiting_password' state.
+          await new Promise((resolve) => setTimeout(resolve, 250))
+
           const choice = await showDialog({
             type: 'confirm',
             title: `Host Key Verification for ${context.alias}`,
@@ -336,25 +395,56 @@ export function useSshConnection({
             ],
           })
 
-          if (choice.buttonValue === 'yes') {
+          if (choice.buttonValue !== 'yes') {
+            setState({ status: 'cancelled', context })
+            return
+          }
+
+          // If the user agrees to trust the host, handle it based on the strategy.
+          if (context.strategy === 'verify' && context.tunnelConfigID) {
+            // For 'verify' strategy (used by tunnels), we call a specific backend function
+            // to add the key, then we re-enter the 'connecting' state to re-verify.
+            try {
+              await TrustHostKeyForTunnel(context.tunnelConfigID)
+              setState({
+                status: 'connecting',
+                // trustHost is not needed anymore, isContinuation signals it's a retry.
+                context: { ...context, trustHost: false, isContinuation: true },
+              })
+            } catch (trustError) {
+              setState({
+                status: 'failure',
+                context,
+                error:
+                  trustError instanceof Error
+                    ? trustError
+                    : new Error(String(trustError)),
+              })
+            }
+          } else {
+            // For other strategies (like direct connection from SshGateView),
+            // we set the trustHost flag and let the 'connecting' state handle it.
             setState({
               status: 'connecting',
-              context: { ...context, trustHost: true },
+              context: { ...context, trustHost: true, isContinuation: true },
             })
-          } else {
-            setState({ status: 'cancelled', context })
           }
           break
         }
 
         case 'success': {
           const { context, message } = state
+          // Only show success toast for non-verify strategies, as 'verify' is a silent check.
+          if (context.strategy !== 'verify') {
+            toast.success(message)
+          }
           context.resolve(message)
           setState({ status: 'idle' })
           break
         }
 
         case 'failure': {
+          // The showDialog is already there for primary feedback. Add a toast as secondary feedback.
           const { context, error } = state
           // Do not `await` the dialog. Awaiting a state-updating function from
           // within a useEffect that depends on that state can cause re-render loops.
@@ -364,13 +454,17 @@ export function useSshConnection({
             type: 'error',
             title: 'Connection Failed',
             message: error.message,
-          })
+          }) // This is already present
+          toast.error(`Connection failed: ${error.message}`)
           context.reject(error)
           setState({ status: 'idle' })
           break
         }
 
         case 'cancelled': {
+          toast.info(`Connection to ${state.context.alias} cancelled.`, {
+            duration: 1000,
+          })
           const { context } = state
           context.resolve(null)
           setState({ status: 'idle' })
@@ -406,19 +500,6 @@ export function useSshConnection({
           })
         }
       )
-
-      // 仅在非 'verify' 模式下显示 toast.promise
-      if (strategy !== 'verify') {
-        toast.promise(connectionPromise, {
-          loading: `Connecting to ${alias}...`,
-          duration: 1500,
-          success: (successMessage) => successMessage as string,
-          error: (error: unknown) =>
-            error instanceof Error
-              ? error.message
-              : 'An unknown error occurred: ' + String(error),
-        })
-      }
       return connectionPromise
     },
     [] // No dependencies, connect function is stable

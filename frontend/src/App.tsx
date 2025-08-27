@@ -403,57 +403,67 @@ function AppContent() {
 
   const handleStartTunnel = useCallback(
     (id: string) => {
-      const tunnel = savedTunnelsRef.current.find((t) => t.id === id)
-      if (!tunnel) {
-        toast.error('Could not find tunnel configuration.')
-        return
-      }
-
-      setStartingTunnelIds((prev) => [...prev, id])
-
-      const promise = (async (): Promise<string> => {
-        const aliasForDisplay =
-          tunnel.hostSource === 'ssh_config' ? tunnel.hostAlias! : tunnel.name
-
-        const password = await verifyAndGetPassword({
-          alias: aliasForDisplay,
-          strategy: 'verify',
-          tunnelConfigID: id,
-        })
-
-        if (password === null) {
-          throw new Error('Tunnel creation cancelled.')
+      // This function is now synchronous and returns void, satisfying ESLint.
+      // The async logic is wrapped in an immediately-invoked function expression (IIFE).
+      void (async () => {
+        const tunnel = savedTunnels.find((t) => t.id === id)
+        if (!tunnel) {
+          toast.error('Could not find tunnel configuration.')
+          return
         }
 
-        await StartTunnelFromConfig(id, password)
-        return `Tunnel "${tunnel.name}" started successfully.`
-      })()
+        // Set starting state immediately for UI feedback (e.g., spinner on button)
+        setStartingTunnelIds((prev) => [...prev, id])
+        let toastId: string | number | undefined
 
-      toast.promise(promise, {
-        loading: `Starting tunnel "${tunnel.name}"...`,
-        success: (msg) => {
+        try {
+          const aliasForDisplay =
+            tunnel.hostSource === 'ssh_config' ? tunnel.hostAlias! : tunnel.name
+
+          // Step 1: Perform interactive verification. NO TOASTS should be shown here.
+          const password = await verifyAndGetPassword({
+            alias: aliasForDisplay,
+            strategy: 'verify',
+            tunnelConfigID: id,
+          })
+
+          // If user cancelled the dialog, verifyAndGetPassword resolves to null.
+          // The hook itself shows a cancellation toast, so we just exit gracefully.
+          if (password === null) {
+            return
+          }
+
+          // Step 2: Interactive part is done. Now show loading toast and start the tunnel.
+          toastId = toast.loading(`Starting tunnel "${tunnel.name}"...`)
+          await StartTunnelFromConfig(id, password)
+          const successMessage = `Tunnel "${tunnel.name}" started successfully.`
+          toast.success(successMessage, { id: toastId })
+
+          // Clear any previous errors for this tunnel on success
           setTunnelErrors((prev) => {
             const newErrors = new Map(prev)
             newErrors.delete(id)
             return newErrors
           })
-          return msg
-        },
-        error: (error: unknown) => {
+        } catch (error: unknown) {
+          // This catch block handles actual errors, not cancellations.
           const err = error instanceof Error ? error : new Error(String(error))
+          const errorMessage = `Failed to start tunnel: ${err.message}`
+          if (toastId) {
+            toast.error(errorMessage, { id: toastId })
+          } else {
+            toast.error(errorMessage)
+          }
           setTunnelErrors((prev) => new Map(prev).set(id, err))
-          return err.message.includes('cancelled')
-            ? 'Operation cancelled.'
-            : `Failed to start tunnel: ${err.message}`
-        },
-        finally: () => {
+        } finally {
+          // This will run for success, error, and cancellation cases.
           setStartingTunnelIds((prev) =>
             prev.filter((tunnelId) => tunnelId !== id)
           )
-        },
-      })
+        }
+      })()
     },
-    [verifyAndGetPassword]
+    [savedTunnels, verifyAndGetPassword]
   )
 
   useEffect(() => {

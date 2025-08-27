@@ -600,6 +600,60 @@ func generateTunnelName(config *sshtunnel.SavedTunnelConfig) string {
 	}
 }
 
+// TrustHostKeyForTunnel captures the host key for a given tunnel configuration and adds it to known_hosts.
+// This is used when the user explicitly trusts a new host during a 'verify' connection flow.
+func (s *Service) TrustHostKeyForTunnel(configID string) error {
+	s.configMu.RLock()
+	var savedConfig *sshtunnel.SavedTunnelConfig
+	for i := range s.tunnelsConfig.Tunnels {
+		if s.tunnelsConfig.Tunnels[i].ID == configID {
+			savedConfig = &s.tunnelsConfig.Tunnels[i]
+			break
+		}
+	}
+	s.configMu.RUnlock()
+
+	if savedConfig == nil {
+		return fmt.Errorf("tunnel configuration with ID %s not found", configID)
+	}
+
+	var hostToTrust *types.SSHHost
+	var err error
+
+	switch savedConfig.HostSource {
+	case "ssh_config":
+		hostToTrust, err = s.sshManager.GetSSHHostByAlias(savedConfig.HostAlias)
+		if err != nil {
+			return fmt.Errorf("failed to get host details for alias '%s': %w", savedConfig.HostAlias, err)
+		}
+	case "manual":
+		if savedConfig.ManualHost == nil {
+			return fmt.Errorf("manual host info is missing for tunnel config %s", configID)
+		}
+		hostToTrust = &types.SSHHost{
+			Alias:        savedConfig.Name,
+			HostName:     savedConfig.ManualHost.HostName,
+			Port:         savedConfig.ManualHost.Port,
+			User:         savedConfig.ManualHost.User,
+			IdentityFile: savedConfig.ManualHost.IdentityFile,
+		}
+	default:
+		return fmt.Errorf("unknown host source '%s' for tunnel config %s", savedConfig.HostSource, configID)
+	}
+
+	remoteKey, err := s.sshManager.CaptureHostKey(hostToTrust)
+	if err != nil {
+		return fmt.Errorf("failed to capture remote host key: %w", err)
+	}
+	if err := s.sshManager.AddHostKeyToKnownHosts(hostToTrust, remoteKey); err != nil {
+		// This should be a critical error in this context.
+		return fmt.Errorf("failed to add host key to known_hosts: %w", err)
+	}
+
+	log.Printf("Successfully added host key for tunnel '%s' to known_hosts.", savedConfig.Name)
+	return nil
+}
+
 // VerifyTunnelConfigConnection performs a pre-flight check for a saved tunnel configuration.
 func (s *Service) VerifyTunnelConfigConnection(configID string, password string) (*types.ConnectionResult, error) {
 	s.configMu.RLock()
@@ -668,6 +722,17 @@ func (a *Service) handleSSHConnectError(alias string, host *types.SSHHost, err e
 	var passwordRequiredError *types.PasswordRequiredError
 	var authFailedError *types.AuthenticationFailedError
 	var keyErr *knownhosts.KeyError
+
+	// Check for specific error strings first, as they are more reliable for generic errors from the ssh library.
+	if err != nil {
+		errMsg := err.Error()
+		// "unable to authenticate" is a common message for wrong password/key.
+		// "permission denied" can also indicate auth failure.
+		if strings.Contains(errMsg, "unable to authenticate") || strings.Contains(errMsg, "permission denied") {
+			log.Printf("Connection check for '%s' failed with auth error: %v. Re-prompting for password.", alias, err)
+			return &types.ConnectionResult{Success: false, PasswordRequired: &types.PasswordRequiredError{Alias: alias, Message: "Authentication failed. Please try again."}}, nil
+		}
+	}
 
 	switch {
 	case errors.As(err, &hostNotFoundError):
