@@ -313,6 +313,7 @@ export namespace types {
 	    user: string;
 	    port: string;
 	    identityFile: string;
+	    lastModified?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SSHHost(source);
@@ -325,6 +326,7 @@ export namespace types {
 	        this.user = source["user"];
 	        this.port = source["port"];
 	        this.identityFile = source["identityFile"];
+	        this.lastModified = source["lastModified"];
 	    }
 	}
 	export class SyncPair {

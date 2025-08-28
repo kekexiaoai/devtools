@@ -31,11 +31,12 @@ type SyncPair struct {
 
 // SSHHost 代表一个从 ~/.ssh/config 文件中解析出的主机配置
 type SSHHost struct {
-	Alias        string `json:"alias"`        // Host 别名, e.g., "my-server"
-	HostName     string `json:"hostName"`     // HostName, e.g., "192.168.1.100"
-	User         string `json:"user"`         // User, e.g., "root"
-	Port         string `json:"port"`         // Port, e.g., "22"
-	IdentityFile string `json:"identityFile"` // IdentityFile, e.g., "~/.ssh/id_rsa"
+	Alias        string `json:"alias"`                  // Host 别名, e.g., "my-server"
+	HostName     string `json:"hostName"`               // HostName, e.g., "192.168.1.100"
+	User         string `json:"user"`                   // User, e.g., "root"
+	Port         string `json:"port"`                   // Port, e.g., "22"
+	IdentityFile string `json:"identityFile"`           // IdentityFile, e.g., "~/.ssh/id_rsa"
+	LastModified string `json:"lastModified,omitempty"` // 使用 string (ISO 8601) 以便 JSON 传输
 }
 
 // PasswordRequiredError 表示连接因为需要密码而失败

@@ -6,6 +6,7 @@ import {
   GetSSHConfigFileContent,
   SaveSSHConfigFileContent,
   GetActiveTunnels,
+  UpdateHostsOrder,
 } from '@wailsjs/go/sshgate/Service'
 import { useDialog } from '@/hooks/useDialog'
 
@@ -24,6 +25,7 @@ import { Save } from 'lucide-react'
 import { useOnVisible } from '@/hooks/useOnVisible'
 import { EventsOn } from '@wailsjs/runtime'
 import { appLogger } from '@/lib/logger'
+import { toast } from 'sonner'
 
 // #############################################################################
 // #  主视图组件 (Main View Component)
@@ -119,6 +121,26 @@ export function SshGateView({
     void fetchHosts()
   }, [fetchHosts, dataVersion])
 
+  const handleOrderChange = useCallback(
+    (orderedAliases: string[]) => {
+      const originalHosts = [...hosts]
+      // Optimistic UI update
+      setHosts((currentHosts) => {
+        const hostMap = new Map(currentHosts.map((h) => [h.alias, h]))
+        return orderedAliases
+          .map((alias) => hostMap.get(alias))
+          .filter(Boolean) as types.SSHHost[]
+      })
+
+      UpdateHostsOrder(orderedAliases).catch((err) => {
+        toast.error('Failed to save host order.')
+        logger.error('Failed to update host order:', err)
+        setHosts(originalHosts) // Revert on error
+      })
+    },
+    [hosts, logger]
+  )
+
   useOnVisible(refreshData, isActive)
   console.log('ssh gate, data version:', dataVersion)
 
@@ -158,6 +180,7 @@ export function SshGateView({
             onConnect={onConnect}
             activeTunnels={activeTunnels}
             isDarkMode={isDarkMode}
+            onOrderChange={handleOrderChange}
           />
         </TabsContent>
 
@@ -185,6 +208,7 @@ const HostsView = React.memo(function HostsView({
   activeTunnels,
   dataVersion,
   isDarkMode,
+  onOrderChange,
 }: {
   hosts: types.SSHHost[]
   isLoading: boolean
@@ -198,6 +222,7 @@ const HostsView = React.memo(function HostsView({
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
   dataVersion: number
   isDarkMode: boolean
+  onOrderChange: (orderedIds: string[]) => void
 }) {
   const [selectedAlias, setSelectedAlias] = useState<string | null>(null)
   const [hoveredAlias, setHoveredAlias] = useState<string | null>(null)
@@ -309,6 +334,7 @@ const HostsView = React.memo(function HostsView({
           onSelect={handleSelectHost}
           onNew={handleOpenNew}
           onHover={handleHoverHost}
+          onOrderChange={onOrderChange}
         />
       </div>
 

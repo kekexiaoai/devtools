@@ -3,10 +3,13 @@ package sshconfig
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
+	"time"
 )
 
 // SSHConfigManager SSH配置管理器
@@ -423,16 +426,92 @@ func (m *SSHConfigManager) Validate() error {
 	return validator.Validate()
 }
 
+// SetHosts replaces all host configurations with the provided list,
+// while preserving non-host directives like 'Include' and comments outside of host blocks.
+func (m *SSHConfigManager) SetHosts(hosts []*HostConfig) {
+	var preservedLines []string
+	var hostBlocks []string
+
+	// 1. Separate non-host lines (globals, includes, comments) from host blocks.
+	// This assumes non-host lines appear before the first 'Host' block.
+	firstHostIndex := -1
+	for i, line := range m.rawLines {
+		if strings.HasPrefix(strings.TrimSpace(line), "Host ") {
+			firstHostIndex = i
+			break
+		}
+	}
+	if firstHostIndex == -1 {
+		// No hosts found, preserve everything.
+		preservedLines = m.rawLines
+	} else {
+		preservedLines = m.rawLines[:firstHostIndex]
+	}
+
+	// 2. Generate new host blocks from the provided list.
+	for _, host := range hosts {
+		var blockLines []string
+		blockLines = append(blockLines, fmt.Sprintf("Host %s", host.Name))
+		for key, params := range host.Params {
+			for _, param := range params {
+				blockLines = append(blockLines, fmt.Sprintf("  %s %s", key, param.Value))
+			}
+		}
+		hostBlocks = append(hostBlocks, strings.Join(blockLines, "\n"))
+	}
+
+	// 3. Combine preserved lines and new host blocks.
+	finalContent := strings.TrimSpace(strings.Join(preservedLines, "\n"))
+	if finalContent != "" {
+		finalContent += "\n\n" // Add separation after the header.
+	}
+	finalContent += strings.Join(hostBlocks, "\n\n") // Join host blocks with a single blank line.
+
+	m.rawLines = strings.Split(finalContent, "\n")
+}
+
 // Backup 创建配置文件备份
 func (m *SSHConfigManager) Backup() (string, error) {
-	backupPath := m.filename + ".bak"
+	// Generate a timestamped backup filename
+	timestamp := time.Now().Format("2006-01-02T15-04-05")
+	backupPath := fmt.Sprintf("%s.bak.%s", m.filename, timestamp)
 	content := m.BuildConfig()
 
 	if err := os.WriteFile(backupPath, []byte(content), 0o600); err != nil {
 		return "", &ConfigError{"backup", err}
 	}
 
+	// Clean up old backups, keeping only the most recent 3
+	if err := m.cleanupOldBackups(5); err != nil {
+		// Log the error but don't fail the backup operation
+		log.Printf("Warning: failed to clean up old backups: %v", err)
+	}
+
 	return backupPath, nil
+}
+
+// cleanupOldBackups keeps a specified number of the most recent backups and deletes the rest.
+func (m *SSHConfigManager) cleanupOldBackups(keepCount int) error {
+	dir := filepath.Dir(m.filename)
+	base := filepath.Base(m.filename)
+	pattern := filepath.Join(dir, base+".bak.*")
+
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return err
+	}
+
+	if len(matches) > keepCount {
+		// Sort files by name (which is chronological due to the timestamp format)
+		sort.Strings(matches)
+		// Delete the oldest files
+		for i := 0; i < len(matches)-keepCount; i++ {
+			if err := os.Remove(matches[i]); err != nil {
+				log.Printf("Warning: failed to remove old backup file %s: %v", matches[i], err)
+			}
+		}
+	}
+	return nil
 }
 
 // GetIncludes 获取所有Include指令
@@ -610,8 +689,6 @@ func (m *SSHConfigManager) GetRawLines() []string {
 
 // Helper functions
 
-// parseHostNames 解析Host行中的主机名列表
-// parseHostNames 解析Host行中的主机名列表
 // parseHostNames 解析Host行中的主机名列表（改进版）
 func parseHostNames(hostLine string) []string {
 	var names []string

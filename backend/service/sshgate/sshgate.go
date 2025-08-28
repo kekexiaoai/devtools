@@ -839,3 +839,9 @@ func (a *Service) ConnectInTerminalAndTrustHost(alias string, password string, s
 	log.Printf("Host key for '%s' added. Re-attempting connection.", alias)
 	return a.ConnectInTerminalWithPassword(alias, password, savePassword, dryRun)
 }
+
+// UpdateHostsOrder saves the new order of hosts from the visual editor.
+func (s *Service) UpdateHostsOrder(orderedAliases []string) error {
+	// 调用 sshmanager 中实现的排序方法
+	return s.sshManager.ReorderHosts(orderedAliases)
+}

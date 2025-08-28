@@ -90,6 +90,10 @@ export function TrustHostKeyForTunnel(arg1) {
   return window['go']['sshgate']['Service']['TrustHostKeyForTunnel'](arg1);
 }
 
+export function UpdateHostsOrder(arg1) {
+  return window['go']['sshgate']['Service']['UpdateHostsOrder'](arg1);
+}
+
 export function UpdateTunnelsOrder(arg1) {
   return window['go']['sshgate']['Service']['UpdateTunnelsOrder'](arg1);
 }

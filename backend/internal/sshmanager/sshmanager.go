@@ -367,6 +367,61 @@ func (m *Manager) UpdateGlobal(params map[string]string) error {
 	return m.UpdateHost(req)
 }
 
+// ReorderHosts rewrites the SSH config file with hosts in the specified order,
+// while preserving global configurations (like 'Host *' and 'Include') at the top.
+func (m *Manager) ReorderHosts(orderedAliases []string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// 1. Get all current host configurations from memory.
+	allHosts, err := m.manager.GetAllHosts()
+	if err != nil {
+		return fmt.Errorf("failed to get all hosts for reordering: %w", err)
+	}
+
+	// 2. Separate global/wildcard hosts from specific hosts.
+	hostMap := make(map[string]*sshconfig.HostConfig)
+	var globalAndWildcardHosts []*sshconfig.HostConfig
+	for _, host := range allHosts {
+		if host.IsGlobal || strings.Contains(host.Name, "*") {
+			globalAndWildcardHosts = append(globalAndWildcardHosts, host)
+		} else {
+			hostMap[host.Name] = host
+		}
+	}
+
+	// 3. Build the new ordered list of specific host configurations.
+	newOrderedSpecificHosts := make([]*sshconfig.HostConfig, 0, len(hostMap))
+	addedHosts := make(map[string]bool)
+
+	// Add hosts in the specified order.
+	for _, alias := range orderedAliases {
+		if host, ok := hostMap[alias]; ok {
+			newOrderedSpecificHosts = append(newOrderedSpecificHosts, host)
+			addedHosts[alias] = true
+		}
+	}
+
+	// Append any remaining specific hosts that were not in the ordered list.
+	for _, host := range allHosts {
+		if !host.IsGlobal && !strings.Contains(host.Name, "*") && !addedHosts[host.Name] {
+			newOrderedSpecificHosts = append(newOrderedSpecificHosts, host)
+		}
+	}
+
+	// 4. Combine global/wildcard hosts with the newly ordered specific hosts.
+	newOrderedHosts := append(globalAndWildcardHosts, newOrderedSpecificHosts...)
+
+	// 5. Replace the manager's internal list and save to file.
+	m.manager.SetHosts(newOrderedHosts)
+	if err := m.manager.Save(); err != nil {
+		return fmt.Errorf("failed to save reordered hosts: %w", err)
+	}
+	m.manager.Backup()
+
+	return nil
+}
+
 // convertToSSHHost 将 HostConfig 转换为 types.SSHHost
 func convertToSSHHost(hostConfig *sshconfig.HostConfig) types.SSHHost {
 	// 从 Params 中提取信息
@@ -412,6 +467,13 @@ func (m *Manager) GetSSHHost(alias string) (*types.SSHHost, error) {
 
 // GetSSHHosts 解析用户的 SSH 配置文件并返回所有主机配置
 func (m *Manager) GetSSHHosts() ([]types.SSHHost, error) {
+	// Get the modification time of the config file.
+	var modTimeStr string
+	fileInfo, err := os.Stat(m.configPath)
+	if err == nil {
+		// Format as ISO 8601 string for easy parsing in JavaScript.
+		modTimeStr = fileInfo.ModTime().Format(time.RFC3339)
+	}
 	// 使用内部的 GetAllHosts 方法获取所有主机配置
 	hostConfigs, err := m.manager.GetAllHosts()
 	if err != nil {
@@ -426,6 +488,7 @@ func (m *Manager) GetSSHHosts() ([]types.SSHHost, error) {
 			continue
 		}
 		newHost := convertToSSHHost(hostConfig)
+		newHost.LastModified = modTimeStr
 		hosts = append(hosts, newHost)
 	}
 

@@ -15,6 +15,7 @@ import {
   Trash2,
   TrainFrontTunnel,
 } from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
 import React, { useState, useEffect, useMemo } from 'react'
 import { TunnelDial } from './TunnelDialog'
 
@@ -199,6 +200,16 @@ export function HostDetail({
             <div className="space-y-1">
               <p className="text-muted-foreground">IdentityFile</p>
               <p className="font-mono truncate">{host.identityFile}</p>
+            </div>
+          )}
+          {host.lastModified && (
+            <div className="space-y-1">
+              <p className="text-muted-foreground">Last Modified</p>
+              <p className="font-mono">
+                {formatDistanceToNow(new Date(host.lastModified), {
+                  addSuffix: true,
+                })}
+              </p>
             </div>
           )}
         </CardContent>

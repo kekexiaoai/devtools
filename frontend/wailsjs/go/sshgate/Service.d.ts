@@ -48,6 +48,8 @@ export function StopForward(arg1:string):Promise<void>;
 
 export function TrustHostKeyForTunnel(arg1:string):Promise<void>;
 
+export function UpdateHostsOrder(arg1:Array<string>):Promise<void>;
+
 export function UpdateTunnelsOrder(arg1:Array<string>):Promise<void>;
 
 export function VerifyTunnelConfigConnection(arg1:string,arg2:string):Promise<types.ConnectionResult>;
