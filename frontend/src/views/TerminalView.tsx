@@ -172,13 +172,23 @@ export function TerminalView({
                 </ContextMenuItem>
                 <ContextMenuSeparator /> */}
                   <ContextMenuItem
-                    onClick={() =>
-                      onConnect(
-                        session.alias,
-                        session.type as 'local' | 'remote',
-                        'internal'
-                      )
-                    }
+                    onSelect={() => {
+                      // Use a self-invoking async function to handle the promise
+                      // and satisfy the linter, which expects a void return.
+                      void (async () => {
+                        // Add a tiny delay to solve a race condition:
+                        // On local terminal duplication, the new session is created so fast
+                        // that the state update can conflict with the ContextMenu's closing event,
+                        // preventing the new tab from being properly activated.
+                        // This delay ensures UI events are processed before connection starts.
+                        await new Promise((resolve) => setTimeout(resolve, 150))
+                        onConnect(
+                          session.alias,
+                          session.type as 'local' | 'remote',
+                          'internal'
+                        )
+                      })()
+                    }}
                   >
                     Duplicate Tab
                   </ContextMenuItem>
