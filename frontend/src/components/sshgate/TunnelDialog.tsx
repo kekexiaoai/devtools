@@ -211,22 +211,35 @@ export function TunnelDial(props: TunnelDialProps) {
 
   // Ref to track component mount status, preventing state updates on unmounted components
   const isMountedRef = useRef(true)
-  useEffect(() => {
-    isMountedRef.current = true
-    return () => {
-      isMountedRef.current = false
-    }
-  }, [])
 
   const aliasRef = useRef(host.alias)
   useEffect(() => {
     aliasRef.current = host.alias
   }, [host.alias])
 
+  // --- Refs and Effects for managing focus in tabs ---
+  const localPortInputRef = useRef<HTMLInputElement>(null)
+  const dynamicPortInputRef = useRef<HTMLInputElement>(null)
+
   const logger = useMemo(() => {
     const getDynamicPrefix = () => `[${aliasRef.current}]`
     return appLogger.withPrefix('TunnelDial').withPrefix(getDynamicPrefix)
   }, [])
+
+  useEffect(() => {
+    isMountedRef.current = true
+    // When the active tab changes (or the dialog opens), programmatically focus the correct input.
+    // A timeout ensures the element is visible and focusable after the tab switch animation/render.
+    const timer = setTimeout(() => {
+      if (activeTab === 'local') localPortInputRef.current?.focus()
+      else if (activeTab === 'dynamic') dynamicPortInputRef.current?.focus()
+    }, 50) // A small delay is often sufficient.
+
+    return () => {
+      clearTimeout(timer)
+      isMountedRef.current = false
+    }
+  }, [activeTab, isOpen]) // Depend on both activeTab and isOpen
 
   const handleStartLocalForward = async () => {
     // input validate
@@ -364,164 +377,176 @@ export function TunnelDial(props: TunnelDialProps) {
     }
   }
 
+  const onFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault() // 阻止表单默认的页面刷新行为
+    handleStartTunnel(activeTab)
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            SSH Tunnels for{' '}
-            <span className="font-mono text-primary">{host.alias}</span>
-          </DialogTitle>
-          <DialogDescription>
-            Configure port forwarding tunnels for this host.
-          </DialogDescription>
-        </DialogHeader>
+        <form onSubmit={onFormSubmit}>
+          <DialogHeader>
+            <DialogTitle>
+              SSH Tunnels for{' '}
+              <span className="font-mono text-primary">{host.alias}</span>
+            </DialogTitle>
+            <DialogDescription>
+              Configure port forwarding tunnels for this host.
+            </DialogDescription>
+          </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="local">Local Forward (-L)</TabsTrigger>
-            <TabsTrigger value="remote" disabled>
-              Remote (-R)
-            </TabsTrigger>
-            <TabsTrigger value="dynamic">Dynamic (-D)</TabsTrigger>
-          </TabsList>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList>
+              <TabsTrigger value="local">Local Forward (-L)</TabsTrigger>
+              <TabsTrigger value="remote" disabled>
+                Remote (-R)
+              </TabsTrigger>
+              <TabsTrigger value="dynamic">Dynamic (-D)</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="local">
-            <div className="grid gap-4 py-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  将本地端口映射到远程网络中的特定服务。
-                </p>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  onClick={() => setHelpTopic('local')}
-                >
-                  <Info className="h-4 w-4" />
-                </Button>
+            <TabsContent value="local">
+              <div className="grid gap-4 py-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    将本地端口映射到远程网络中的特定服务。
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => setHelpTopic('local')}
+                    type="button"
+                  >
+                    <Info className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="local-port" className="justify-self-end">
+                    Local Port
+                  </Label>
+                  <Input
+                    id="local-port"
+                    type="number"
+                    placeholder="e.g., 8080"
+                    value={localForwardForm.localPort}
+                    onChange={(e) =>
+                      setLocalForwardForm({
+                        ...localForwardForm,
+                        localPort: e.target.value,
+                      })
+                    }
+                    className="col-span-3"
+                    ref={localPortInputRef}
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="remote-host" className="justify-self-end">
+                    Remote Host
+                  </Label>
+                  <Input
+                    id="remote-host"
+                    placeholder="localhost or an internal IP"
+                    value={localForwardForm.remoteHost}
+                    onChange={(e) =>
+                      setLocalForwardForm({
+                        ...localForwardForm,
+                        remoteHost: e.target.value,
+                      })
+                    }
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="remote-port" className="justify-self-end">
+                    Remote Port
+                  </Label>
+                  <Input
+                    id="remote-port"
+                    type="number"
+                    placeholder="e.g., 3306"
+                    value={localForwardForm.remotePort}
+                    onChange={(e) =>
+                      setLocalForwardForm({
+                        ...localForwardForm,
+                        remotePort: e.target.value,
+                      })
+                    }
+                    className="col-span-3"
+                  />
+                </div>
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="local-port" className="justify-self-end">
-                  Local Port
-                </Label>
-                <Input
-                  id="local-port"
-                  type="number"
-                  placeholder="e.g., 8080"
-                  value={localForwardForm.localPort}
-                  onChange={(e) =>
-                    setLocalForwardForm({
-                      ...localForwardForm,
-                      localPort: e.target.value,
-                    })
-                  }
-                  className="col-span-3"
-                />
+            </TabsContent>
+            <TabsContent value="dynamic">
+              <div className="grid gap-4 py-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    在本地创建一个通用的 SOCKS5 代理。
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => setHelpTopic('dynamic')}
+                    type="button"
+                  >
+                    <Info className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label
+                    htmlFor="dynamic-local-port"
+                    className="justify-self-end"
+                  >
+                    Local Port
+                  </Label>
+                  <Input
+                    id="dynamic-local-port"
+                    type="number"
+                    placeholder="e.g., 1080"
+                    value={dynamicForwardForm.localPort}
+                    onChange={(e) =>
+                      setDynamicForwardForm({
+                        ...dynamicForwardForm,
+                        localPort: e.target.value,
+                      })
+                    }
+                    className="col-span-3"
+                    ref={dynamicPortInputRef}
+                  />
+                </div>
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="remote-host" className="justify-self-end">
-                  Remote Host
-                </Label>
-                <Input
-                  id="remote-host"
-                  placeholder="localhost or an internal IP"
-                  value={localForwardForm.remoteHost}
-                  onChange={(e) =>
-                    setLocalForwardForm({
-                      ...localForwardForm,
-                      remoteHost: e.target.value,
-                    })
-                  }
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="remote-port" className="justify-self-end">
-                  Remote Port
-                </Label>
-                <Input
-                  id="remote-port"
-                  type="number"
-                  placeholder="e.g., 3306"
-                  value={localForwardForm.remotePort}
-                  onChange={(e) =>
-                    setLocalForwardForm({
-                      ...localForwardForm,
-                      remotePort: e.target.value,
-                    })
-                  }
-                  className="col-span-3"
-                />
-              </div>
-            </div>
-          </TabsContent>
-          <TabsContent value="dynamic">
-            <div className="grid gap-4 py-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  在本地创建一个通用的 SOCKS5 代理。
-                </p>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  onClick={() => setHelpTopic('dynamic')}
-                >
-                  <Info className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label
-                  htmlFor="dynamic-local-port"
-                  className="justify-self-end"
-                >
-                  Local Port
-                </Label>
-                <Input
-                  id="dynamic-local-port"
-                  type="number"
-                  placeholder="e.g., 1080"
-                  value={dynamicForwardForm.localPort}
-                  onChange={(e) =>
-                    setDynamicForwardForm({
-                      ...dynamicForwardForm,
-                      localPort: e.target.value,
-                    })
-                  }
-                  className="col-span-3"
-                />
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
-        <div className="flex items-center space-x-2 pt-2">
-          <Checkbox
-            id="gateway-ports"
-            checked={gatewayPorts}
-            onCheckedChange={(checked) => setGatewayPorts(Boolean(checked))}
-          />
-          <Label
-            htmlFor="gateway-ports"
-            className="text-sm font-normal text-muted-foreground"
-          >
-            Allow remote connections (GatewayPorts)
-          </Label>
-        </div>
-        <DialogFooter>
-          <Button variant={'outline'} onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={() => handleStartTunnel(activeTab)}
-            disabled={isStartingTunnel}
-          >
-            {isStartingTunnel && (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            )}
-            {isStartingTunnel ? 'Starting...' : 'Start Tunnel'}
-          </Button>
-        </DialogFooter>
+            </TabsContent>
+          </Tabs>
+          <div className="flex items-center space-x-2 pt-2">
+            <Checkbox
+              id="gateway-ports"
+              checked={gatewayPorts}
+              onCheckedChange={(checked) => setGatewayPorts(Boolean(checked))}
+            />
+            <Label
+              htmlFor="gateway-ports"
+              className="text-sm font-normal text-muted-foreground"
+            >
+              Allow remote connections (GatewayPorts)
+            </Label>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant={'outline'}
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isStartingTunnel}>
+              {isStartingTunnel && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              {isStartingTunnel ? 'Starting...' : 'Start Tunnel'}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
       <HelpSheet topic={helpTopic} onOpenChange={() => setHelpTopic(null)} />
     </Dialog>

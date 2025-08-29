@@ -103,6 +103,15 @@ export function DialogProvider({ children }: { children: ReactNode }) {
     })
   }
 
+  const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault() // 阻止表单默认的页面刷新行为
+    // 自动查找第一个非 'outline' 变体的按钮作为确认操作
+    const confirmButton = dialogConfig?.options.buttons?.find(
+      (b) => b.variant !== 'outline'
+    )
+    handleClose(confirmButton?.value ?? 'ok')
+  }
+
   return (
     // 将 showDialog 函数通过Context 提供给所以子组件
     <DialogContext.Provider value={{ showDialog, closeDialog }}>
@@ -114,95 +123,105 @@ export function DialogProvider({ children }: { children: ReactNode }) {
         onOpenChange={(isOpen) => !isOpen && handleClose(null)}
       >
         {/*让 AlertDialogContent 成为一个垂直的、固定高度的 Flexbox 容器*/}
-        <AlertDialogContent className="flex flex-col max-h-[80vh]">
-          {/* 头部：不允许收缩 */}
-          <AlertDialogHeader className="flex-shrink-0">
-            {/* 在标题旁边渲染动态的图标和颜色 */}
-            {dialVisuals && (
-              <dialVisuals.Icon
-                className={`h6 w-6 ${dialVisuals.colorClass}`}
-              />
-            )}
-            <AlertDialogTitle>{dialogConfig?.options.title}</AlertDialogTitle>
-          </AlertDialogHeader>
-
-          {/* 内容区：
-            - flex-grow: 让它自动伸展，填充所有可用垂直空间
-            - overflow-y-auto: 当内容超出时，只在这个区域内出现滚动条
-            - my-4: 上下留出一些间距
-          */}
-          <div className="flex-grow my-4 overflow-y-auto">
-            <AlertDialogDescription className="whitespace-pre-wrap break-words">
-              {dialogConfig?.options.message}
-            </AlertDialogDescription>
-          </div>
-          <div className="py-4 space-y-4">
-            {/* 条件渲染输入框 */}
-            {dialogConfig?.options.prompt && (
-              <div className="flex items-center space-x-2">
-                <Label htmlFor="dialog-prompt" className=" whitespace-nowrap">
-                  {dialogConfig.options.prompt.label}
-                </Label>
-                <Input
-                  id="dialog-prompt"
-                  type={dialogConfig.options.prompt.type}
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  className="mt-2 flex-grow"
+        <AlertDialogContent>
+          <form
+            onSubmit={handleFormSubmit}
+            className="flex flex-col max-h-[80vh]"
+          >
+            {/* 头部：不允许收缩 */}
+            <AlertDialogHeader className="flex-shrink-0">
+              {/* 在标题旁边渲染动态的图标和颜色 */}
+              {dialVisuals && (
+                <dialVisuals.Icon
+                  className={`h6 w-6 ${dialVisuals.colorClass}`}
                 />
-              </div>
-            )}
-            {/* 条件渲染选择框 */}
-            {dialogConfig?.options.checkboxes &&
-              dialogConfig.options.checkboxes.map((cb) => (
-                <div key={cb.value} className="flex items-start space-x-3">
-                  <Checkbox
-                    id={`dialog-cb-${cb.value}`}
-                    onCheckedChange={(checked) =>
-                      handleCheckboxChange(Boolean(checked), cb.value)
-                    }
-                    checked={checkedValues.includes(cb.value)}
-                    className="mt-0.5"
-                  />
-                  <div className="grid gap-1.5 leading-none">
-                    <Label
-                      htmlFor={`dialog-cb-${cb.value}`}
-                      className="font-normal"
-                    >
-                      {cb.label}
-                    </Label>
-                    {cb.description && (
-                      <p className="text-sm text-muted-foreground">
-                        {cb.description}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
-          </div>
+              )}
+              <AlertDialogTitle>{dialogConfig?.options.title}</AlertDialogTitle>
+            </AlertDialogHeader>
 
-          {/* 脚部：不允许收缩 */}
-          <AlertDialogFooter className="flex-shrink-0">
-            {/* 动态渲染按钮 */}
-            {dialogConfig?.options.buttons ? (
-              dialogConfig.options.buttons.map((button) => (
-                <Button
-                  key={button.text}
-                  variant={button.variant}
-                  onClick={() => handleClose(button.value)}
+            {/* 内容区：
+              - flex-grow: 让它自动伸展，填充所有可用垂直空间
+              - overflow-y-auto: 当内容超出时，只在这个区域内出现滚动条
+              - my-4: 上下留出一些间距
+            */}
+            <div className="flex-grow my-4 overflow-y-auto">
+              <AlertDialogDescription className="whitespace-pre-wrap break-words">
+                {dialogConfig?.options.message}
+              </AlertDialogDescription>
+            </div>
+            <div className="py-4 space-y-4">
+              {/* 条件渲染输入框 */}
+              {dialogConfig?.options.prompt && (
+                <div className="flex items-center space-x-2">
+                  <Label htmlFor="dialog-prompt" className=" whitespace-nowrap">
+                    {dialogConfig.options.prompt.label}
+                  </Label>
+                  <Input
+                    id="dialog-prompt"
+                    type={dialogConfig.options.prompt.type}
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    className="mt-2 flex-grow"
+                    autoFocus
+                  />
+                </div>
+              )}
+              {/* 条件渲染选择框 */}
+              {dialogConfig?.options.checkboxes &&
+                dialogConfig.options.checkboxes.map((cb) => (
+                  <div key={cb.value} className="flex items-start space-x-3">
+                    <Checkbox
+                      id={`dialog-cb-${cb.value}`}
+                      onCheckedChange={(checked) =>
+                        handleCheckboxChange(Boolean(checked), cb.value)
+                      }
+                      checked={checkedValues.includes(cb.value)}
+                      className="mt-0.5"
+                    />
+                    <div className="grid gap-1.5 leading-none">
+                      <Label
+                        htmlFor={`dialog-cb-${cb.value}`}
+                        className="font-normal"
+                      >
+                        {cb.label}
+                      </Label>
+                      {cb.description && (
+                        <p className="text-sm text-muted-foreground">
+                          {cb.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+            </div>
+
+            {/* 脚部：不允许收缩 */}
+            <AlertDialogFooter className="flex-shrink-0">
+              {/* 动态渲染按钮 */}
+              {dialogConfig?.options.buttons ? (
+                dialogConfig.options.buttons.map((button) => (
+                  <Button
+                    key={button.text}
+                    type={button.variant === 'outline' ? 'button' : 'submit'}
+                    variant={button.variant}
+                    onClick={() => handleClose(button.value)}
+                  >
+                    {button.text}
+                  </Button>
+                ))
+              ) : (
+                // 如果没有定义按钮，则渲染一个默认的 "OK" 按钮
+                // 对于没有自定义按钮的简单提示，我们使用语义化的 AlertDialogAction
+                <AlertDialogAction
+                  type="submit"
+                  onClick={() => handleClose('ok')}
                 >
-                  {button.text}
-                </Button>
-              ))
-            ) : (
-              // 如果没有定义按钮，则渲染一个默认的 "OK" 按钮
-              // 对于没有自定义按钮的简单提示，我们使用语义化的 AlertDialogAction
-              <AlertDialogAction onClick={() => handleClose('ok')}>
-                OK
-              </AlertDialogAction>
-              // <Button onClick={() => handleClose('ok')}>OK</Button>
-            )}
-          </AlertDialogFooter>
+                  OK
+                </AlertDialogAction>
+                // <Button onClick={() => handleClose('ok')}>OK</Button>
+              )}
+            </AlertDialogFooter>
+          </form>
         </AlertDialogContent>
       </AlertDialog>
     </DialogContext.Provider>

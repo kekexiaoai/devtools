@@ -231,7 +231,11 @@ export function CreateTunnelDialog({
         </DialogHeader>
         <Form {...form}>
           <form
-            onSubmit={(e) => e.preventDefault()} // Prevent default, buttons handle submission
+            // Set the default form submission to "Save"
+            onSubmit={(e) => {
+              e.preventDefault()
+              void form.handleSubmit((data) => handleSave(data, true))(e)
+            }}
             className="space-y-4 py-4"
           >
             <FormField
@@ -510,10 +514,7 @@ export function CreateTunnelDialog({
                 Save
               </Button>
               <Button
-                type="button"
-                onClick={() => {
-                  void form.handleSubmit((data) => handleSave(data, true))()
-                }}
+                type="submit" // This is now the default action on Enter
                 disabled={isSaving}
               >
                 {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
