@@ -83,8 +83,9 @@ func (s *Service) StartLocalSession(sessionID string) (*types.TerminalSessionInf
 	shell := getDefaultShell()
 	log.Printf("Attempting to start local session with shell: %s", shell)
 
-	// 创建一个执行本地 shell 的命令
-	cmd := exec.Command(shell)
+	// 使用 ptyx.Command 创建命令，它会根据操作系统自动处理 "login shell" 的标志。
+	// 在 Unix-like 系统上会添加 -l 参数，在 Windows 上则不会。
+	cmd := ptyx.Command(shell)
 
 	// On Unix-like systems, this sets Setpgid to true, creating a new process group.
 	// This is essential for properly terminating the shell and all its children.
