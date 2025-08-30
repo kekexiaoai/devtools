@@ -67,6 +67,12 @@ export function TerminalView({
   const [renameValue, setRenameValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // A ref to track how a rename operation was initiated. This helps manage focus correctly.
+  // Renaming via a context menu requires a delay before focusing the input to avoid
+  // conflicts with the menu's closing animation and focus-restoration logic.
+  // Renaming via double-click does not need this delay.
+  const renameInitiatedFromMenu = useRef(false)
+
   const terminalFontFamily = FONT_FAMILIES[settings.terminalFontFamily].value
 
   // Effect to handle all theme updates, including system theme changes
@@ -84,12 +90,23 @@ export function TerminalView({
   // 这对于需要立即与 DOM 交互的场景（如测量、焦点管理）是最佳实践。
   useLayoutEffect(() => {
     if (editingTabId && inputRef.current) {
-      inputRef.current.focus()
-      inputRef.current.select()
+      // If rename was started from a menu, we need a delay to let the menu close
+      // and avoid focus conflicts. Otherwise, focus immediately.
+      const delay = renameInitiatedFromMenu.current ? 150 : 0
+      // 使用 setTimeout 将焦点操作推迟到下一个事件循环。
+      // 这是一种健壮的技术，可以防止在 input 出现时，
+      // 其他 UI 元素（如正在保持打开的菜单）的焦点事件干扰，从而确保输入框能稳定地获得焦点。
+      setTimeout(() => {
+        inputRef.current?.focus()
+        inputRef.current?.select()
+        // Reset the flag after use
+        renameInitiatedFromMenu.current = false
+      }, delay)
     }
   }, [editingTabId])
 
-  const handleStartRename = (session: TerminalSession) => {
+  const handleStartRename = (session: TerminalSession, fromMenu = false) => {
+    renameInitiatedFromMenu.current = fromMenu
     setEditingTabId(session.id)
     setRenameValue(session.displayName)
   }
@@ -263,70 +280,62 @@ export function TerminalView({
                 className="relative pr-8 flex items-center gap-2"
                 onDoubleClick={() => handleStartRename(session)}
               >
-                <ContextMenu>
-                  <ContextMenuTrigger className="flex items-center gap-2">
+                {editingTabId === session.id ? (
+                  <div className="flex items-center gap-2">
                     <span
-                      className={`h-2 w-2 rounded-full flex-shrink-0 ${getStatusIndicatorClass(session.status)}`}
-                      aria-label={`Status: ${session.status}`}
+                      className={`h-2 w-2 rounded-full flex-shrink-0 ${getStatusIndicatorClass(
+                        session.status
+                      )}`}
                     />
-                    {editingTabId === session.id ? (
-                      <input
-                        ref={inputRef}
-                        type="text"
-                        value={renameValue}
-                        onChange={(e) => setRenameValue(e.target.value)}
-                        onBlur={() => handleCommitRename(session.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleCommitRename(session.id)
-                          if (e.key === 'Escape') setEditingTabId(null)
-                        }}
-                        className="bg-transparent outline-none ring-0"
-                      />
-                    ) : (
-                      session.displayName
-                    )}
-                  </ContextMenuTrigger>
-                  <ContextMenuContent>
-                    {/* <ContextMenuItem
-                  onClick={() =>
-                    navigator.clipboard.writeText(session.id).then(() => {
-                      toast.success('Session ID copied to clipboard.')
-                    })
-                  }
-                >
-                  Copy Session ID
-                </ContextMenuItem>
-                <ContextMenuSeparator /> */}
-                    <ContextMenuItem
-                      onSelect={() => handleStartRename(session)}
-                    >
-                      Rename Tab
-                    </ContextMenuItem>
-                    <ContextMenuItem
-                      onSelect={() => {
-                        // Use a self-invoking async function to handle the promise
-                        // and satisfy the linter, which expects a void return.
-                        void (async () => {
-                          // Add a tiny delay to solve a race condition:
-                          // On local terminal duplication, the new session is created so fast
-                          // that the state update can conflict with the ContextMenu's closing event,
-                          // preventing the new tab from being properly activated.
-                          // This delay ensures UI events are processed before connection starts.
-                          await new Promise((resolve) =>
-                            setTimeout(resolve, 150)
-                          )
-                          onConnect(
-                            session.alias,
-                            session.type as 'local' | 'remote',
-                            'internal'
-                          )
-                        })()
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onBlur={() => handleCommitRename(session.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleCommitRename(session.id)
+                        if (e.key === 'Escape') setEditingTabId(null)
                       }}
-                    >
-                      Duplicate Tab
-                    </ContextMenuItem>
-                  </ContextMenuContent>
-                </ContextMenu>
+                      className="bg-transparent outline-none ring-0"
+                    />
+                  </div>
+                ) : (
+                  <ContextMenu>
+                    <ContextMenuTrigger className="flex items-center gap-2">
+                      <span
+                        className={`h-2 w-2 rounded-full flex-shrink-0 ${getStatusIndicatorClass(
+                          session.status
+                        )}`}
+                        aria-label={`Status: ${session.status}`}
+                      />
+                      {session.displayName}
+                    </ContextMenuTrigger>
+                    <ContextMenuContent>
+                      <ContextMenuItem
+                        onSelect={() => handleStartRename(session, true)}
+                      >
+                        Rename Tab
+                      </ContextMenuItem>
+                      <ContextMenuItem
+                        onSelect={() => {
+                          void (async () => {
+                            await new Promise((resolve) =>
+                              setTimeout(resolve, 150)
+                            )
+                            onConnect(
+                              session.alias,
+                              session.type as 'local' | 'remote',
+                              'internal'
+                            )
+                          })()
+                        }}
+                      >
+                        Duplicate Tab
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
+                )}
                 <span
                   role="button"
                   aria-label="Close Tab"
@@ -352,94 +361,117 @@ export function TerminalView({
           </TabsList>
 
           {/* Dropdown for hidden tabs */}
-          {visibleCount < terminalSessions.length && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  ref={moreTabsButtonRef}
-                  className={cn(
-                    // 基础样式，模仿 TabsTrigger
-                    'inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm',
-                    // 根据激活状态应用不同样式
-                    {
-                      'bg-background text-foreground shadow-sm':
-                        isActiveTabHidden, // 激活状态：与激活的 Tab 样式相同
-                      'hover:bg-accent hover:text-accent-foreground':
-                        !isActiveTabHidden, // 非激活状态：添加 hover 效果
-                    }
-                  )}
-                >
-                  {isActiveTabHidden && activeSession ? (
-                    <div className="flex items-center gap-1">
-                      <span
-                        className="max-w-[150px] truncate"
-                        title={activeSession.displayName}
-                      >
-                        {activeSession.displayName}
-                      </span>
-                      <ChevronDown className="h-4 w-4 flex-shrink-0" />
-                    </div>
-                  ) : (
-                    <MoreVertical className="h-4 w-4" />
-                  )}
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {terminalSessions.slice(visibleCount).map((session) => (
-                  <ContextMenu key={session.id}>
-                    <ContextMenuTrigger asChild>
-                      {/* The onSelect event for DropdownMenuItem is prevented if an input is active */}
-                      <DropdownMenuItem
-                        onSelect={(e) => {
-                          if (editingTabId === session.id) {
-                            e.preventDefault() // Prevent closing menu when clicking on the input
-                          } else {
-                            onActiveTerminalChange(session.id)
+          {visibleCount < terminalSessions.length &&
+            // If editing the hidden active tab, render the input directly.
+            // This avoids focus conflicts from menus closing.
+            (isActiveTabHidden &&
+            activeSession &&
+            editingTabId === activeSession.id ? (
+              // Render an element that perfectly mimics an active TabsTrigger in edit mode.
+              <div className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium bg-background text-foreground shadow-sm">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`h-2 w-2 rounded-full flex-shrink-0 ${getStatusIndicatorClass(
+                      activeSession.status
+                    )}`}
+                  />
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onBlur={() => handleCommitRename(activeSession.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter')
+                        handleCommitRename(activeSession.id)
+                      if (e.key === 'Escape') setEditingTabId(null)
+                    }}
+                    className="bg-transparent outline-none ring-0"
+                  />
+                </div>
+              </div>
+            ) : (
+              <DropdownMenu>
+                <ContextMenu>
+                  <ContextMenuTrigger asChild disabled={!isActiveTabHidden}>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        ref={moreTabsButtonRef}
+                        onDoubleClick={() => {
+                          if (isActiveTabHidden && activeSession) {
+                            handleStartRename(activeSession)
                           }
                         }}
                         className={cn(
+                          'inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                          isActiveTabHidden
+                            ? 'bg-background text-foreground shadow-sm'
+                            : 'hover:bg-accent hover:text-accent-foreground'
+                        )}
+                      >
+                        {isActiveTabHidden && activeSession ? (
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`h-2 w-2 rounded-full flex-shrink-0 ${getStatusIndicatorClass(
+                                activeSession.status
+                              )}`}
+                            />
+                            <span
+                              className="max-w-[150px] truncate"
+                              title={activeSession.displayName}
+                            >
+                              {activeSession.displayName}
+                            </span>
+                            <ChevronDown className="h-4 w-4 flex-shrink-0" />
+                          </div>
+                        ) : (
+                          <MoreVertical className="h-4 w-4" />
+                        )}
+                      </button>
+                    </DropdownMenuTrigger>
+                  </ContextMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {terminalSessions.slice(visibleCount).map((session) => (
+                      <DropdownMenuItem
+                        key={session.id}
+                        onSelect={() => onActiveTerminalChange(session.id)}
+                        className={cn(
                           'flex justify-between items-center gap-2',
-                          // 为下拉列表中的活动标签页添加一个高亮环（ring），
-                          // 以便在暗色模式下清晰地标识出来。
                           session.id === activeTerminalId &&
                             'ring-1 ring-inset ring-accent'
                         )}
                       >
-                        {editingTabId === session.id ? (
-                          <input
-                            ref={inputRef}
-                            type="text"
-                            value={renameValue}
-                            onChange={(e) => setRenameValue(e.target.value)}
-                            onBlur={() => handleCommitRename(session.id)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter')
-                                handleCommitRename(session.id)
-                              if (e.key === 'Escape') setEditingTabId(null)
-                            }}
-                            className="bg-transparent outline-none ring-0 w-full"
+                        <div className="flex items-center gap-2 truncate">
+                          <span
+                            className={`h-2 w-2 rounded-full flex-shrink-0 ${getStatusIndicatorClass(
+                              session.status
+                            )}`}
                           />
-                        ) : (
                           <span className="truncate">
                             {session.displayName}
                           </span>
-                        )}
-                        <span
-                          className={`h-2 w-2 rounded-full flex-shrink-0 ${getStatusIndicatorClass(session.status)}`}
-                        />
+                        </div>
+                        <button
+                          aria-label={`Close tab ${session.displayName}`}
+                          className="p-1 -mr-2 rounded-full hover:bg-muted-foreground/20 flex-shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onCloseTerminal(session.id)
+                          }}
+                        >
+                          <XIcon className="h-3 w-3" />
+                        </button>
                       </DropdownMenuItem>
-                    </ContextMenuTrigger>
+                    ))}
+                  </DropdownMenuContent>
+                  {/* Conditionally render the context menu content to ensure `activeSession` is not null, satisfying TypeScript. */}
+                  {isActiveTabHidden && activeSession && (
                     <ContextMenuContent>
-                      {/* <ContextMenuItem
-                        onSelect={(e) => {
-                          // Prevent the context menu (and parent dropdown) from closing
-                          // when we initiate a rename, allowing the input to appear.
-                          e.preventDefault()
-                          handleStartRename(session)
-                        }}
+                      <ContextMenuItem
+                        onSelect={() => handleStartRename(activeSession, true)}
                       >
                         Rename Tab
-                      </ContextMenuItem> */}
+                      </ContextMenuItem>
                       <ContextMenuItem
                         onSelect={() => {
                           void (async () => {
@@ -447,8 +479,8 @@ export function TerminalView({
                               setTimeout(resolve, 150)
                             )
                             onConnect(
-                              session.alias,
-                              session.type as 'local' | 'remote',
+                              activeSession.alias,
+                              activeSession.type as 'local' | 'remote',
                               'internal'
                             )
                           })()
@@ -457,11 +489,10 @@ export function TerminalView({
                         Duplicate Tab
                       </ContextMenuItem>
                     </ContextMenuContent>
-                  </ContextMenu>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+                  )}
+                </ContextMenu>
+              </DropdownMenu>
+            ))}
         </div>
 
         <div className="ml-auto flex items-center gap-2 p-1 flex-shrink-0">
