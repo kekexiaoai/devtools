@@ -4,6 +4,16 @@ import { FONT_FAMILIES, NAMED_THEMES } from '@/themes/terminalThemes'
 
 type ThemeName = 'System Default' | keyof typeof NAMED_THEMES
 
+export interface Shortcut {
+  key: string
+  ctrl: boolean
+  meta: boolean
+  alt: boolean
+  shift: boolean
+}
+
+export type ShortcutAction = 'newTerminal' | 'closeTab' | 'nextTab' | 'prevTab'
+
 interface SettingsState {
   // General
   theme: 'light' | 'dark' | 'system'
@@ -18,6 +28,7 @@ interface SettingsState {
   terminalCursorStyle: 'block' | 'underline' | 'bar'
   terminalCursorBlink: boolean
   confirmOnCloseTerminal: boolean
+  shortcuts: Record<ShortcutAction, Shortcut>
 
   // SSH
   sshConfigPath: string
@@ -35,7 +46,6 @@ type TerminalSettings = Pick<
   | 'terminalScrollback'
   | 'terminalCursorStyle'
   | 'terminalCursorBlink'
-  | 'confirmOnCloseTerminal'
 >
 
 interface SettingsActions {
@@ -49,9 +59,18 @@ interface SettingsActions {
   setTerminalCursorStyle: (style: SettingsState['terminalCursorStyle']) => void
   setTerminalCursorBlink: (enabled: boolean) => void
   setConfirmOnCloseTerminal: (enabled: boolean) => void
+  setShortcut: (action: ShortcutAction, shortcut: Shortcut) => void
   setSshConfigPath: (path: string) => void
   resetTerminalSettings: () => void
+  resetShortcuts: () => void
   setUseTunnelMiniMap: (enabled: boolean) => void
+}
+
+const defaultShortcuts: Record<ShortcutAction, Shortcut> = {
+  newTerminal: { key: 't', ctrl: true, meta: true, alt: false, shift: false },
+  closeTab: { key: 'w', ctrl: true, meta: true, alt: false, shift: false },
+  nextTab: { key: 'Tab', ctrl: true, meta: false, alt: false, shift: false },
+  prevTab: { key: 'Tab', ctrl: true, meta: false, alt: false, shift: true },
 }
 
 const defaultTerminalSettings: TerminalSettings = {
@@ -62,12 +81,13 @@ const defaultTerminalSettings: TerminalSettings = {
   terminalScrollback: 1000,
   terminalCursorStyle: 'block',
   terminalCursorBlink: true,
-  confirmOnCloseTerminal: true,
 }
 
 const defaultSettings: Omit<SettingsState, 'theme'> = {
   sidebarCollapsed: false,
   ...defaultTerminalSettings,
+  confirmOnCloseTerminal: true,
+  shortcuts: defaultShortcuts,
   sshConfigPath: '~/.ssh/config',
   useTunnelMiniMap: true,
 }
@@ -93,8 +113,16 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
         set({ terminalCursorBlink }),
       setConfirmOnCloseTerminal: (confirmOnCloseTerminal) =>
         set({ confirmOnCloseTerminal }),
+      setShortcut: (action, shortcut) =>
+        set((state) => ({
+          shortcuts: {
+            ...state.shortcuts,
+            [action]: shortcut,
+          },
+        })),
       setSshConfigPath: (sshConfigPath) => set({ sshConfigPath }),
       resetTerminalSettings: () => set(defaultTerminalSettings),
+      resetShortcuts: () => set({ shortcuts: defaultShortcuts }),
       useTunnelMiniMap: true,
       setUseTunnelMiniMap: (enabled) => set({ useTunnelMiniMap: enabled }),
     }),

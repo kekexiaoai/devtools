@@ -45,7 +45,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { useSettingsStore } from '@/hooks/useSettingsStore' // prettier-ignore
+import { useSettingsStore, type ShortcutAction } from '@/hooks/useSettingsStore'
 
 interface TerminalViewProps {
   terminalSessions: TerminalSession[]
@@ -89,6 +89,7 @@ export function TerminalView({
     terminalCursorBlink,
     confirmOnCloseTerminal,
     setConfirmOnCloseTerminal,
+    shortcuts,
   } = useSettingsStore()
 
   // 新增 state，用于追踪哪个 Tab 正在被编辑
@@ -145,7 +146,7 @@ export function TerminalView({
     onConnect('local', 'local', 'internal')
   }, [onConnect])
 
-  // --- Effect for Keyboard Shortcuts (Tab Switching & Closing) ---
+  // --- Effect for Keyboard Shortcuts ---
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       // Only handle shortcuts if this view is active.
@@ -153,25 +154,40 @@ export function TerminalView({
         return
       }
 
-      // --- New Local Tab (Ctrl+T or Cmd+T) ---
-      if ((event.ctrlKey || event.metaKey) && event.key === 't') {
-        // Prevent the browser's default action (opening a new tab).
-        event.preventDefault()
-        // Stop the 't' key from being passed to the terminal.
-        event.stopPropagation()
+      const matchShortcut = (action: ShortcutAction): boolean => {
+        const shortcut = shortcuts[action]
+        if (
+          !shortcut ||
+          event.key.toLowerCase() !== shortcut.key.toLowerCase()
+        ) {
+          return false
+        }
 
-        handleOpenLocalTerminal()
+        // For Ctrl/Meta, if both are true in config, it means "Cmd OR Ctrl".
+        if (shortcut.ctrl && shortcut.meta) {
+          if (!event.ctrlKey && !event.metaKey) return false
+        } else {
+          // Otherwise, it's a strict match.
+          if (shortcut.ctrl !== event.ctrlKey) return false
+          if (shortcut.meta !== event.metaKey) return false
+        }
 
-        return // Shortcut handled, no need to check others.
+        if (shortcut.alt !== event.altKey) return false
+        if (shortcut.shift !== event.shiftKey) return false
+
+        return true
       }
 
-      // --- Close Active Tab (Ctrl+W or Cmd+W) ---
-      if ((event.ctrlKey || event.metaKey) && event.key === 'w') {
-        // Prevent the browser's default action (closing the window/tab).
+      if (matchShortcut('newTerminal')) {
         event.preventDefault()
-        // Stop the 'w' key from being passed to the terminal.
         event.stopPropagation()
+        handleOpenLocalTerminal()
+        return
+      }
 
+      if (matchShortcut('closeTab')) {
+        event.preventDefault()
+        event.stopPropagation()
         if (activeTerminalId) {
           if (confirmOnCloseTerminal) {
             setConfirmCloseSessionId(activeTerminalId)
@@ -179,13 +195,13 @@ export function TerminalView({
             onCloseTerminal(activeTerminalId)
           }
         }
-        return // Shortcut handled, no need to check others.
+        return
       }
 
       // --- Tab Switching (Ctrl+Tab) ---
       if (terminalSessions.length <= 1) return // No tabs to switch
 
-      if (event.ctrlKey && event.key === 'Tab') {
+      const handleTabSwitch = (isReverse: boolean) => {
         // Prevent the browser's default tab switching behavior.
         event.preventDefault()
         // Stop the event from propagating further down to other elements,
@@ -198,7 +214,7 @@ export function TerminalView({
         if (currentIndex === -1) return // Should not happen if a tab is active
 
         let nextIndex: number
-        if (event.shiftKey) {
+        if (isReverse) {
           // Ctrl+Shift+Tab: Go to the previous tab, wrapping around.
           nextIndex =
             (currentIndex - 1 + terminalSessions.length) %
@@ -210,6 +226,14 @@ export function TerminalView({
 
         const nextSessionId = terminalSessions[nextIndex].id
         onActiveTerminalChange(nextSessionId)
+      }
+
+      if (matchShortcut('nextTab')) {
+        handleTabSwitch(false)
+      } else if (matchShortcut('prevTab')) {
+        // The `matchShortcut` for prevTab already checks for the Shift key
+        // based on the user's configuration.
+        handleTabSwitch(true)
       }
     }
 
@@ -229,6 +253,7 @@ export function TerminalView({
     onCloseTerminal,
     confirmOnCloseTerminal,
     handleOpenLocalTerminal,
+    shortcuts,
   ])
 
   const handleStartRename = (session: TerminalSession, fromMenu = false) => {

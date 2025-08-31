@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useMemo } from 'react' // prettier-ignore
 import {
   Card,
   CardContent,
@@ -14,11 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Slider } from '@/components/ui/slider'
+import { Slider } from '@/components/ui/slider' // prettier-ignore
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
-import { useSettingsStore } from '@/hooks/useSettingsStore'
+import { useSettingsStore, type ShortcutAction } from '@/hooks/useSettingsStore'
 import { FONT_FAMILIES, NAMED_THEMES } from '@/themes/terminalThemes'
+import { ShortcutInput } from '@/components/ShortcutInput'
 
 const availableThemes = [
   { name: 'System Default', value: 'System Default' },
@@ -28,33 +29,11 @@ const availableThemes = [
   })),
 ]
 
-const Kbd = ({ children }: { children: React.ReactNode }) => (
-  <kbd className="pointer-events-none inline-flex h-6 select-none items-center gap-1 rounded border bg-muted px-2 font-mono text-sm font-medium text-muted-foreground">
-    {children}
-  </kbd>
-)
-
-const shortcuts = [
-  {
-    name: 'New Local Terminal',
-    keys: ['Ctrl', 'T'],
-    macKeys: ['⌘', 'T'],
-  },
-  {
-    name: 'Close Tab',
-    keys: ['Ctrl', 'W'],
-    macKeys: ['⌘', 'W'],
-  },
-  {
-    name: 'Next Tab',
-    keys: ['Ctrl', 'Tab'],
-    macKeys: ['⌃', 'Tab'],
-  },
-  {
-    name: 'Previous Tab',
-    keys: ['Ctrl', 'Shift', 'Tab'],
-    macKeys: ['⌃', '⇧', 'Tab'],
-  },
+const shortcutActions: { id: ShortcutAction; name: string }[] = [
+  { id: 'newTerminal', name: 'New Local Terminal' },
+  { id: 'closeTab', name: 'Close Tab' },
+  { id: 'nextTab', name: 'Next Tab' },
+  { id: 'prevTab', name: 'Previous Tab' },
 ]
 
 export function SettingsView({ platform }: { platform: string }) {
@@ -260,24 +239,38 @@ export function SettingsView({ platform }: { platform: string }) {
         {/* Keyboard Shortcuts */}
         <Card>
           <CardHeader>
-            <CardTitle>Keyboard Shortcuts</CardTitle>
-            <CardDescription>
-              Global shortcuts for terminal operations.
-            </CardDescription>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle>Keyboard Shortcuts</CardTitle>
+                <CardDescription>
+                  Customize global shortcuts for terminal operations.
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={settings.resetShortcuts}
+              >
+                Reset to Defaults
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {shortcuts.map((shortcut) => {
-              const keys = isMac ? shortcut.macKeys : shortcut.keys
+            {shortcutActions.map((action) => {
               return (
                 <div
-                  key={shortcut.name}
+                  key={action.id}
                   className="flex items-center justify-between"
                 >
-                  <Label>{shortcut.name}</Label>
-                  <div className="flex items-center gap-1.5">
-                    {keys.map((key) => (
-                      <Kbd key={key}>{key}</Kbd>
-                    ))}
+                  <Label>{action.name}</Label>
+                  <div className="w-[240px]">
+                    <ShortcutInput
+                      value={settings.shortcuts[action.id]}
+                      onChange={(newShortcut) =>
+                        settings.setShortcut(action.id, newShortcut)
+                      }
+                      isMac={isMac}
+                    />
                   </div>
                 </div>
               )
