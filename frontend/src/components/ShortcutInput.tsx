@@ -17,8 +17,12 @@ function formatShortcut(shortcut: Shortcut, isMac: boolean): string {
   if (!shortcut) return ''
   const parts: string[] = []
   if (isMac) {
+    // For display on Mac, Cmd (meta) takes precedence.
+    // This correctly handles the "CmdOrCtrl" flag from default shortcuts
+    // (where both meta and ctrl are true) by only showing the Cmd symbol.
     if (shortcut.meta) parts.push('⌘')
-    if (shortcut.ctrl) parts.push('⌃')
+    // Only show the Ctrl symbol if Meta is not also present.
+    else if (shortcut.ctrl) parts.push('⌃')
     if (shortcut.alt) parts.push('⌥')
     if (shortcut.shift) parts.push('⇧')
   } else {
@@ -55,11 +59,10 @@ export function ShortcutInput({ value, onChange, isMac }: ShortcutInputProps) {
 
     const newShortcut: Shortcut = {
       key: e.key,
-      // On Mac, pressing Cmd sets both `meta: true` and `ctrl: true` in the stored
-      // configuration. This acts as a special "CmdOrCtrl" flag. The event listener
-      // in `TerminalView` is designed to recognize this flag and will trigger the
-      // action for either `Cmd` (on Mac) or `Ctrl` (on Windows/Linux).
-      ctrl: e.ctrlKey || (isMac && e.metaKey),
+      // Record the keys exactly as they were pressed. This provides maximum
+      // flexibility, allowing users to set Mac-specific Ctrl-only shortcuts
+      // that are distinct from Cmd-shortcuts.
+      ctrl: e.ctrlKey,
       meta: e.metaKey,
       alt: e.altKey,
       shift: e.shiftKey,
