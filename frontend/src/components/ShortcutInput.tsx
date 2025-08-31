@@ -57,6 +57,15 @@ export function ShortcutInput({ value, onChange, isMac }: ShortcutInputProps) {
     // Ignore modifier-only keydowns
     if (['Control', 'Meta', 'Alt', 'Shift'].includes(e.key)) return
 
+    // --- Validation ---
+    // A valid shortcut must include at least one primary modifier (Ctrl, Meta, Alt).
+    // This prevents single keys (e.g., "A") or Shift-only combinations
+    // (e.g., "Shift + A") from being registered, as they would interfere
+    // with normal typing.
+    if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+      return // Ignore invalid shortcut attempt
+    }
+
     const newShortcut: Shortcut = {
       key: e.key,
       // Record the keys exactly as they were pressed. This provides maximum
