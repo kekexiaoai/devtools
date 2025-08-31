@@ -1,5 +1,12 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs' // prettier-ignore
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { IntegratedTerminal } from '@/components/sshgate/IntegratedTerminal'
 import type { ConnectionStatus, TerminalSession } from '@/App'
@@ -133,12 +140,28 @@ export function TerminalView({
     }
   }, [editingTabId])
 
+  const handleOpenLocalTerminal = useCallback(() => {
+    onConnect('local', 'local', 'internal')
+  }, [onConnect])
+
   // --- Effect for Keyboard Shortcuts (Tab Switching & Closing) ---
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       // Only handle shortcuts if this view is active.
       if (!isActive) {
         return
+      }
+
+      // --- New Local Tab (Ctrl+T or Cmd+T) ---
+      if ((event.ctrlKey || event.metaKey) && event.key === 't') {
+        // Prevent the browser's default action (opening a new tab).
+        event.preventDefault()
+        // Stop the 't' key from being passed to the terminal.
+        event.stopPropagation()
+
+        handleOpenLocalTerminal()
+
+        return // Shortcut handled, no need to check others.
       }
 
       // --- Close Active Tab (Ctrl+W or Cmd+W) ---
@@ -204,6 +227,7 @@ export function TerminalView({
     onActiveTerminalChange,
     onCloseTerminal,
     confirmOnCloseTerminal,
+    handleOpenLocalTerminal,
   ])
 
   const handleStartRename = (session: TerminalSession, fromMenu = false) => {
@@ -217,10 +241,6 @@ export function TerminalView({
       onRenameTerminal(sessionId, renameValue.trim())
     }
     setEditingTabId(null)
-  }
-
-  const handleOpenLocalTerminal = () => {
-    onConnect('local', 'local', 'internal')
   }
 
   const getStatusIndicatorClass = (status: ConnectionStatus) => {
