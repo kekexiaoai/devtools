@@ -270,6 +270,9 @@ export function SettingsView({ platform }: { platform: string }) {
                         settings.setShortcut(action.id, newShortcut)
                       }
                       isMac={isMac}
+                      actionId={action.id}
+                      allShortcuts={settings.shortcuts}
+                      shortcutActions={shortcutActions}
                     />
                   </div>
                 </div>
