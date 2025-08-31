@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import {
   Card,
   CardContent,
@@ -28,8 +28,41 @@ const availableThemes = [
   })),
 ]
 
-export function SettingsView() {
+const Kbd = ({ children }: { children: React.ReactNode }) => (
+  <kbd className="pointer-events-none inline-flex h-6 select-none items-center gap-1 rounded border bg-muted px-2 font-mono text-sm font-medium text-muted-foreground">
+    {children}
+  </kbd>
+)
+
+const shortcuts = [
+  {
+    name: 'New Local Terminal',
+    keys: ['Ctrl', 'T'],
+    macKeys: ['⌘', 'T'],
+  },
+  {
+    name: 'Close Tab',
+    keys: ['Ctrl', 'W'],
+    macKeys: ['⌘', 'W'],
+  },
+  {
+    name: 'Next Tab',
+    keys: ['Ctrl', 'Tab'],
+    macKeys: ['⌃', 'Tab'],
+  },
+  {
+    name: 'Previous Tab',
+    keys: ['Ctrl', 'Shift', 'Tab'],
+    macKeys: ['⌃', '⇧', 'Tab'],
+  },
+]
+
+export function SettingsView({ platform }: { platform: string }) {
   const settings = useSettingsStore()
+
+  const isMac = useMemo(() => {
+    return platform === 'darwin'
+  }, [platform])
 
   return (
     <div className="p-4 h-full flex flex-col gap-4 overflow-y-auto">
@@ -221,6 +254,34 @@ export function SettingsView() {
                 onCheckedChange={settings.setConfirmOnCloseTerminal}
               />
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Keyboard Shortcuts */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Keyboard Shortcuts</CardTitle>
+            <CardDescription>
+              Global shortcuts for terminal operations.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {shortcuts.map((shortcut) => {
+              const keys = isMac ? shortcut.macKeys : shortcut.keys
+              return (
+                <div
+                  key={shortcut.name}
+                  className="flex items-center justify-between"
+                >
+                  <Label>{shortcut.name}</Label>
+                  <div className="flex items-center gap-1.5">
+                    {keys.map((key) => (
+                      <Kbd key={key}>{key}</Kbd>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
           </CardContent>
         </Card>
       </div>

@@ -716,7 +716,7 @@ function AppContent() {
           isDarkMode={isDarkMode}
         />
       ),
-      Settings: <SettingsView />,
+      Settings: <SettingsView platform={platform} />,
     }
   }, [
     handleStartTunnel,
@@ -741,7 +741,8 @@ function AppContent() {
     updateTerminalStatus,
     handleNavigate,
     activeSyncsCount,
-    activeWatchers, // Add activeWatchers to dependencies
+    activeWatchers,
+    platform,
   ])
 
   // 在后端准备好之前，显示一个加载界面
