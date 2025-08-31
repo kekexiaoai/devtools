@@ -204,6 +204,23 @@ export function SettingsView() {
                 onCheckedChange={settings.setTerminalCopyOnSelect}
               />
             </div>
+            {/* Confirm on Close */}
+            <div className="flex items-center justify-between">
+              <Label
+                htmlFor="term-confirm-on-close"
+                className="flex flex-col items-start gap-1.5"
+              >
+                <span>Confirm on Close</span>
+                <span className="font-normal text-muted-foreground text-xs">
+                  Ask before closing a tab with Ctrl/Cmd+W.
+                </span>
+              </Label>
+              <Switch
+                id="term-confirm-on-close"
+                checked={settings.confirmOnCloseTerminal}
+                onCheckedChange={settings.setConfirmOnCloseTerminal}
+              />
+            </div>
           </CardContent>
         </Card>
       </div>

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs' // prettier-ignore
 import { cn } from '@/lib/utils'
 import { IntegratedTerminal } from '@/components/sshgate/IntegratedTerminal'
 import type { ConnectionStatus, TerminalSession } from '@/App'
@@ -26,7 +26,19 @@ import {
   gruvboxDarkDimmedTheme,
 } from '@/themes/terminalThemes'
 import type { ITheme } from '@xterm/xterm'
-import { useSettingsStore } from '@/hooks/useSettingsStore'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
+import { useSettingsStore } from '@/hooks/useSettingsStore' // prettier-ignore
 
 interface TerminalViewProps {
   terminalSessions: TerminalSession[]
@@ -60,7 +72,17 @@ export function TerminalView({
   isActive,
   isDarkMode,
 }: TerminalViewProps) {
-  const settings = useSettingsStore()
+  const {
+    terminalFontSize,
+    terminalFontFamily: terminalFontFamilyKey,
+    terminalThemeName,
+    terminalCopyOnSelect,
+    terminalScrollback,
+    terminalCursorStyle,
+    terminalCursorBlink,
+    confirmOnCloseTerminal,
+    setConfirmOnCloseTerminal,
+  } = useSettingsStore()
 
   // 新增 state，用于追踪哪个 Tab 正在被编辑
   const [editingTabId, setEditingTabId] = useState<string | null>(null)
@@ -73,17 +95,23 @@ export function TerminalView({
   // Renaming via double-click does not need this delay.
   const renameInitiatedFromMenu = useRef(false)
 
-  const terminalFontFamily = FONT_FAMILIES[settings.terminalFontFamily].value
+  // State for close confirmation dialog
+  const [confirmCloseSessionId, setConfirmCloseSessionId] = useState<
+    string | null
+  >(null)
+  const [dontAskAgain, setDontAskAgain] = useState(false)
+
+  const terminalFontFamily = FONT_FAMILIES[terminalFontFamilyKey].value
 
   // Effect to handle all theme updates, including system theme changes
   const currentTerminalTheme = useMemo((): ITheme => {
-    if (settings.terminalThemeName === 'System Default') {
+    if (terminalThemeName === 'System Default') {
       // 当选择“系统默认”时，主题由 App.tsx 传递的 isDarkMode prop 决定
       return isDarkMode ? defaultDarkTheme : defaultLightTheme
     } else {
-      return NAMED_THEMES[settings.terminalThemeName]?.theme ?? defaultDarkTheme
+      return NAMED_THEMES[terminalThemeName]?.theme ?? defaultDarkTheme
     }
-  }, [settings.terminalThemeName, isDarkMode])
+  }, [terminalThemeName, isDarkMode])
 
   // 使用 useLayoutEffect 来确保在 DOM 更新后立即执行 focus 操作，
   // 避免了因 useEffect 异步执行可能导致的延迟或闪烁。
@@ -121,7 +149,11 @@ export function TerminalView({
         event.stopPropagation()
 
         if (activeTerminalId) {
-          onCloseTerminal(activeTerminalId)
+          if (confirmOnCloseTerminal) {
+            setConfirmCloseSessionId(activeTerminalId)
+          } else {
+            onCloseTerminal(activeTerminalId)
+          }
         }
         return // Shortcut handled, no need to check others.
       }
@@ -171,6 +203,7 @@ export function TerminalView({
     activeTerminalId,
     onActiveTerminalChange,
     onCloseTerminal,
+    confirmOnCloseTerminal,
   ])
 
   const handleStartRename = (session: TerminalSession, fromMenu = false) => {
@@ -578,6 +611,50 @@ export function TerminalView({
         </div>
       </div>
 
+      {/* Confirmation Dialog for Closing Tab */}
+      <AlertDialog
+        open={!!confirmCloseSessionId}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setConfirmCloseSessionId(null)
+            setDontAskAgain(false) // Reset checkbox on close
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Are you sure you want to close this tab?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              The running process in this terminal will be terminated. This
+              action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex items-center space-x-2 my-4">
+            <Checkbox
+              id="dont-ask-again"
+              checked={dontAskAgain}
+              onCheckedChange={(checked) => setDontAskAgain(checked as boolean)}
+            />
+            <Label
+              htmlFor="dont-ask-again"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              Don't ask me again
+            </Label>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button variant="destructive" onClick={handleConfirmClose}>
+                Close Tab
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="flex-grow relative">
         {terminalSessions.map((session) => (
           // 添加 forceMount 属性！
@@ -602,16 +679,25 @@ export function TerminalView({
               // 这触发了 `IntegratedTerminal` 内部依赖该 prop 的 `useEffect`，从而引发了状态更新和组件重渲染的死循环。
               // onStatusChange={(status) => onStatusChange(session.id, status)}
               theme={currentTerminalTheme}
-              fontSize={settings.terminalFontSize}
+              fontSize={terminalFontSize}
               fontFamily={terminalFontFamily}
-              copyOnSelect={settings.terminalCopyOnSelect}
-              scrollback={settings.terminalScrollback}
-              cursorStyle={settings.terminalCursorStyle}
-              cursorBlink={settings.terminalCursorBlink}
+              copyOnSelect={terminalCopyOnSelect}
+              scrollback={terminalScrollback}
+              cursorStyle={terminalCursorStyle}
+              cursorBlink={terminalCursorBlink}
             />
           </TabsContent>
         ))}
       </div>
     </Tabs>
   )
+
+  function handleConfirmClose() {
+    if (confirmCloseSessionId) {
+      onCloseTerminal(confirmCloseSessionId)
+      if (dontAskAgain) {
+        setConfirmOnCloseTerminal(false)
+      }
+    }
+  }
 }

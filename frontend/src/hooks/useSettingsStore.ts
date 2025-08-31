@@ -17,6 +17,7 @@ interface SettingsState {
   terminalScrollback: number
   terminalCursorStyle: 'block' | 'underline' | 'bar'
   terminalCursorBlink: boolean
+  confirmOnCloseTerminal: boolean
 
   // SSH
   sshConfigPath: string
@@ -34,6 +35,7 @@ type TerminalSettings = Pick<
   | 'terminalScrollback'
   | 'terminalCursorStyle'
   | 'terminalCursorBlink'
+  | 'confirmOnCloseTerminal'
 >
 
 interface SettingsActions {
@@ -46,6 +48,7 @@ interface SettingsActions {
   setTerminalScrollback: (lines: number) => void
   setTerminalCursorStyle: (style: SettingsState['terminalCursorStyle']) => void
   setTerminalCursorBlink: (enabled: boolean) => void
+  setConfirmOnCloseTerminal: (enabled: boolean) => void
   setSshConfigPath: (path: string) => void
   resetTerminalSettings: () => void
   setUseTunnelMiniMap: (enabled: boolean) => void
@@ -59,6 +62,7 @@ const defaultTerminalSettings: TerminalSettings = {
   terminalScrollback: 1000,
   terminalCursorStyle: 'block',
   terminalCursorBlink: true,
+  confirmOnCloseTerminal: true,
 }
 
 const defaultSettings: Omit<SettingsState, 'theme'> = {
@@ -87,6 +91,8 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
         set({ terminalCursorStyle }),
       setTerminalCursorBlink: (terminalCursorBlink) =>
         set({ terminalCursorBlink }),
+      setConfirmOnCloseTerminal: (confirmOnCloseTerminal) =>
+        set({ confirmOnCloseTerminal }),
       setSshConfigPath: (sshConfigPath) => set({ sshConfigPath }),
       resetTerminalSettings: () => set(defaultTerminalSettings),
       useTunnelMiniMap: true,
