@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { IntegratedTerminal } from '@/components/sshgate/IntegratedTerminal'
@@ -104,6 +104,74 @@ export function TerminalView({
       }, delay)
     }
   }, [editingTabId])
+
+  // --- Effect for Keyboard Shortcuts (Tab Switching & Closing) ---
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Only handle shortcuts if this view is active.
+      if (!isActive) {
+        return
+      }
+
+      // --- Close Active Tab (Ctrl+W or Cmd+W) ---
+      if ((event.ctrlKey || event.metaKey) && event.key === 'w') {
+        // Prevent the browser's default action (closing the window/tab).
+        event.preventDefault()
+        // Stop the 'w' key from being passed to the terminal.
+        event.stopPropagation()
+
+        if (activeTerminalId) {
+          onCloseTerminal(activeTerminalId)
+        }
+        return // Shortcut handled, no need to check others.
+      }
+
+      // --- Tab Switching (Ctrl+Tab) ---
+      if (terminalSessions.length <= 1) return // No tabs to switch
+
+      if (event.ctrlKey && event.key === 'Tab') {
+        // Prevent the browser's default tab switching behavior.
+        event.preventDefault()
+        // Stop the event from propagating further down to other elements,
+        // like the xterm.js terminal, which would otherwise interpret the 'Tab' key press.
+        event.stopPropagation()
+
+        const currentIndex = terminalSessions.findIndex(
+          (s) => s.id === activeTerminalId
+        )
+        if (currentIndex === -1) return // Should not happen if a tab is active
+
+        let nextIndex: number
+        if (event.shiftKey) {
+          // Ctrl+Shift+Tab: Go to the previous tab, wrapping around.
+          nextIndex =
+            (currentIndex - 1 + terminalSessions.length) %
+            terminalSessions.length
+        } else {
+          // Ctrl+Tab: Go to the next tab, wrapping around.
+          nextIndex = (currentIndex + 1) % terminalSessions.length
+        }
+
+        const nextSessionId = terminalSessions[nextIndex].id
+        onActiveTerminalChange(nextSessionId)
+      }
+    }
+
+    // Add the event listener in the capture phase (the `true` argument).
+    // This ensures our global shortcut handler runs *before* xterm.js's
+    // own keydown handler can stop the event's propagation.
+    window.addEventListener('keydown', handleKeyDown, true)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true)
+    }
+  }, [
+    isActive,
+    terminalSessions,
+    activeTerminalId,
+    onActiveTerminalChange,
+    onCloseTerminal,
+  ])
 
   const handleStartRename = (session: TerminalSession, fromMenu = false) => {
     renameInitiatedFromMenu.current = fromMenu
