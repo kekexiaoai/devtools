@@ -95,6 +95,7 @@ export function TerminalView({
   const [editingTabId, setEditingTabId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const confirmCloseButtonRef = useRef<HTMLButtonElement>(null)
 
   // A ref to track how a rename operation was initiated. This helps manage focus correctly.
   // Renaming via a context menu requires a delay before focusing the input to avoid
@@ -641,7 +642,14 @@ export function TerminalView({
           }
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent
+          onOpenAutoFocus={(e) => {
+            // 阻止默认的焦点行为（通常是聚焦到取消按钮）
+            e.preventDefault()
+            // 手动将焦点设置到我们的确认按钮上
+            confirmCloseButtonRef.current?.focus()
+          }}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>
               Are you sure you want to close this tab?
@@ -667,7 +675,11 @@ export function TerminalView({
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction asChild>
-              <Button variant="destructive" onClick={handleConfirmClose}>
+              <Button
+                ref={confirmCloseButtonRef}
+                variant="destructive"
+                onClick={handleConfirmClose}
+              >
                 Close Tab
               </Button>
             </AlertDialogAction>
