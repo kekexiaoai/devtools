@@ -46,6 +46,6 @@ require (
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	github.com/zalando/go-keyring v0.2.6
 	golang.org/x/net v0.40.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/sys v0.35.0
 	golang.org/x/text v0.25.0 // indirect
 )

@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"strings"
 	"sync"
 	"time"
 
@@ -172,10 +171,7 @@ func (m *Manager) CreateTunnelFromConfig(configID, alias string, localPort int, 
 	serverAddr := fmt.Sprintf("%s:%s", connConfig.HostName, connConfig.Port)
 	sshClient, err := ssh.Dial("tcp", serverAddr, connConfig.ClientConfig)
 	if err != nil {
-		// Do not use %w to wrap the error. The underlying error (e.g., *net.OpError)
-		// can be a complex type that causes serialization issues with the Wails IPC bridge,
-		// leading to a hung Promise on the frontend. Use %v to convert it to a simple string.
-		return "", fmt.Errorf("SSH dial to %s failed: %v", alias, err)
+		return "", err // Return raw error for the service layer to inspect and translate.
 	}
 
 	// 2. Create local listener
@@ -187,14 +183,7 @@ func (m *Manager) CreateTunnelFromConfig(configID, alias string, localPort int, 
 	listener, err := net.Listen("tcp", localAddr)
 	if err != nil {
 		sshClient.Close()
-		// The error from net.Listen can be a complex nested type (e.g., *net.OpError).
-		// Such types can cause serialization issues with the Wails IPC bridge, leading to
-		// a hung Promise on the frontend. To prevent this, we inspect the error's string
-		// representation and always return a new, simple error created with fmt.Errorf.
-		if strings.Contains(err.Error(), "address already in use") {
-			return "", fmt.Errorf("本地端口 %d 已被占用，请使用其他端口", localPort)
-		}
-		return "", fmt.Errorf("无法监听本地端口 %d: %v", localPort, err)
+		return "", err // Return raw error for the service layer to inspect and translate.
 	}
 
 	// 3. Create and register tunnel

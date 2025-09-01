@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -514,9 +515,7 @@ func (s *Service) StartTunnelFromConfig(configID string, password string) (strin
 
 	result, err := s.tunnelManager.CreateTunnelFromConfig(configID, aliasForDisplay, savedConfig.LocalPort, savedConfig.GatewayPorts, savedConfig.TunnelType, remoteAddr, connConfig)
 	if err != nil {
-		// Ensure complex errors from the tunnel manager are also converted to simple strings for Wails IPC.
-		// Using err.Error() is the safest way to get a plain string representation.
-		return "", fmt.Errorf("%s", err.Error())
+		return "", s.translateNetworkError(err, aliasForDisplay)
 	}
 	return result, nil
 }
@@ -716,6 +715,58 @@ func (s *Service) VerifyTunnelConfigConnection(configID string, password string)
 
 // -----ssh连接-------------------------------------------------
 
+// translateSyscallError is a platform-specific helper to translate syscall errors.
+// It is defined in sshgate_unix.go and sshgate_windows.go.
+// func translateSyscallError(syscallErr *os.SyscallError, hostIdentifier string) error
+
+// translateNetworkError converts raw network or SSH errors into user-friendly,
+// IPC-safe error messages. It's crucial for providing clear feedback to the frontend
+// and avoiding serialization issues with complex Go error types.
+func (s *Service) translateNetworkError(err error, hostIdentifier string) error {
+	if err == nil {
+		return nil
+	}
+
+	// First, check for specific structured errors if they are passed up.
+	var passwordRequiredError *types.PasswordRequiredError
+	if errors.As(err, &passwordRequiredError) {
+		return fmt.Errorf("password is required for '%s'", hostIdentifier)
+	}
+
+	// Now, dissect generic network errors.
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		if opErr.Timeout() {
+			return fmt.Errorf("connection to '%s' timed out, the server may be offline or firewalled", hostIdentifier)
+		}
+
+		var dnsErr *net.DNSError
+		if errors.As(opErr.Err, &dnsErr) {
+			return fmt.Errorf("could not resolve hostname for '%s': %s, check the hostname and your DNS settings", hostIdentifier, dnsErr.Name)
+		}
+
+		var syscallErr *os.SyscallError
+		if errors.As(opErr.Err, &syscallErr) {
+			// Delegate to platform-specific implementation.
+			if translatedErr := translateSyscallError(syscallErr, hostIdentifier); translatedErr != nil {
+				return translatedErr
+			}
+		}
+	}
+
+	// Check for common error strings from SSH and net libraries.
+	errMsg := strings.ToLower(err.Error())
+	if strings.Contains(errMsg, "address already in use") {
+		return fmt.Errorf("the local port is already in use, please choose another port")
+	}
+	if strings.Contains(errMsg, "unable to authenticate") || strings.Contains(errMsg, "permission denied") || strings.Contains(errMsg, "authentication failed") {
+		return fmt.Errorf("authentication failed for '%s', please check your password or SSH key", hostIdentifier)
+	}
+
+	// Fallback for any other error.
+	return fmt.Errorf("an unexpected error occurred for '%s': %v", hostIdentifier, err)
+}
+
 // 辅助函数，用于处理“预检”阶段的错误
 func (a *Service) handleSSHConnectError(alias string, host *types.SSHHost, err error) (*types.ConnectionResult, error) {
 	var hostNotFoundError *sshconfig.HostNotFoundError
@@ -765,10 +816,10 @@ func (a *Service) handleSSHConnectError(alias string, host *types.SSHHost, err e
 			},
 		}, nil
 	default:
-		// 其他通用错误
+		// For other generic network errors, translate them into a user-friendly message.
+		translatedErr := a.translateNetworkError(err, alias)
 		log.Printf("Error during connection pre-flight check for '%s': %v", alias, err)
-		// Use err.Error() to ensure the error is a simple string for Wails IPC.
-		return &types.ConnectionResult{Success: false, ErrorMessage: fmt.Sprintf("Connection pre-flight check failed: %s", err.Error())}, nil
+		return &types.ConnectionResult{Success: false, ErrorMessage: translatedErr.Error()}, nil
 	}
 }
 
