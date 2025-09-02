@@ -348,6 +348,43 @@ func (m *SSHConfigManager) RemoveHost(hostname string) error {
 	return nil
 }
 
+// RenameHost renames a host alias in the configuration.
+// It handles hosts defined with multiple aliases on the same line.
+func (m *SSHConfigManager) RenameHost(oldName, newName string) error {
+	hostStart, _, found := m.findHost(oldName)
+	if !found {
+		return &HostNotFoundError{Alias: oldName}
+	}
+
+	hostLine := m.rawLines[hostStart]
+	prefix := "Host "
+	trimmedLine := strings.TrimSpace(hostLine)
+
+	if !strings.HasPrefix(trimmedLine, prefix) {
+		return fmt.Errorf("internal error: line %d is not a valid Host line: %s", hostStart+1, hostLine)
+	}
+
+	hostPart := strings.TrimPrefix(trimmedLine, prefix)
+	hostNames := parseHostNames(hostPart)
+
+	foundInLine := false
+	for i, name := range hostNames {
+		if name == oldName {
+			hostNames[i] = newName
+			foundInLine = true
+			break
+		}
+	}
+
+	if !foundInLine {
+		return fmt.Errorf("internal error: host '%s' found by findHost but not in its own line '%s'", oldName, hostLine)
+	}
+
+	indent := getLineIndent(hostLine)
+	m.rawLines[hostStart] = indent + prefix + strings.Join(hostNames, " ")
+	return nil
+}
+
 // GetParam 获取主机参数值
 func (m *SSHConfigManager) GetParam(hostname, key string) (string, error) {
 	hostStart, hostEnd, found := m.findHost(hostname)

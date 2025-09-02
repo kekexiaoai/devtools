@@ -34,7 +34,7 @@ export function SavePassword(arg1:string,arg2:string):Promise<void>;
 
 export function SaveSSHConfigFileContent(arg1:string):Promise<void>;
 
-export function SaveSSHHost(arg1:types.SSHHost):Promise<void>;
+export function SaveSSHHost(arg1:types.SSHHost,arg2:string):Promise<void>;
 
 export function SaveTunnelConfig(arg1:sshtunnel.SavedTunnelConfig):Promise<void>;
 

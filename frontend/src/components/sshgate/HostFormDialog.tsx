@@ -1,6 +1,6 @@
 import { useDialog } from '@/hooks/useDialog'
 import { types } from '@wailsjs/go/models'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -19,39 +19,96 @@ import { Button } from '../ui/button'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
 
-// 1. 使用 Zod 定义表单验证 schema
-const hostSchema = z.object({
-  alias: z
-    .string()
-    .trim()
-    .min(1, { message: 'Alias is required.' })
-    .refine((val) => !/\s/.test(val), {
-      message: 'Alias cannot contain spaces.',
-    }),
-  hostName: z.string().trim().min(1, { message: 'HostName is required.' }),
-  user: z.string().trim().min(1, { message: 'User is required.' }),
-  port: z.string().trim().optional(),
-  identityFile: z.string().trim().optional(),
-})
+// 1. 将 schema 创建移入一个函数，以便动态地进行唯一性校验
+const createHostSchema = (
+  allHosts: types.SSHHost[],
+  originalAlias: string | null
+) =>
+  z.object({
+    alias: z
+      .string()
+      .trim()
+      .min(1, { message: 'Alias is required.' })
+      .refine((val) => !/\s/.test(val), {
+        message: 'Alias cannot contain spaces.',
+      })
+      .refine(
+        (val) => {
+          // 如果是编辑模式且别名未改变，则校验通过
+          if (originalAlias && val === originalAlias) {
+            return true
+          }
+          // 否则，检查新别名是否已被其他主机使用
+          return !allHosts.some((h) => h.alias === val)
+        },
+        {
+          message: 'This alias is already in use.',
+        }
+      ),
+    hostName: z
+      .string()
+      .trim()
+      .min(1, { message: 'HostName is required.' })
+      .refine(
+        (val) => {
+          // Comprehensive regex for IPv6, which can contain letters, numbers, and colons.
+          // It's checked first because of its complexity.
+          const ipv6Regex =
+            /^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/i
+          if (ipv6Regex.test(val)) return true
 
-// 从 schema 推断出 TypeScript 类型
-type HostFormValues = z.infer<typeof hostSchema>
+          // If not IPv6, check if it's an IPv4 or a hostname.
+          const parts = val.split('.')
+          const allPartsAreNumeric = parts.every((part) => /^\d+$/.test(part))
+
+          if (allPartsAreNumeric) {
+            // If all parts are numbers, it MUST be a valid IPv4. No fallback to hostname.
+            if (parts.length !== 4) return false
+            return parts.every((part) => {
+              const num = parseInt(part, 10)
+              return num >= 0 && num <= 255
+            })
+          }
+
+          // If it contains non-numeric parts, validate as a hostname.
+          const hostnameRegex =
+            /^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9])$/
+          return hostnameRegex.test(val)
+        },
+        { message: 'Must be a valid IP address or hostname.' }
+      ),
+    user: z.string().trim().min(1, { message: 'User is required.' }),
+    port: z.string().trim().optional(),
+    identityFile: z.string().trim().optional(),
+  })
+
 interface HostFormDialogProps {
   host: types.SSHHost | null
+  allHosts: types.SSHHost[]
   isOpen: boolean
   onOpenChange: (isOpen: boolean) => void
   onSave: () => void
 }
 
 export function HostFormDialog(props: HostFormDialogProps) {
-  const { host, isOpen, onOpenChange, onSave } = props
+  const { host, allHosts, isOpen, onOpenChange, onSave } = props
   const { showDialog } = useDialog()
+
+  // 使用 useMemo 动态创建 schema，以避免不必要的重计算
+  const hostSchema = useMemo(
+    () => createHostSchema(allHosts, host?.alias ?? null),
+    [allHosts, host]
+  )
+
+  // 从动态 schema 推断类型
+  type HostFormValues = z.infer<typeof hostSchema>
 
   // 2. 使用 react-hook-form 设置表单
   const form = useForm<HostFormValues>({
@@ -64,6 +121,18 @@ export function HostFormDialog(props: HostFormDialogProps) {
       identityFile: '',
     },
   })
+
+  // 监视 hostName 字段的变化，以提供重复警告
+  const hostNameValue = form.watch('hostName')
+  const isHostNameDuplicate = useMemo(() => {
+    if (!hostNameValue) return false
+    // 如果是编辑模式，则排除当前主机自身
+    const otherHosts = host
+      ? allHosts.filter((h) => h.alias !== host.alias)
+      : allHosts
+    // 检查是否有其他主机的 HostName 与当前输入值相同
+    return otherHosts.some((h) => h.hostName === hostNameValue.trim())
+  }, [hostNameValue, allHosts, host])
 
   // 3. 当对话框打开或编辑的 host 变化时，重置表单
   useEffect(() => {
@@ -95,10 +164,15 @@ export function HostFormDialog(props: HostFormDialogProps) {
       // 在这里进行转换以匹配后端类型。
       const payload: types.SSHHost = {
         ...data,
-        port: data.port ?? '',
-        identityFile: data.identityFile ?? '',
+        port: data.port ?? '22',
+        identityFile: data.identityFile ?? '~/.ssh/id_rsa',
       }
-      await SaveSSHHost(payload)
+
+      // If we are editing, `host` prop is not null. Its alias is the original alias.
+      // If we are creating, `host` is null, so original alias is empty.
+      const originalAlias = host ? host.alias : ''
+
+      await SaveSSHHost(payload, originalAlias)
       onSave()
       onOpenChange(false)
       await showDialog({
@@ -141,12 +215,7 @@ export function HostFormDialog(props: HostFormDialogProps) {
                 <FormItem>
                   <FormLabel>Alias</FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder="my-server"
-                      {...field}
-                      // Alias is special, we might want corrections, so we don't add the common props here.
-                      disabled={!!host}
-                    />
+                    <Input placeholder="my-server" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -161,6 +230,12 @@ export function HostFormDialog(props: HostFormDialogProps) {
                   <FormControl>
                     <Input placeholder="192.168.1.100" {...field} />
                   </FormControl>
+                  {isHostNameDuplicate && (
+                    <FormDescription className="text-orange-500">
+                      Warning: This IP address or hostname is already used by
+                      another host.
+                    </FormDescription>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}

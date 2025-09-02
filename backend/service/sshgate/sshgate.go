@@ -120,13 +120,37 @@ func validateAndSanitizeHost(host *types.SSHHost) error {
 }
 
 // SaveSSHHost 保存（新增或更新）一个 SSH 主机配置
-func (a *Service) SaveSSHHost(host types.SSHHost) error {
+// originalAlias 是编辑前的主机别名。如果为空，则表示是新增主机。
+func (a *Service) SaveSSHHost(host types.SSHHost, originalAlias string) error {
 	if err := validateAndSanitizeHost(&host); err != nil {
 		return err
 	}
 
-	// 我们的 sshmanager 期望的是一个包含所有参数的 map
-	// 我们需要将 types.SSHHost 转换为它需要的格式
+	isNewHost := originalAlias == ""
+	isRename := !isNewHost && originalAlias != host.Alias
+
+	// 1. 处理重命名逻辑
+	if isRename {
+		// 检查新别名是否已存在
+		if a.sshManager.HasHost(host.Alias) {
+			return fmt.Errorf("host with alias '%s' already exists", host.Alias)
+		}
+		// 在 ~/.ssh/config 文件中重命名
+		if err := a.sshManager.RenameHost(originalAlias, host.Alias); err != nil {
+			return fmt.Errorf("failed to rename host from '%s' to '%s': %w", originalAlias, host.Alias, err)
+		}
+		// 在钥匙串中重命名密码
+		if err := a.sshManager.RenamePassword(originalAlias, host.Alias); err != nil {
+			// 这是一个非关键错误，只记录日志
+			log.Printf("Warning: failed to rename password in keychain from '%s' to '%s': %v", originalAlias, host.Alias, err)
+		}
+		// 更新使用此别名的已保存隧道
+		if err := a.updateTunnelsUsingAlias(originalAlias, host.Alias); err != nil {
+			log.Printf("Warning: failed to update saved tunnels from alias '%s' to '%s': %v", originalAlias, host.Alias, err)
+		}
+	}
+
+	// 2. 准备要更新的参数
 	params := make(map[string]string)
 	params["HostName"] = host.HostName
 	params["User"] = host.User
@@ -134,15 +158,22 @@ func (a *Service) SaveSSHHost(host types.SSHHost) error {
 	params["IdentityFile"] = host.IdentityFile
 
 	updateReq := sshmanager.HostUpdateRequest{
-		Name:   host.Alias,
+		Name:   host.Alias, // 总是使用最新的别名
 		Params: params,
 	}
 
-	// 检查是新增还是更新
-	if a.sshManager.HasHost(host.Alias) {
-		return a.sshManager.UpdateHost(updateReq)
+	// 3. 执行新增或更新操作
+	if isNewHost {
+		if a.sshManager.HasHost(host.Alias) {
+			return fmt.Errorf("host with alias '%s' already exists", host.Alias)
+		}
+		// AddHostWithParams 内部会调用 Save()
+		return a.sshManager.AddHostWithParams(updateReq)
 	}
-	return a.sshManager.AddHostWithParams(updateReq)
+
+	// 对于普通更新和重命名后的更新，都执行 UpdateHost
+	// UpdateHost 内部会调用 Save()
+	return a.sshManager.UpdateHost(updateReq)
 }
 
 // DeleteSSHHost 删除一个 SSH 主机配置
@@ -405,6 +436,28 @@ func (s *Service) UpdateTunnelsOrder(order []string) error {
 	// This will also trigger the 'saved_tunnels_changed' event, which is what we want,
 	// so the frontend re-fetches the correctly ordered list.
 	return s.saveTunnelsConfig()
+}
+
+// updateTunnelsUsingAlias updates saved tunnel configurations when a host alias is renamed.
+func (s *Service) updateTunnelsUsingAlias(oldAlias, newAlias string) error {
+	s.configMu.Lock()
+	defer s.configMu.Unlock()
+
+	changed := false
+	for i, tunnel := range s.tunnelsConfig.Tunnels {
+		if tunnel.HostSource == "ssh_config" && tunnel.HostAlias == oldAlias {
+			s.tunnelsConfig.Tunnels[i].HostAlias = newAlias
+			changed = true
+		}
+	}
+
+	if changed {
+		log.Printf("Updated alias from %s to %s in saved tunnel configurations.", oldAlias, newAlias)
+		// saveTunnelsConfig will also emit the 'saved_tunnels_changed' event,
+		// which will cause the frontend to refresh its list.
+		return s.saveTunnelsConfig()
+	}
+	return nil
 }
 
 // deletePasswordsForTunnelsUsingAlias is a helper to clean up keychain entries

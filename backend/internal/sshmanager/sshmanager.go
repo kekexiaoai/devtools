@@ -247,6 +247,24 @@ func (m *Manager) AddHostWithParams(req HostUpdateRequest) error {
 	return nil
 }
 
+// RenameHost renames a host alias in the config file.
+// Note: This method only changes the configuration in memory.
+// The caller is responsible for saving the changes to disk via Save().
+func (m *Manager) RenameHost(oldName, newName string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if !m.manager.HasHost(oldName) {
+		return fmt.Errorf("host '%s' not found", oldName)
+	}
+	// It's crucial to check for new name collision before renaming.
+	if oldName != newName && m.manager.HasHost(newName) {
+		return fmt.Errorf("host with new alias '%s' already exists", newName)
+	}
+
+	return m.manager.RenameHost(oldName, newName)
+}
+
 // DeleteHost 删除一个主机
 func (m *Manager) DeleteHost(hostname string) error {
 	m.mu.Lock()
@@ -598,6 +616,23 @@ func (m *Manager) DeletePassword(key string) error {
 		return keyring.Delete(keyringService, key)
 	}
 	return nil // 如果本来就不存在，也算成功
+}
+
+// RenamePassword renames a password entry in the keychain.
+func (m *Manager) RenamePassword(oldKey, newKey string) error {
+	password, err := keyring.Get(keyringService, oldKey)
+	if err != nil {
+		if errors.Is(err, keyring.ErrNotFound) {
+			return nil // Old key doesn't exist, nothing to do.
+		}
+		return fmt.Errorf("failed to get password for key %s: %w", oldKey, err)
+	}
+
+	if err := keyring.Set(keyringService, newKey, password); err != nil {
+		return fmt.Errorf("failed to set new password for key %s: %w", newKey, err)
+	}
+
+	return keyring.Delete(keyringService, oldKey)
 }
 
 // _getAuthMethods 智能地构建认证方法列表

@@ -62,8 +62,8 @@ export function SaveSSHConfigFileContent(arg1) {
   return window['go']['sshgate']['Service']['SaveSSHConfigFileContent'](arg1);
 }
 
-export function SaveSSHHost(arg1) {
-  return window['go']['sshgate']['Service']['SaveSSHHost'](arg1);
+export function SaveSSHHost(arg1, arg2) {
+  return window['go']['sshgate']['Service']['SaveSSHHost'](arg1, arg2);
 }
 
 export function SaveTunnelConfig(arg1) {

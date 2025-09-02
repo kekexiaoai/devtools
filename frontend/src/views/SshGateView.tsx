@@ -364,6 +364,7 @@ const HostsView = React.memo(function HostsView({
 
       <HostFormDialog
         host={editingHost}
+        allHosts={hosts}
         isOpen={isFormOpen}
         onOpenChange={setIsFormOpen}
         onSave={onDataChange}
