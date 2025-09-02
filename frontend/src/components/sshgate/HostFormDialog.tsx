@@ -58,26 +58,21 @@ const createHostSchema = (
       .min(1, { message: 'HostName is required.' })
       .refine(
         (val) => {
-          // Comprehensive regex for IPv6, which can contain letters, numbers, and colons.
-          // It's checked first because of its complexity.
-          const ipv6Regex =
-            /^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/i
-          if (ipv6Regex.test(val)) return true
-
-          // If not IPv6, check if it's an IPv4 or a hostname.
-          const parts = val.split('.')
-          const allPartsAreNumeric = parts.every((part) => /^\d+$/.test(part))
-
-          if (allPartsAreNumeric) {
-            // If all parts are numbers, it MUST be a valid IPv4. No fallback to hostname.
-            if (parts.length !== 4) return false
-            return parts.every((part) => {
-              const num = parseInt(part, 10)
-              return num >= 0 && num <= 255
-            })
+          // 1. Check for valid IPv6 first, as it can contain letters.
+          if (z.ipv6().safeParse(val).success) {
+            return true
           }
 
-          // If it contains non-numeric parts, validate as a hostname.
+          // 2. Check if the string looks like it's intended to be an IPv4 address.
+          const isPotentiallyIpv4 = /^[0-9.]+$/.test(val)
+
+          if (isPotentiallyIpv4) {
+            // If it looks like an IPv4, it MUST be a valid one.
+            // We don't fall back to hostname validation for strings like "192.168.1.1234".
+            return z.ipv4().safeParse(val).success
+          }
+
+          // 3. If it's not an IPv6 and doesn't look like an IPv4, validate as a hostname.
           const hostnameRegex =
             /^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9])$/
           return hostnameRegex.test(val)
