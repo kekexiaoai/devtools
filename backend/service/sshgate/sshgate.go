@@ -129,28 +129,23 @@ func (a *Service) SaveSSHHost(host types.SSHHost, originalAlias string) error {
 	isNewHost := originalAlias == ""
 	isRename := !isNewHost && originalAlias != host.Alias
 
-	// 1. 处理重命名逻辑
-	if isRename {
-		// 检查新别名是否已存在
+	// --- Phase 1: Pre-flight checks and in-memory operations ---
+
+	// For both new hosts and renames, check if the target alias already exists.
+	if isNewHost || isRename {
 		if a.sshManager.HasHost(host.Alias) {
 			return fmt.Errorf("host with alias '%s' already exists", host.Alias)
 		}
-		// 在 ~/.ssh/config 文件中重命名
+	}
+
+	if isRename {
+		// Rename the host in memory. The change will be persisted by UpdateHost/AddHostWithParams.
 		if err := a.sshManager.RenameHost(originalAlias, host.Alias); err != nil {
 			return fmt.Errorf("failed to rename host from '%s' to '%s': %w", originalAlias, host.Alias, err)
 		}
-		// 在钥匙串中重命名密码
-		if err := a.sshManager.RenamePassword(originalAlias, host.Alias); err != nil {
-			// 这是一个非关键错误，只记录日志
-			log.Printf("Warning: failed to rename password in keychain from '%s' to '%s': %v", originalAlias, host.Alias, err)
-		}
-		// 更新使用此别名的已保存隧道
-		if err := a.updateTunnelsUsingAlias(originalAlias, host.Alias); err != nil {
-			log.Printf("Warning: failed to update saved tunnels from alias '%s' to '%s': %v", originalAlias, host.Alias, err)
-		}
 	}
 
-	// 2. 准备要更新的参数
+	// Prepare the parameters to be updated in the ssh config.
 	params := make(map[string]string)
 	params["HostName"] = host.HostName
 	params["User"] = host.User
@@ -158,22 +153,39 @@ func (a *Service) SaveSSHHost(host types.SSHHost, originalAlias string) error {
 	params["IdentityFile"] = host.IdentityFile
 
 	updateReq := sshmanager.HostUpdateRequest{
-		Name:   host.Alias, // 总是使用最新的别名
+		Name:   host.Alias, // Always use the new alias
 		Params: params,
 	}
 
-	// 3. 执行新增或更新操作
+	// --- Phase 2: Commit the primary change (to ~/.ssh/config) ---
+
+	var mainErr error
 	if isNewHost {
-		if a.sshManager.HasHost(host.Alias) {
-			return fmt.Errorf("host with alias '%s' already exists", host.Alias)
-		}
-		// AddHostWithParams 内部会调用 Save()
-		return a.sshManager.AddHostWithParams(updateReq)
+		mainErr = a.sshManager.AddHostWithParams(updateReq)
+	} else {
+		mainErr = a.sshManager.UpdateHost(updateReq)
 	}
 
-	// 对于普通更新和重命名后的更新，都执行 UpdateHost
-	// UpdateHost 内部会调用 Save()
-	return a.sshManager.UpdateHost(updateReq)
+	if mainErr != nil {
+		// If the main save operation fails, we should revert any in-memory changes
+		// to ensure consistency for the next operation.
+		log.Printf("SaveSSHHost failed, reloading ssh manager to discard in-memory changes: %v", mainErr)
+		_ = a.sshManager.Reload() // Revert in-memory state. Error is ignored as we are already in an error state.
+		return mainErr
+	}
+
+	// --- Phase 3: Commit side-effect changes (keychain, tunnels.json) ---
+	// These are performed only after the primary config has been successfully saved.
+	if isRename {
+		if err := a.sshManager.RenamePassword(originalAlias, host.Alias); err != nil {
+			log.Printf("Warning: failed to rename password in keychain from '%s' to '%s': %v", originalAlias, host.Alias, err)
+		}
+		if err := a.updateTunnelsUsingAlias(originalAlias, host.Alias); err != nil {
+			log.Printf("Warning: failed to update saved tunnels from alias '%s' to '%s': %v", originalAlias, host.Alias, err)
+		}
+	}
+
+	return nil
 }
 
 // DeleteSSHHost 删除一个 SSH 主机配置
