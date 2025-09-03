@@ -1903,3 +1903,330 @@ func TestGetGlobalHost_LastBlock(t *testing.T) {
 	}
 	// end 指向文件末尾，所以 end == len(...) 是正确的
 }
+
+// TestRenameHost tests the renaming of a host alias.
+func TestRenameHost(t *testing.T) {
+	testCases := []struct {
+		name            string
+		initialContent  string
+		oldName         string
+		newName         string
+		expectError     bool
+		expectedContent string
+	}{
+		{
+			name: "Rename first alias in multi-alias line",
+			initialContent: `
+# My Server
+Host server1 web
+  HostName 1.2.3.4
+  User root
+
+Host db
+  HostName 5.6.7.8
+`,
+			oldName: "server1",
+			newName: "prod-server",
+			expectedContent: `
+# My Server
+Host prod-server web
+  HostName 1.2.3.4
+  User root
+
+Host db
+  HostName 5.6.7.8
+`,
+		},
+		{
+			name: "Rename second alias in multi-alias line",
+			initialContent: `
+Host server1 web
+  HostName 1.2.3.4
+`,
+			oldName: "web",
+			newName: "www",
+			expectedContent: `
+Host server1 www
+  HostName 1.2.3.4
+`,
+		},
+		{
+			name: "Rename single alias host",
+			initialContent: `
+Host db
+  HostName 5.6.7.8
+`,
+			oldName: "db",
+			newName: "database",
+			expectedContent: `
+Host database
+  HostName 5.6.7.8
+`,
+		},
+		{
+			name:           "Rename non-existent host",
+			initialContent: `Host test`,
+			oldName:        "nonexistent",
+			newName:        "new",
+			expectError:    true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			manager := &SSHConfigManager{
+				rawLines: strings.Split(strings.TrimSpace(tc.initialContent), "\n"),
+			}
+
+			err := manager.RenameHost(tc.oldName, tc.newName)
+
+			if tc.expectError {
+				if err == nil {
+					t.Error("Expected an error, but got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("RenameHost failed: %v", err)
+			}
+
+			actualContent := manager.BuildConfig()
+			expected := strings.TrimSpace(tc.expectedContent) + "\n"
+
+			if strings.TrimSpace(actualContent) != strings.TrimSpace(expected) {
+				t.Errorf("Content mismatch.\nExpected:\n%s\nGot:\n%s", expected, actualContent)
+			}
+		})
+	}
+}
+
+// TestReorderHosts tests the lossless reordering of host blocks.
+func TestReorderHosts(t *testing.T) {
+	initialContent := `
+# Global settings
+Include ~/.ssh/global
+
+Host *
+  User globaluser
+
+# Host A config
+# with multiple comment lines
+Host hostA aliasA
+  HostName a.com
+
+
+# Host B config
+Host hostB
+  HostName b.com
+
+Host hostC
+  HostName c.com
+`
+	manager := &SSHConfigManager{
+		rawLines: strings.Split(strings.TrimSpace(initialContent), "\n"),
+	}
+
+	order := []string{"hostC", "hostA", "hostB"}
+	err := manager.ReorderHosts(order)
+	if err != nil {
+		t.Fatalf("ReorderHosts failed: %v", err)
+	}
+
+	expectedContent := `# Global settings
+Include ~/.ssh/global
+
+Host *
+  User globaluser
+
+Host hostC
+  HostName c.com
+
+# Host A config
+# with multiple comment lines
+Host hostA aliasA
+  HostName a.com
+
+
+# Host B config
+Host hostB
+  HostName b.com
+`
+
+	actual := manager.BuildConfig()
+	expected := strings.TrimSpace(expectedContent) + "\n"
+
+	if strings.TrimSpace(actual) != strings.TrimSpace(expected) {
+		t.Errorf("Reordered content mismatch.\nExpected:\n%s\nGot:\n%s", expected, actual)
+	}
+}
+
+// TestReorderHosts_CommentDuplicationBug specifically tests the fix for the comment duplication bug.
+func TestReorderHosts_CommentDuplicationBug(t *testing.T) {
+	initialContent := `
+# Header Comment
+
+Host hostA
+  HostName a.com
+
+# Comment for B
+# Another comment for B
+
+Host hostB
+  HostName b.com
+`
+	manager := &SSHConfigManager{
+		rawLines: strings.Split(strings.TrimSpace(initialContent), "\n"),
+	}
+
+	// Move hostB before hostA
+	order := []string{"hostB", "hostA"}
+	err := manager.ReorderHosts(order)
+	if err != nil {
+		t.Fatalf("ReorderHosts failed: %v", err)
+	}
+
+	expectedContent := `
+
+# Comment for B
+# Another comment for B
+
+Host hostB
+  HostName b.com
+# Header Comment
+
+Host hostA
+  HostName a.com
+`
+	actual := manager.BuildConfig()
+	expected := strings.TrimSpace(expectedContent) + "\n"
+
+	if strings.TrimSpace(actual) != strings.TrimSpace(expected) {
+		t.Errorf("Reordered content mismatch (comment duplication bug).\nExpected:\n%s\nGot:\n%s", expected, actual)
+	}
+}
+
+// TestReorderHosts_WithMixedGlobalDirectives tests that global directives (Host *, Include)
+// are correctly identified and moved to the top during reordering.
+func TestReorderHosts_WithMixedGlobalDirectives(t *testing.T) {
+	initialContent := `
+# This is the true header
+Include ~/.ssh/header.conf
+
+# Host A
+Host hostA
+  HostName a.com
+
+# Global settings in the middle
+Host *
+  User globaluser
+
+# Include in the middle
+Include ~/.ssh/middle.conf
+
+# Host B
+Host hostB
+  HostName b.com
+`
+	manager := &SSHConfigManager{
+		rawLines: strings.Split(strings.TrimSpace(initialContent), "\n"),
+	}
+
+	// Reorder B before A
+	order := []string{"hostB", "hostA"}
+	err := manager.ReorderHosts(order)
+	if err != nil {
+		t.Fatalf("ReorderHosts failed: %v", err)
+	}
+
+	expectedContent := `# This is the true header
+Include ~/.ssh/header.conf
+
+# Global settings in the middle
+Host *
+  User globaluser
+
+# Include in the middle
+Include ~/.ssh/middle.conf
+
+# Host B
+Host hostB
+  HostName b.com
+
+# Host A
+Host hostA
+  HostName a.com
+`
+	actual := manager.BuildConfig()
+	expected := strings.TrimSpace(expectedContent) + "\n"
+
+	if strings.TrimSpace(actual) != strings.TrimSpace(expected) {
+		t.Errorf("Reordered content mismatch (Mixed Directives).\nExpected:\n---\n%s\n---\nGot:\n---\n%s\n---", expected, actual)
+	}
+}
+
+// TestReorderHosts_WithMixedGlobalDirectives tests that global directives (Host *, Include, Match)
+// are correctly identified and moved to the top during reordering.
+func TestReorderHosts_WithMixedGlobalDirectives_1(t *testing.T) {
+	initialContent := `
+# This is the true header
+
+# Host A
+Host hostA
+  HostName a.com
+
+# Global settings in the middle
+Host *
+  User globaluser
+
+# Include in the middle
+Include ~/.ssh/middle.conf
+
+# Host B
+Host hostB
+  HostName b.com
+
+# Match block at the end
+Match User someuser
+  HostName *.internal.com
+`
+	manager := &SSHConfigManager{
+		rawLines: strings.Split(strings.TrimSpace(initialContent), "\n"),
+	}
+
+	// Reorder B before A
+	order := []string{"hostB", "hostA"}
+	err := manager.ReorderHosts(order)
+	if err != nil {
+		t.Fatalf("ReorderHosts failed: %v", err)
+	}
+
+	expectedContent := `
+
+# Global settings in the middle
+Host *
+  User globaluser
+
+# Include in the middle
+Include ~/.ssh/middle.conf
+
+# Match block at the end
+Match User someuser
+  HostName *.internal.com
+
+# Host B
+Host hostB
+  HostName b.com
+# This is the true header
+
+# Host A
+Host hostA
+  HostName a.com
+`
+	actual := manager.BuildConfig()
+	expected := strings.TrimSpace(expectedContent) + "\n"
+
+	if strings.TrimSpace(actual) != strings.TrimSpace(expected) {
+		t.Errorf("Reordered content mismatch (Mixed Directives).\nExpected:\n---\n%s\n---\nGot:\n---\n%s\n---", expected, actual)
+	}
+}

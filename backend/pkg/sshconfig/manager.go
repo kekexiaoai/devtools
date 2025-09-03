@@ -463,48 +463,133 @@ func (m *SSHConfigManager) Validate() error {
 	return validator.Validate()
 }
 
-// SetHosts replaces all host configurations with the provided list,
-// while preserving non-host directives like 'Include' and comments outside of host blocks.
-func (m *SSHConfigManager) SetHosts(hosts []*HostConfig) {
-	var preservedLines []string
-	var hostBlocks []string
+// ReorderHosts reorders the host blocks in the raw lines according to the provided order,
+// preserving comments and structure. It also intelligently moves all global blocks (like Host *)
+// to the top of the file.
+func (m *SSHConfigManager) ReorderHosts(orderedAliases []string) error {
+	if len(m.rawLines) == 0 {
+		return nil
+	}
 
-	// 1. Separate non-host lines (globals, includes, comments) from host blocks.
-	// This assumes non-host lines appear before the first 'Host' block.
-	firstHostIndex := -1
-	for i, line := range m.rawLines {
-		if strings.HasPrefix(strings.TrimSpace(line), "Host ") {
-			firstHostIndex = i
-			break
+	type hostBlock struct {
+		primaryAlias string
+		aliases      []string
+		content      []string
+	}
+
+	var sortableBlocks []hostBlock
+	var globalBlocks [][]string // For Host * and other non-sortable blocks
+	var headerContent []string  // For content before the first Host directive
+
+	// --- Partitioning from bottom to top with greedy upward scan for comments ---
+	blockEndIdx := len(m.rawLines)
+	for i := len(m.rawLines) - 1; i >= 0; i-- {
+		line := m.rawLines[i]
+		trimmedLine := strings.TrimSpace(line)
+
+		isHostDirective := strings.HasPrefix(trimmedLine, "Host ")
+		isIncludeDirective := strings.HasPrefix(trimmedLine, "Include ")
+		isMatchDirective := strings.HasPrefix(trimmedLine, "Match ")
+
+		if isHostDirective || isIncludeDirective || isMatchDirective {
+			// Found an anchor. Now, perform the greedy upward scan to find the true start of this block.
+			blockStartIdx := i
+			for j := i - 1; j >= 0; j-- {
+				prevLine := m.rawLines[j]
+				trimmedPrevLine := strings.TrimSpace(prevLine)
+				if trimmedPrevLine == "" || strings.HasPrefix(trimmedPrevLine, "#") {
+					// This line is part of the preamble, so we continue scanning up.
+					blockStartIdx = j
+				} else {
+					// We've hit a line that's not a comment or blank, so the preamble ends.
+					break
+				}
+			}
+
+			// We have now defined a complete block from blockStartIdx to blockEndIdx.
+			block := m.rawLines[blockStartIdx:blockEndIdx]
+
+			// Classify the block.
+			if isIncludeDirective || isMatchDirective {
+				globalBlocks = append(globalBlocks, block)
+			} else {
+				// It's a Host directive.
+				hostLine := strings.TrimSpace(m.rawLines[i])
+				aliases := parseHostNames(strings.TrimPrefix(hostLine, "Host "))
+				isSortable := len(aliases) > 0 && !strings.Contains(aliases[0], "*")
+
+				if isSortable {
+					sortableBlocks = append(sortableBlocks, hostBlock{primaryAlias: aliases[0], aliases: aliases, content: block})
+				} else {
+					// It's a "Host *" or malformed Host line.
+					globalBlocks = append(globalBlocks, block)
+				}
+			}
+
+			// Prepare for the next iteration.
+			blockEndIdx = blockStartIdx
+			i = blockStartIdx // The loop will decrement it to blockStartIdx - 1
 		}
 	}
-	if firstHostIndex == -1 {
-		// No hosts found, preserve everything.
-		preservedLines = m.rawLines
-	} else {
-		preservedLines = m.rawLines[:firstHostIndex]
+
+	// The content before the first processed block is the header.
+	if blockEndIdx > 0 {
+		headerContent = m.rawLines[0:blockEndIdx]
 	}
 
-	// 2. Generate new host blocks from the provided list.
-	for _, host := range hosts {
-		var blockLines []string
-		blockLines = append(blockLines, fmt.Sprintf("Host %s", host.Name))
-		for key, params := range host.Params {
-			for _, param := range params {
-				blockLines = append(blockLines, fmt.Sprintf("  %s %s", key, param.Value))
+	// Reverse the collected blocks to restore original file order.
+	reverse(sortableBlocks)
+	reverse(globalBlocks)
+
+	// --- Reassembly ---
+	hostBlockMap := make(map[string][]string)
+	aliasToPrimary := make(map[string]string)
+	var originalOrder []string
+
+	for _, b := range sortableBlocks {
+		originalOrder = append(originalOrder, b.primaryAlias)
+		hostBlockMap[b.primaryAlias] = b.content
+		for _, alias := range b.aliases {
+			aliasToPrimary[alias] = b.primaryAlias
+		}
+	}
+
+	var newLines []string
+	// 1. Add the header content.
+	newLines = append(newLines, headerContent...)
+	// 2. Add all global blocks. This moves them to the top.
+	for _, block := range globalBlocks {
+		newLines = append(newLines, block...)
+	}
+
+	appendedPrimaryAliases := make(map[string]bool)
+	// 3. Add hosts in the specified order.
+	for _, alias := range orderedAliases {
+		if primaryAlias, ok := aliasToPrimary[alias]; ok {
+			if blockContent, exists := hostBlockMap[primaryAlias]; exists && !appendedPrimaryAliases[primaryAlias] {
+				newLines = append(newLines, blockContent...)
+				appendedPrimaryAliases[primaryAlias] = true
 			}
 		}
-		hostBlocks = append(hostBlocks, strings.Join(blockLines, "\n"))
 	}
 
-	// 3. Combine preserved lines and new host blocks.
-	finalContent := strings.TrimSpace(strings.Join(preservedLines, "\n"))
-	if finalContent != "" {
-		finalContent += "\n\n" // Add separation after the header.
+	// 4. Append any remaining hosts that were not in the ordered list.
+	for _, primaryAlias := range originalOrder {
+		if !appendedPrimaryAliases[primaryAlias] {
+			newLines = append(newLines, hostBlockMap[primaryAlias]...)
+			appendedPrimaryAliases[primaryAlias] = true
+		}
 	}
-	finalContent += strings.Join(hostBlocks, "\n\n") // Join host blocks with a single blank line.
 
-	m.rawLines = strings.Split(finalContent, "\n")
+	m.rawLines = newLines
+	return nil
+}
+
+// reverse reverses the order of elements in a slice of any type.
+func reverse[S ~[]E, E any](s S) {
+	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
+		s[i], s[j] = s[j], s[i]
+	}
 }
 
 // Backup 创建配置文件备份

@@ -385,57 +385,29 @@ func (m *Manager) UpdateGlobal(params map[string]string) error {
 	return m.UpdateHost(req)
 }
 
-// ReorderHosts rewrites the SSH config file with hosts in the specified order,
-// while preserving global configurations (like 'Host *' and 'Include') at the top.
+// ReorderHosts rewrites the SSH config file with hosts in the specified order.
+// This operation is lossless and preserves all comments, blank lines, and
+// the structure of the original file.
 func (m *Manager) ReorderHosts(orderedAliases []string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// 1. Get all current host configurations from memory.
-	allHosts, err := m.manager.GetAllHosts()
-	if err != nil {
-		return fmt.Errorf("failed to get all hosts for reordering: %w", err)
+	// The underlying sshconfig manager will handle the reordering of raw lines
+	// while preserving comments and file structure.
+	if err := m.manager.ReorderHosts(orderedAliases); err != nil {
+		return fmt.Errorf("failed to reorder hosts in config: %w", err)
 	}
 
-	// 2. Separate global/wildcard hosts from specific hosts.
-	hostMap := make(map[string]*sshconfig.HostConfig)
-	var globalAndWildcardHosts []*sshconfig.HostConfig
-	for _, host := range allHosts {
-		if host.IsGlobal || strings.Contains(host.Name, "*") {
-			globalAndWildcardHosts = append(globalAndWildcardHosts, host)
-		} else {
-			hostMap[host.Name] = host
-		}
-	}
-
-	// 3. Build the new ordered list of specific host configurations.
-	newOrderedSpecificHosts := make([]*sshconfig.HostConfig, 0, len(hostMap))
-	addedHosts := make(map[string]bool)
-
-	// Add hosts in the specified order.
-	for _, alias := range orderedAliases {
-		if host, ok := hostMap[alias]; ok {
-			newOrderedSpecificHosts = append(newOrderedSpecificHosts, host)
-			addedHosts[alias] = true
-		}
-	}
-
-	// Append any remaining specific hosts that were not in the ordered list.
-	for _, host := range allHosts {
-		if !host.IsGlobal && !strings.Contains(host.Name, "*") && !addedHosts[host.Name] {
-			newOrderedSpecificHosts = append(newOrderedSpecificHosts, host)
-		}
-	}
-
-	// 4. Combine global/wildcard hosts with the newly ordered specific hosts.
-	newOrderedHosts := append(globalAndWildcardHosts, newOrderedSpecificHosts...)
-
-	// 5. Replace the manager's internal list and save to file.
-	m.manager.SetHosts(newOrderedHosts)
+	// Save the modified configuration.
 	if err := m.manager.Save(); err != nil {
 		return fmt.Errorf("failed to save reordered hosts: %w", err)
 	}
-	m.manager.Backup()
+
+	// Optionally, create a backup.
+	if _, err := m.manager.Backup(); err != nil {
+		// Log as a warning since the main operation succeeded.
+		log.Printf("Warning: failed to create backup after reordering hosts: %v", err)
+	}
 
 	return nil
 }
