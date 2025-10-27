@@ -385,11 +385,22 @@ export function IntegratedTerminal({
 
   return (
     <div
-      className="h-full w-full rounded-md overflow-hidden relative"
-      ref={terminalContainerRef}
+      // 外层容器: 负责布局、背景和 overflow。
+      //    - 我们在这里添加 `pb-2.5` (padding-bottom) 来创建底部的空间。
+      //    - `onMouseDown` 事件处理器也保留在这里，以捕获整个区域的点击。
+      className="h-full w-full rounded-md overflow-hidden relative bg-background pb-2"
       onMouseDown={handleMouseDown}
-      style={{ outline: 'none' }}
     >
+      {/* 内层容器: xterm.js 实例真正挂载的地方。
+          - `ref` 移到这里。
+          - `h-full w-full` 使其填满外层容器的 *内容区域*。
+          - `box-sizing: border-box` 确保内边距被正确计算。
+      */}
+      <div
+        ref={terminalContainerRef}
+        className="h-full w-full p-2"
+        style={{ boxSizing: 'border-box', outline: 'none' }}
+      />
       {/* --- 设置面板 --- */}
       <div className="absolute top-2 right-2 z-30" ref={settingsContainerRef}>
         <Popover>
@@ -744,7 +755,7 @@ export function IntegratedTerminal({
       {connectionStatus === 'disconnected' &&
         sessionType === 'remote' &&
         isVisible && ( // prettier-ignore
-          <div className="absolute inset-0 bg-black bg-opacity-0 flex flex-col items-center justify-center text-white z-20">
+          <div className="absolute inset-0 bg-black bg-opacity-0 flex flex-col items-center justify-center text-white z-20 mb-2.5">
             <div className="flex items-center mb-4">
               <AlertTriangle className="h-6 w-6 text-yellow-400 mr-2" />
               <h3 className="text-xl font-semibold">Connection Lost</h3>
