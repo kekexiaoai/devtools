@@ -61,7 +61,7 @@ const tunnelFormSchema = z
         hostName: z.string(),
         port: z.string(),
         user: z.string(),
-        identityFile: z.string(),
+        identityFile: z.string().optional(),
       })
       .optional(),
   })
@@ -167,6 +167,10 @@ export function CreateTunnelDialog({
             identityFile: '',
           },
         })
+        // Ensure that if identityFile is null from the backend, it's reset to an empty string
+        if (tunnelToEdit.manualHost?.identityFile === null) {
+          form.setValue('manualHost.identityFile', '')
+        }
       } else {
         // Creating a new tunnel, set defaults
         const newForm = { ...initialFormState }
@@ -201,6 +205,8 @@ export function CreateTunnelDialog({
           data.hostSource === 'ssh_config' ? data.hostAlias : undefined,
         manualHost: data.hostSource === 'manual' ? data.manualHost : undefined,
       }
+      // Ensure optional identityFile is a string for the backend
+      if (configData.manualHost) configData.manualHost.identityFile ??= ''
       const configToSave = new sshtunnel.SavedTunnelConfig(configData)
 
       await SaveTunnelConfig(configToSave)
