@@ -1,5 +1,7 @@
 # DevTools: Your Development Assistant
 
+This document is available in multiple languages, including [English](README.md) and [Chinese](README_zh.md).
+
 **DevTools** is an all-in-one, highly integrated desktop application designed for modern developers. It consolidates essential daily tools into a unified, beautiful, and efficient interface, aiming to reduce context switching and let you focus on what truly matters: coding.
 
 ## ✨ Core Features
