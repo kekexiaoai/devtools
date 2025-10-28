@@ -11,6 +11,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { debounce } from '@/lib/utils'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import {
@@ -381,6 +382,14 @@ export function IntegratedTerminal({
       }
     },
     [extendedTerminal, logger]
+  )
+
+  // Create a debounced version of the reconnect function to prevent multiple clicks.
+  // `leading: true` ensures the first click is immediate.
+  // `trailing: false` prevents a second call after the wait time.
+  const debouncedReconnect = useMemo(
+    () => debounce(onReconnect, 1000, { leading: true, trailing: false }),
+    [onReconnect]
   )
 
   return (
@@ -763,7 +772,7 @@ export function IntegratedTerminal({
             <p className="text-muted-foreground mb-6">
               The connection to the remote host was lost.
             </p>
-            <Button onClick={onReconnect}>
+            <Button onClick={debouncedReconnect}>
               <RefreshCw className="mr-2 h-4 w-4" />
               Reconnect
             </Button>
