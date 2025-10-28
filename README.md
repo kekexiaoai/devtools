@@ -1,123 +1,86 @@
-# DevTools Application Development Guide
+# DevTools: Your Development Assistant
+
+**DevTools** is an all-in-one, highly integrated desktop application designed for modern developers. It consolidates essential daily tools into a unified, beautiful, and efficient interface, aiming to reduce context switching and let you focus on what truly matters: coding.
+
+## ✨ Core Features
+
+### 1. Dashboard
+
+An overview of your workspace. See all active SSH tunnels and file sync tasks at a glance, and quickly launch favorite connections or create new tunnels.
+
+### 2. SSH Gate
+
+Say goodbye to the hassle of manually editing `~/.ssh/config`.
+
+- **Visual Editor**: Manage all your SSH hosts in an intuitive list format, making it easy to add, edit, or delete.
+- **Raw File Editing**: For advanced users, we still provide a powerful raw text editor with syntax highlighting.
+- **One-Click Connect**: Launch an internal or external terminal session directly from the list.
+
+### 3. Tunnels
+
+A powerful and easy-to-use SSH tunnel manager, perfect for remote development and accessing internal networks.
+
+- **Create & Save**: Easily configure local and remote port forwarding and save them for one-click startup in the future.
+- **Smart Start**: Before launching a tunnel, the application automatically handles interactive authentication for SSH key passphrases or server passwords, without needing to pre-configure `ssh-agent`.
+- **Status Monitoring**: View the real-time status, uptime, and port mappings of all active tunnels.
+- **Drag & Drop Sorting**: Organize your saved tunnels according to your preference.
+
+### 4. Integrated Terminals
+
+A full-featured, multi-tab terminal optimized for SSH sessions.
+
+- **Multi-Session Management**: Open and manage multiple SSH sessions in different tabs.
+- **Status Indicators**: Clearly see the connection status of each terminal (connecting, connected, disconnected).
+- **Easy Reconnect**: Reconnect to a disconnected session with a single click.
+- **Custom Naming**: Rename your terminal sessions for easy identification.
+
+### 5. File Syncer
+
+Keep files and directories in real-time sync between your local machine and remote hosts. Set up "watchers" to monitor file changes and automatically sync them to the destination, with detailed synchronization logs.
+
+### 6. JSON Tools
+
+A built-in JSON viewer and formatter that supports syntax highlighting, formatting, minifying, and validation, making it a great assistant for handling API responses and configuration files.
+
+### 7. Settings
+
+- **Theme**: Supports Light, Dark, and System-default theme modes.
+- **UI Scaling**: Freely adjust the interface size according to your screen and preferences for a more comfortable visual experience.
+- **Hotkeys**: Set hotkeys for the terminal.
+
+## 🚀 Tech Stack
+
+- **Backend**: Go
+- **Frontend**: React, TypeScript, Tailwind CSS
+- **Desktop App Framework**: Wails
+- **UI Component Library**: shadcn/ui
+- **State Management**: Zustand (useSettingsStore)
+- **Core Libraries**: xterm.js (for the terminal)
+
+## 💡 Design Philosophy
+
+We noticed that many developers have to switch back and forth between multiple separate applications (like terminals, SSH clients, tunnel tools) to complete their daily work. The core philosophy of DevTools is **integration and simplification**.
+
+By seamlessly integrating core functions like SSH, tunnels, and terminals, we aim to reduce the mental load and time wasted by developers, thereby enhancing focus and productivity. At the same time, we place extreme importance on performance and user experience. From the "smart refresh" mechanism on the frontend (to avoid unnecessary component re-renders) to the efficient Go language implementation on the backend, every detail has been carefully polished to ensure the application's responsiveness and stability.
+
+## 🛠️ Installation and Usage
+
+Visit our Releases page to download the latest version for your operating system.
+
+## 🤝 Contributing
+
+We welcome all forms of contributions! If you have a great idea or have found a bug, please feel free to submit an Issue or Pull Request.
+
+For information on how to set up a local development environment, please refer to our Development Guide.
+
+## Snapshots
+
+![DevTools Dashboard](./snapshots/devtools-dashboard.png)
+
+![DevTools Tunnels](./snapshots/devtools-tunnels.png)
+
+![DevTools Terminals](./snapshots/devtools-terminals.png)
+
+![DevTools Settings](./snapshots/devtools-settings.png)
 
 ## About
-
-This project is a cross-platform desktop developer toolset built with Wails v2 + React + TypeScript.
-
-Core features include:
-
-- **File Syncer**: Supports real-time file synchronization for multiple directory pairs, with detailed logging.
-- **JSON Tools**: Provides JSON formatting, validation, compression, and syntax highlighting.
-
-## 1. Core Wails Commands
-
-### Live Development
-
-Run `wails dev` in the project root directory to start live development mode. This will also start a Vite development server, providing extremely fast Hot Reload for your frontend changes.
-
-### Building
-
-Use the `wails build` command to build a distributable, production-ready application package. For example, to build for Windows:
-
-```bash
-wails build -platform windows/amd64
-```
-
-## 2. Frontend Development Environment Setup Steps
-
-This section details how to set up a complete, modern frontend development environment for this project from scratch.
-
-### 2.1. Prerequisites
-
-- **Go**: v1.21+
-- **Node.js**: v20.12.2+
-- **pnpm**: v10.12.4+ (`npm install -g pnpm`)
-- **Wails CLI**: v2.10.1+ (`go install github.com/wailsapp/wails/v2/cmd/wails@latest`)
-
-### 2.2. Install Frontend Dependencies
-
-All operations are performed in the `frontend` directory.
-
-```bash
-cd frontend
-pnpm install
-```
-
-_This will install all necessary dependencies based on the `package.json` and `pnpm-lock.yaml` files._
-
-### 2.3. Configure Tailwind CSS (v4+)
-
-This project uses the latest version of Tailwind CSS. Its configuration method differs from older versions, with the core being `postcss.config.mjs`.
-
-1. **Install core dependencies**:
-
-    ```bash
-    pnpm add -D tailwindcss @tailwindcss/postcss postcss
-    ```
-
-2. **Create PostCSS configuration file**:
-    Create a `postcss.config.mjs` file in the `frontend` directory:
-
-    ```javascript
-    const config = {
-      plugins: {
-        "@tailwindcss/postcss": {},
-      },
-    };
-    export default config;
-    ```
-
-3. **Create global style entry point**:
-    In `frontend/src/style.css`, use the latest `@import` directive:
-
-    ```css
-    @import "tailwindcss";
-    ```
-
-    And ensure this file is imported in `frontend/src/main.tsx`.
-
-### 2.4. Configure Code Quality & Formatting Tools
-
-This project uses ESLint + Prettier to ensure code quality and style consistency.
-
-1. **Install development dependencies**:
-
-    ```bash
-    pnpm add -D eslint prettier eslint-plugin-react-hooks eslint-plugin-react-refresh @typescript-eslint/eslint-plugin @typescript-eslint/parser eslint-config-prettier
-    ```
-
-2. **Create configuration files**:
-    Create `.eslintrc.cjs` and `.prettierrc.json` files in the `frontend` directory (please refer to the existing files in the project for content).
-
-3. **Configure VS Code Integration**:
-    It is recommended to install the plugins `Tailwind CSS IntelliSense`, `ESLint`, and `Prettier`. Also, create a `.vscode/settings.json` file in the project root to enable format on save.
-
-    ```json
-    {
-      "editor.formatOnSave": true,
-      "editor.defaultFormatter": "esbenp.prettier-vscode",
-      "css.lint.unknownAtRules": "ignore"
-    }
-    ```
-
-### 2.5. Install shadcn Components
-
-```bash
-pnpm dlx shadcn@latest init
-pnpm dlx shadcn@latest add button
-```
-
-### 2.6. Install Other Components
-
-```bash
-pnpm add lucide-react
-```
-
-## 3. Recommended VS Code Extensions
-
-1. Tailwind CSS IntelliSense
-2. ESlint
-3. Prettier
-4. Tailwind Fold
-5. Tailwind Config Viewer
-6. Tailwind Documentation
