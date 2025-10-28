@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Trash2 } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { useDialog } from '@/hooks/useDialog'
 
 interface SyncPairsManagerProps {
@@ -29,6 +29,13 @@ export function SyncPairsManager({
   const [syncPairs, setSyncPairs] = useState<types.SyncPair[]>([])
   const [showAddForm, setShowAddForm] = useState<boolean>(false)
   const [newPair, setNewPair] = useState({ localPath: '', remotePath: '' })
+
+  // --- 新增状态，用于追踪正在编辑的条目 ---
+  const [editingPairId, setEditingPairId] = useState<string | null>(null)
+  const [editingPairData, setEditingPairData] = useState<{
+    localPath: string
+    remotePath: string
+  }>({ localPath: '', remotePath: '' })
 
   const { showDialog } = useDialog()
 
@@ -55,12 +62,24 @@ export function SyncPairsManager({
     void fetchSyncPairs()
   }, [fetchSyncPairs])
 
-  const HandleBrowseLocal = async () => {
+  const handleBrowseLocal = async (isEditing: boolean) => {
     const dirPath = await SelectDirectory('Select Local Directory')
     if (dirPath) {
-      // 使用函数式更新获取上一个状态
-      setNewPair((prev) => ({ ...prev, localPath: dirPath }))
+      if (isEditing) {
+        setEditingPairData((prev) => ({ ...prev, localPath: dirPath }))
+      } else {
+        setNewPair((prev) => ({ ...prev, localPath: dirPath }))
+      }
     }
+  }
+
+  const handleStartEdit = (pair: types.SyncPair) => {
+    setEditingPairId(pair.id)
+    setEditingPairData({
+      localPath: pair.localPath,
+      remotePath: pair.remotePath,
+    })
+    setShowAddForm(false) // 关闭“新增”表单，避免界面混乱
   }
 
   const handleSaveNewPair = async () => {
@@ -86,6 +105,36 @@ export function SyncPairsManager({
       await showDialog({
         title: 'Error',
         message: `Failed to save sync pair: ${String(error)}`,
+        type: 'error',
+      })
+    }
+  }
+
+  const handleUpdatePair = async () => {
+    if (!editingPairId) return
+
+    if (!editingPairData.localPath || !editingPairData.remotePath) {
+      return await showDialog({
+        title: 'Error',
+        message: 'Local and Remote paths cannot be empty.',
+        type: 'error',
+      })
+    }
+
+    try {
+      await SaveSyncPair({
+        id: editingPairId, // 传入现有 ID 以进行更新
+        configId: config.id,
+        localPath: editingPairData.localPath,
+        remotePath: editingPairData.remotePath,
+        syncDeletes: true, // 暂时硬编码
+      })
+      await fetchSyncPairs()
+      setEditingPairId(null) // 退出编辑模式
+    } catch (error) {
+      await showDialog({
+        title: 'Error',
+        message: `Failed to update sync pair: ${String(error)}`,
         type: 'error',
       })
     }
@@ -175,7 +224,7 @@ export function SyncPairsManager({
                   spellCheck={false}
                 />
                 <Button
-                  onClick={() => void HandleBrowseLocal()}
+                  onClick={() => void handleBrowseLocal(false)}
                   variant="outline"
                   className="ml-2"
                 >
@@ -222,22 +271,80 @@ export function SyncPairsManager({
             syncPairs.map((pair) => (
               <div
                 key={pair.id}
-                className="flex items-center justify-between p-3 bg-muted rounded-md"
+                className="p-3 bg-muted rounded-md transition-all"
               >
-                <div className="font-mono text-sm">
-                  <p className="text-sky-600 dark:text-sky-400">
-                    {pair.localPath}
-                  </p>
-                  <p className="text-muted-foreground">➔ {pair.remotePath}</p>
-                </div>
-                <Button
-                  onClick={() => void handleDeletePair(pair.id)}
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {editingPairId === pair.id ? (
+                  // --- 编辑模式 ---
+                  <div className="space-y-4">
+                    <div>
+                      <Label className="text-xs">Local Path</Label>
+                      <div className="flex items-center">
+                        <Input value={editingPairData.localPath} readOnly />
+                        <Button
+                          onClick={() => void handleBrowseLocal(true)}
+                          variant="outline"
+                          className="ml-2"
+                        >
+                          Browse
+                        </Button>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Remote Path</Label>
+                      <Input
+                        value={editingPairData.remotePath}
+                        onChange={(e) =>
+                          setEditingPairData((prev) => ({
+                            ...prev,
+                            remotePath: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="flex justify-end space-x-2">
+                      <Button
+                        onClick={() => setEditingPairId(null)}
+                        variant="ghost"
+                        size="sm"
+                      >
+                        Cancel
+                      </Button>
+                      <Button onClick={() => void handleUpdatePair()} size="sm">
+                        Save
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  // --- 显示模式 ---
+                  <div className="flex items-center justify-between">
+                    <div className="font-mono text-sm">
+                      <p className="text-sky-600 dark:text-sky-400">
+                        {pair.localPath}
+                      </p>
+                      <p className="text-muted-foreground">
+                        ➔ {pair.remotePath}
+                      </p>
+                    </div>
+                    <div className="flex items-center">
+                      <Button
+                        onClick={() => handleStartEdit(pair)}
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        onClick={() => void handleDeletePair(pair.id)}
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))
           )}

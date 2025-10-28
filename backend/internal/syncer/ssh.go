@@ -231,10 +231,10 @@ func deleteRemote(client *sftp.Client, remotePath string) error {
 
 // ReconcileDirectory 递归地比对和同步本地目录与远程目录
 func ReconcileDirectory(client *sftp.Client, pair types.SyncPair, emitLog func(level, message string)) {
-	emitLog("INFO", fmt.Sprintf("Starting initial sync check for: %s", pair.LocalPath))
+	emitLog("INFO", fmt.Sprintf("Starting full sync for: %s", pair.LocalPath))
 
 	// 使用 filepath.WalkDir 遍历本地目录 (Go 1.16+ 推荐)
-	err := filepath.WalkDir(pair.LocalPath, func(localPath string, d fs.DirEntry, err error) error {
+	walkErr := filepath.WalkDir(pair.LocalPath, func(localPath string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err // 传递遍历过程中的错误
 		}
@@ -247,8 +247,11 @@ func ReconcileDirectory(client *sftp.Client, pair types.SyncPair, emitLog func(l
 		remotePath := filepath.ToSlash(filepath.Join(pair.RemotePath, relativePath))
 
 		if d.IsDir() {
-			// 如果是目录，只需确保远程目录存在
-			// 我们可以在上传文件时通过 client.MkdirAll 自动创建，这里可以简化
+			// 确保远程也创建对应的目录结构，即使是空目录
+			if err := client.MkdirAll(remotePath); err != nil {
+				emitLog("ERROR", fmt.Sprintf("Failed to create remote dir %s: %v", remotePath, err))
+				// Don't return the error, just log it and continue walking.
+			}
 			return nil
 		}
 
@@ -295,9 +298,9 @@ func ReconcileDirectory(client *sftp.Client, pair types.SyncPair, emitLog func(l
 		return nil
 	})
 
-	if err != nil {
-		emitLog("ERROR", fmt.Sprintf("Error during initial sync walk for %s: %v", pair.LocalPath, err))
+	if walkErr != nil {
+		emitLog("ERROR", fmt.Sprintf("Error during full sync for %s: %v", pair.LocalPath, walkErr))
 	} else {
-		emitLog("SUCCESS", fmt.Sprintf("Initial sync check completed for: %s", pair.LocalPath))
+		emitLog("SUCCESS", fmt.Sprintf("Full sync completed for: %s", pair.LocalPath))
 	}
 }

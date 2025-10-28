@@ -3,6 +3,7 @@ package syncer
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -83,13 +84,24 @@ func (s *WatcherService) AddWatch(pair types.SyncPair, cfg types.SSHConfig) erro
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// 只有当这个路径是第一次被添加时，才真正地添加到 fsnotify 的监控中
-	if _, ok := s.watchedItems[pair.LocalPath]; !ok {
-		err := s.watcher.Add(pair.LocalPath)
+	// 递归地将根目录及其所有子目录都添加到监控列表
+	err := filepath.WalkDir(pair.LocalPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		log.Printf("添加新监控路径: %s", pair.LocalPath)
+		if d.IsDir() {
+			// 无论这个路径是否已被其他同步对监控，我们都需要确保它在 fsnotify 的监控列表中。
+			// fsnotify 内部会处理重复添加的情况，所以这里直接调用 Add 是安全的。
+			if err := s.watcher.Add(path); err != nil {
+				// 忽略某些系统产生的错误，例如在某些系统上监控一个不存在的符号链接。
+				// 打印警告而不是返回错误，以允许其他目录的监控继续进行。
+				log.Printf("警告: 无法添加监控路径 %s: %v", path, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("遍历目录 %s 失败: %w", pair.LocalPath, err)
 	}
 
 	// 将新的同步对追加到对应路径的切片中
@@ -192,11 +204,21 @@ func (s *WatcherService) handleEvent(event fsnotify.Event) {
 					return
 				}
 				if info.IsDir() {
-					if err := client.MkdirAll(remotePath); err != nil {
-						emitLog("ERROR", fmt.Sprintf("Failed to create remote dir %s: %v", remotePath, err))
-					} else {
-						emitLog("INFO", fmt.Sprintf("Created Dir: %s -> %s", event.Name, remotePath))
+					// 关键修复点：当一个新目录被创建时，必须做两件事：
+					// 1. 立即将这个新目录及其所有子目录也加入到 fsnotify 的监控列表中，以便将来的修改能被捕捉到。
+					_ = filepath.WalkDir(event.Name, func(path string, d fs.DirEntry, err error) error {
+						if d.IsDir() {
+							_ = s.watcher.Add(path)
+						}
+						return nil
+					})
+
+					// 2. 立即对这个新目录进行一次完整的递归同步，以处理一次性复制进来的所有内容。
+					subPair := types.SyncPair{
+						LocalPath:  event.Name,
+						RemotePath: remotePath,
 					}
+					ReconcileDirectory(client, subPair, emitLog)
 				} else {
 					if err := syncFile(client, event.Name, remotePath); err != nil {
 						emitLog("ERROR", fmt.Sprintf("Failed to sync: %s -> %s (%v)", event.Name, remotePath, err))

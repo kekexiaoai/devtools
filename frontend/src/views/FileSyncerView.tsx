@@ -531,9 +531,7 @@ export function FileSyncerView({
             config={selectedConfig}
             onConfigUpdate={() => void fetchConfigs()}
             isWatching={activeWatchers[selectedConfig.id] || false}
-            onToggleWatcher={() =>
-              void toggleWatcher(selectedConfig.id, isActive)
-            }
+            onToggleWatcher={(id, isActive) => void toggleWatcher(id, isActive)}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-muted-foreground">
