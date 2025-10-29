@@ -36,6 +36,16 @@ func (s *Service) Startup(ctx context.Context) error {
 	// 初始化并启动文件监控服务
 	s.watcherSvc = syncer.NewWatcherService(s.ctx)
 	go s.watcherSvc.Start()
+
+	// --- 应用启动时自动恢复上次激活的监控 ---
+	go func() {
+		time.Sleep(2 * time.Second) // 稍微延迟，确保前端已准备好接收日志
+		activeIDs := s.configManager.GetActiveWatcherIDs()
+		for _, id := range activeIDs {
+			s.emitLog("INFO", fmt.Sprintf("Auto-resuming watcher for config ID: %s", id))
+			_ = s.StartWatching(id)
+		}
+	}()
 	return nil
 }
 
@@ -96,6 +106,9 @@ func (s *Service) UpdateRemoteFileFromClipboard(configID string, remotePath stri
 
 func (s *Service) StartWatching(configID string) error {
 	log.Printf("FileSyncer Service: Received request to start watching config ID: %s", configID)
+
+	s.configManager.AddActiveWatcher(configID)
+
 	cfg, found := s.configManager.GetSSHConfigByID(configID)
 	if !found {
 		return &syncconfig.ConfigNotFoundError{ConfigID: configID}
@@ -114,6 +127,7 @@ func (s *Service) StartWatching(configID string) error {
 		}(pair, cfg)
 	}
 	for _, pair := range pairs {
+		log.Printf("Info: Start to watch %s", pair.LocalPath)
 		if err := s.watcherSvc.AddWatch(pair, cfg); err != nil {
 			log.Printf("Error: Failed to watch %s -> %v", pair.LocalPath, err)
 		}
@@ -122,12 +136,21 @@ func (s *Service) StartWatching(configID string) error {
 }
 
 func (s *Service) StopWatching(configID string) error {
+	// --- 从持久化存储中移除 ID ---
+	s.configManager.RemoveActiveWatcher(configID)
+	// ---
+
 	pairs := s.configManager.GetSyncPairsByConfigID(configID)
 	for _, pair := range pairs {
 		s.watcherSvc.RemoveWatch(pair)
 	}
 	log.Printf("FileSyncer Service: Stopped watching config: %s", configID)
 	return nil
+}
+
+// --- 暴露给前端的方法，用于在启动时获取状态 ---
+func (s *Service) GetActiveWatcherIDs() []string {
+	return s.configManager.GetActiveWatcherIDs()
 }
 
 // --- 日志和对话框 (这些是应用级的辅助函数，但与FileSyncer紧密相关) ---

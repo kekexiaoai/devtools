@@ -10,6 +10,10 @@ export function DeleteSyncPair(arg1) {
   return window['go']['filesyncer']['Service']['DeleteSyncPair'](arg1);
 }
 
+export function GetActiveWatcherIDs() {
+  return window['go']['filesyncer']['Service']['GetActiveWatcherIDs']();
+}
+
 export function GetConfigs() {
   return window['go']['filesyncer']['Service']['GetConfigs']();
 }

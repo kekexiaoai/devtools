@@ -66,10 +66,10 @@ func (cm *ConfigManager) save() error {
 	}
 	// 确保目录存在
 	dir := filepath.Dir(cm.path)
-	if err := os.MkdirAll(dir, 0750); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return err
 	}
-	return os.WriteFile(cm.path, data, 0640)
+	return os.WriteFile(cm.path, data, 0o640)
 }
 
 func (cm *ConfigManager) GetAllSSHConfigs() []types.SSHConfig {
@@ -196,4 +196,84 @@ func (cm *ConfigManager) DeleteSyncPair(id string) error {
 	}
 	cm.config.SyncPairs = newPairs
 	return cm.save()
+}
+
+// --- 监控状态持久化方法 ---
+
+// getActiveWatchersPath 返回用于存储活动监控器ID的文件的路径。
+func (cm *ConfigManager) getActiveWatchersPath() string {
+	dir := filepath.Dir(cm.path)
+	return filepath.Join(dir, "active_watchers.json")
+}
+
+// GetActiveWatcherIDs 从持久化存储中读取并返回所有活动的监控器配置ID。
+func (cm *ConfigManager) GetActiveWatcherIDs() []string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.getActiveWatcherIDs_nolock()
+}
+
+// getActiveWatcherIDs_nolock 是 GetActiveWatcherIDs 的一个不加锁版本。
+// 调用者必须确保已经持有了锁。
+func (cm *ConfigManager) getActiveWatcherIDs_nolock() []string {
+	data, err := os.ReadFile(cm.getActiveWatchersPath())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []string{}
+		}
+		fmt.Printf("Error reading active watchers file: %v\n", err)
+		return []string{}
+	}
+
+	var ids []string
+	if err := json.Unmarshal(data, &ids); err != nil {
+		fmt.Printf("Error unmarshalling active watchers file: %v\n", err)
+		return []string{}
+	}
+	return ids
+}
+
+// saveActiveWatcherIDs_nolock 是一个不加锁的版本，用于将活动的监控器ID列表保存到文件。
+// 调用者必须确保已经持有了锁。
+func (cm *ConfigManager) saveActiveWatcherIDs_nolock(ids []string) error {
+	path := cm.getActiveWatchersPath()
+	data, err := json.MarshalIndent(ids, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o640)
+}
+
+// AddActiveWatcher 将一个配置ID添加到活动的监控器列表中并持久化。
+func (cm *ConfigManager) AddActiveWatcher(configID string) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	ids := cm.getActiveWatcherIDs_nolock()
+	for _, id := range ids {
+		if id == configID {
+			return // 如果已存在，则不执行任何操作
+		}
+	}
+	ids = append(ids, configID)
+	_ = cm.saveActiveWatcherIDs_nolock(ids)
+}
+
+// RemoveActiveWatcher 从活动的监控器列表中移除一个配置ID并持久化。
+func (cm *ConfigManager) RemoveActiveWatcher(configID string) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	ids := cm.getActiveWatcherIDs_nolock()
+	newIDs := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id != configID {
+			newIDs = append(newIDs, id)
+		}
+	}
+
+	// 仅当列表发生变化时才保存
+	if len(newIDs) != len(ids) {
+		_ = cm.saveActiveWatcherIDs_nolock(newIDs)
+	}
 }

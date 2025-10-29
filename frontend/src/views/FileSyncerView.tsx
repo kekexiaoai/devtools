@@ -14,6 +14,7 @@ import {
   TestConnection,
   StartWatching,
   StopWatching,
+  GetActiveWatcherIDs,
 } from '@wailsjs/go/filesyncer/Service'
 import { SelectFile } from '@wailsjs/go/backend/App'
 
@@ -100,9 +101,9 @@ export function FileSyncerView({
   // }
 
   const toggleWatcher = useCallback(
-    async (configId: string, isActive: boolean) => {
+    async (configId: string, shouldBeActive: boolean) => {
       try {
-        if (isActive) {
+        if (shouldBeActive) {
           await StartWatching(configId)
           // 更新对象 state 的正确方式
           // 我们传入一个函数，它接收前一个状态 (prevWatchers)
@@ -128,7 +129,7 @@ export function FileSyncerView({
       } catch (error) {
         await showDialog({
           title: 'Error',
-          message: `Failed to ${isActive ? 'start' : 'stop'} watching: ${String(error)}`,
+          message: `Failed to ${shouldBeActive ? 'start' : 'stop'} watching: ${String(error)}`,
           type: 'error',
         })
       }
@@ -161,6 +162,34 @@ export function FileSyncerView({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // 无依赖, 保持函数引用稳定, 它的引用永远不会改变
+
+  // --- 新增：在应用启动时，从后端获取上次激活的监控列表来初始化状态 ---
+  useEffect(() => {
+    const initializeActiveWatchers = async () => {
+      try {
+        // 在调用前检查函数是否存在，以解决 no-unsafe-call 警告
+        if (typeof GetActiveWatcherIDs === 'function') {
+          const activeIDs = await GetActiveWatcherIDs()
+          const initialWatchers: Record<string, boolean> = {}
+          for (const id of activeIDs) {
+            initialWatchers[id] = true
+          }
+          setActiveWatchers(initialWatchers)
+        }
+      } catch (error: unknown) {
+        // 对 catch 的 error 进行类型检查，解决 no-unsafe-assignment 问题
+        if (error instanceof Error) {
+          logger.error('Failed to initialize active watchers:', error.message)
+        } else {
+          logger.error(
+            'An unknown error occurred while initializing active watchers:',
+            String(error)
+          )
+        }
+      }
+    }
+    void initializeActiveWatchers()
+  }, [logger, setActiveWatchers])
 
   useOnVisible(() => void fetchConfigs(), isActive)
 
