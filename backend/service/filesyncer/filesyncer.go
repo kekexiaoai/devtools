@@ -85,10 +85,81 @@ func (s *Service) GetSyncPairs(configID string) ([]types.SyncPair, error) {
 }
 
 func (s *Service) SaveSyncPair(pair types.SyncPair) error {
-	return s.configManager.SaveSyncPair(pair)
+	isUpdate := pair.ID != ""
+	var oldPair types.SyncPair
+	var foundOld bool
+
+	if isUpdate {
+		// 在保存之前，获取旧的同步对信息，以便后续更新监控
+		allPairs := s.configManager.GetSyncPairsByConfigID(pair.ConfigID)
+		for _, p := range allPairs {
+			if p.ID == pair.ID {
+				oldPair = p
+				foundOld = true
+				break
+			}
+		}
+	}
+
+	// 1. 先保存配置。如果是新创建的，这一步会为 pair 分配一个 ID。
+	if err := s.configManager.SaveSyncPair(pair); err != nil {
+		return err
+	}
+
+	// 2. 检查此配置当前是否处于激活状态。如果是，我们需要更新正在运行的监控。
+	if s.watcherSvc.IsConfigBeingWatched(pair.ConfigID) {
+		cfg, found := s.configManager.GetSSHConfigByID(pair.ConfigID)
+		if !found {
+			// 理论上不应该发生，因为 IsConfigBeingWatched 返回 true
+			return &syncconfig.ConfigNotFoundError{ConfigID: pair.ConfigID}
+		}
+
+		if isUpdate && foundOld {
+			// --- 更新操作 ---
+			if oldPair.LocalPath != pair.LocalPath || oldPair.RemotePath != pair.RemotePath {
+				log.Printf("Sync pair %s is being updated while active. Updating watcher.", pair.ID)
+				s.watcherSvc.RemoveWatch(oldPair)
+				s.startWatchAndSyncForPair(pair, cfg)
+			}
+		} else {
+			// --- 新增操作 ---
+			log.Printf("Adding new sync pair %s to active watcher.", pair.ID)
+			s.startWatchAndSyncForPair(pair, cfg)
+		}
+	}
+
+	return nil
+}
+
+// startWatchAndSyncForPair 是一个辅助函数，用于添加监控并执行初始同步
+func (s *Service) startWatchAndSyncForPair(pair types.SyncPair, cfg types.SSHConfig) {
+	if err := s.watcherSvc.AddWatch(pair, cfg); err == nil {
+		go func(p types.SyncPair, c types.SSHConfig) {
+			client, err := syncer.NewSFTPClient(c)
+			if err != nil {
+				s.emitLog("ERROR", fmt.Sprintf("Initial sync for %s failed, could not connect: %v", p.LocalPath, err))
+				return
+			}
+			defer client.Close()
+			log.Printf("Performing initial sync for %s", p.LocalPath)
+			syncer.ReconcileDirectory(client, p, s.emitLog)
+		}(pair, cfg)
+	} else {
+		log.Printf("Error adding watch for %s: %v", pair.LocalPath, err)
+	}
 }
 
 func (s *Service) DeleteSyncPair(pairID string) error {
+	// 在删除配置之前，先获取同步对的信息
+	pair, found := s.configManager.GetSyncPairByID(pairID)
+	if !found {
+		// 如果找不到，可能已经被删除了，直接返回成功
+		return nil
+	}
+
+	// 停止对该同步对的监控
+	s.watcherSvc.RemoveWatch(pair)
+
 	return s.configManager.DeleteSyncPair(pairID)
 }
 

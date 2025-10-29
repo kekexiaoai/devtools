@@ -155,6 +155,18 @@ func (cm *ConfigManager) GetSyncPairsByConfigID(configID string) []types.SyncPai
 	return pairs
 }
 
+func (cm *ConfigManager) GetSyncPairByID(pairID string) (types.SyncPair, bool) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	for _, p := range cm.config.SyncPairs {
+		if p.ID == pairID {
+			return p, true
+		}
+	}
+	return types.SyncPair{}, false
+}
+
 func (cm *ConfigManager) SaveSyncPair(pair types.SyncPair) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()

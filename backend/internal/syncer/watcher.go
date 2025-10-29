@@ -147,6 +147,24 @@ func (s *WatcherService) RemoveWatch(pairToRemove types.SyncPair) {
 	}
 }
 
+// IsConfigBeingWatched 检查一个给定的 configID 是否有任何关联的同步对正在被监控。
+// 这是一个线程安全的方法。
+func (s *WatcherService) IsConfigBeingWatched(configID string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// 遍历所有被监控的本地路径
+	for _, pairs := range s.watchedItems {
+		// 检查该路径下的同步对列表是否有关联的 configID
+		for _, p := range pairs {
+			if p.ConfigID == configID {
+				return true // 找到了，说明正在被监控
+			}
+		}
+	}
+	return false // 遍历完成，未找到
+}
+
 // handleEvent 是处理所有文件系统事件的核心函数
 func (s *WatcherService) handleEvent(event fsnotify.Event) {
 	s.mu.RLock()
