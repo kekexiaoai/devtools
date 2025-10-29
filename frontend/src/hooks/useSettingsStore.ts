@@ -35,6 +35,7 @@ interface SettingsState {
 
   // Tunnel
   useTunnelMiniMap: boolean
+  autoResumeSync: boolean
 }
 
 type TerminalSettings = Pick<
@@ -64,6 +65,7 @@ interface SettingsActions {
   resetTerminalSettings: () => void
   resetShortcuts: () => void
   setUseTunnelMiniMap: (enabled: boolean) => void
+  setAutoResumeSync: (enabled: boolean) => void
 }
 
 const defaultShortcuts: Record<ShortcutAction, Shortcut> = {
@@ -90,6 +92,7 @@ const defaultSettings: Omit<SettingsState, 'theme'> = {
   shortcuts: defaultShortcuts,
   sshConfigPath: '~/.ssh/config',
   useTunnelMiniMap: true,
+  autoResumeSync: true,
 }
 
 export const useSettingsStore = create<SettingsState & SettingsActions>()(
@@ -125,6 +128,7 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
       resetShortcuts: () => set({ shortcuts: defaultShortcuts }),
       useTunnelMiniMap: true,
       setUseTunnelMiniMap: (enabled) => set({ useTunnelMiniMap: enabled }),
+      setAutoResumeSync: (enabled) => set({ autoResumeSync: enabled }),
     }),
     {
       name: 'devtools-settings-storage',

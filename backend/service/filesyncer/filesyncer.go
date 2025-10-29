@@ -37,15 +37,19 @@ func (s *Service) Startup(ctx context.Context) error {
 	s.watcherSvc = syncer.NewWatcherService(s.ctx)
 	go s.watcherSvc.Start()
 
+	// 交给前端来控制是激活监控
 	// --- 应用启动时自动恢复上次激活的监控 ---
-	go func() {
-		time.Sleep(2 * time.Second) // 稍微延迟，确保前端已准备好接收日志
-		activeIDs := s.configManager.GetActiveWatcherIDs()
-		for _, id := range activeIDs {
-			s.emitLog("INFO", fmt.Sprintf("Auto-resuming watcher for config ID: %s", id))
-			_ = s.StartWatching(id)
-		}
-	}()
+	// go func() {
+	// 	time.Sleep(2 * time.Second) // 稍微延迟，确保前端已准备好接收日志
+	// 	activeIDs := s.configManager.GetActiveWatcherIDs()
+	// 	if len(activeIDs) > 0 {
+	// 		s.emitLog("INFO", fmt.Sprintf("Found %d previously active watchers. Auto-resuming...", len(activeIDs)))
+	// 		for _, id := range activeIDs {
+	// 			s.emitLog("INFO", fmt.Sprintf("Auto-resuming watcher for config ID: %s", id))
+	// 			_ = s.StartWatching(id)
+	// 		}
+	// 	}
+	// }()
 	return nil
 }
 

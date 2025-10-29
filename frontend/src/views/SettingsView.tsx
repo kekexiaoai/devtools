@@ -76,6 +76,22 @@ export function SettingsView({ platform }: { platform: string }) {
               </Select>
             </div>
             <div className="flex items-center justify-between">
+              <Label
+                htmlFor="auto-resume-sync"
+                className="flex flex-col items-start gap-1.5"
+              >
+                <span>Auto-resume file sync</span>
+                <span className="font-normal text-muted-foreground text-xs">
+                  Automatically resume active sync tasks on application startup.
+                </span>
+              </Label>
+              <Switch
+                id="auto-resume-sync"
+                checked={settings.autoResumeSync}
+                onCheckedChange={settings.setAutoResumeSync}
+              />
+            </div>
+            <div className="flex items-center justify-between">
               <Label htmlFor="sidebar-collapsed">
                 Collapse Sidebar by Default
               </Label>

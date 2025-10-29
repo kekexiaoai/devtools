@@ -37,6 +37,7 @@ import { RadioGroup } from '@radix-ui/react-radio-group'
 import { RadioGroupItem } from '@/components/ui/radio-group'
 import { useOnVisible } from '@/hooks/useOnVisible'
 import { appLogger } from '@/lib/logger'
+import { useSettingsStore } from '@/hooks/useSettingsStore'
 
 interface FileSyncerViewProps {
   isActive: boolean
@@ -70,6 +71,8 @@ export function FileSyncerView({
   }
   const [form, setForm] = useState<types.SSHConfig>(initialFormState)
   const [testResult, setTestResult] = useState({ status: '', message: '' })
+
+  const autoResumeSync = useSettingsStore((s) => s.autoResumeSync)
 
   const logger = useMemo(() => {
     return appLogger.withPrefix('FileSyncerView')
@@ -163,33 +166,38 @@ export function FileSyncerView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // 无依赖, 保持函数引用稳定, 它的引用永远不会改变
 
-  // --- 新增：在应用启动时，从后端获取上次激活的监控列表来初始化状态 ---
+  // --- 在应用启动时，从后端获取上次激活的监控列表来初始化状态 ---
   useEffect(() => {
-    const initializeActiveWatchers = async () => {
-      try {
-        // 在调用前检查函数是否存在，以解决 no-unsafe-call 警告
-        if (typeof GetActiveWatcherIDs === 'function') {
-          const activeIDs = await GetActiveWatcherIDs()
-          const initialWatchers: Record<string, boolean> = {}
-          for (const id of activeIDs) {
-            initialWatchers[id] = true
-          }
-          setActiveWatchers(initialWatchers)
-        }
-      } catch (error: unknown) {
-        // 对 catch 的 error 进行类型检查，解决 no-unsafe-assignment 问题
-        if (error instanceof Error) {
-          logger.error('Failed to initialize active watchers:', error.message)
-        } else {
-          logger.error(
-            'An unknown error occurred while initializing active watchers:',
-            String(error)
-          )
-        }
+    const resumeWatchers = async () => {
+      if (!autoResumeSync) return
+
+      logger.info(
+        'Auto-resume setting is enabled, checking for active watchers...'
+      )
+      if (typeof GetActiveWatcherIDs !== 'function') return
+
+      const activeIDs = await GetActiveWatcherIDs()
+      if (activeIDs.length > 0) {
+        logger.info('Found previously active watchers, resuming...', activeIDs)
+        const initialWatchers: Record<string, boolean> = {}
+        // Create an array of promises for all the StartWatching calls
+        const startPromises = activeIDs.map((id) => {
+          initialWatchers[id] = true
+          return StartWatching(id)
+        })
+
+        // Update the UI immediately
+        setActiveWatchers(initialWatchers)
+        // Wait for all watchers to be started on the backend
+        await Promise.all(startPromises)
+        logger.info('All watchers resumed successfully.')
       }
     }
-    void initializeActiveWatchers()
-  }, [logger, setActiveWatchers])
+
+    // This effect should only run once when the component mounts.
+    void resumeWatchers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Empty dependency array ensures this runs only once.
 
   useOnVisible(() => void fetchConfigs(), isActive)
 
