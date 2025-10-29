@@ -13,6 +13,21 @@ interface ShortcutInputProps {
   shortcutActions: { id: ShortcutAction; name: string }[]
 }
 
+// A list of single-character keys for Ctrl combinations that are commonly
+// used in shells and should be protected from being overridden by global shortcuts.
+const PROTECTED_CTRL_KEYS = new Set([
+  'a',
+  'b',
+  'c',
+  'd',
+  'e',
+  'f',
+  'k',
+  'l',
+  'u',
+  'w',
+])
+
 /**
  * Formats a shortcut object into a human-readable string.
  * e.g., { ctrl: true, key: 't' } -> "Ctrl + T"
@@ -104,6 +119,24 @@ export function ShortcutInput({
     // with normal typing.
     if (!e.ctrlKey && !e.metaKey && !e.altKey) {
       setValidationError('Shortcut must include Ctrl, Alt, or Cmd/Win.')
+      return
+    }
+
+    // --- Terminal Conflict Validation ---
+    // On non-Mac systems, `Ctrl` is the primary terminal modifier.
+    // On Mac, `Cmd` is for the app, but `Ctrl` is still heavily used by the terminal.
+    // Therefore, we protect common Ctrl shortcuts on ALL platforms.
+    // We only apply this check if `meta` is NOT pressed, to allow `Cmd+Ctrl` combinations.
+    if (
+      e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey &&
+      !e.shiftKey &&
+      PROTECTED_CTRL_KEYS.has(e.key.toLowerCase())
+    ) {
+      setValidationError(
+        `Ctrl+${e.key.toUpperCase()} is reserved for terminal use.`
+      )
       return
     }
 

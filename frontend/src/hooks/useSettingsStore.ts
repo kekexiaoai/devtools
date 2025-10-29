@@ -66,13 +66,16 @@ interface SettingsActions {
   resetShortcuts: () => void
   setUseTunnelMiniMap: (enabled: boolean) => void
   setAutoResumeSync: (enabled: boolean) => void
+  setPlatformDefaults: (platform: string) => void
 }
 
 const defaultShortcuts: Record<ShortcutAction, Shortcut> = {
-  newTerminal: { key: 't', ctrl: true, meta: true, alt: false, shift: false },
-  closeTab: { key: 'w', ctrl: true, meta: true, alt: false, shift: false },
-  nextTab: { key: 'Tab', ctrl: true, meta: false, alt: false, shift: false },
-  prevTab: { key: 'Tab', ctrl: true, meta: false, alt: false, shift: true },
+  newTerminal: { key: 't', ctrl: true, meta: true, alt: false, shift: false }, // CmdOrCtrl+T
+  // Default for closeTab will be set dynamically based on platform.
+  // Set a safe initial default.
+  closeTab: { key: 'w', ctrl: true, meta: true, alt: false, shift: true }, // CmdOrCtrl+Shift+W
+  nextTab: { key: 'Tab', ctrl: true, meta: false, alt: false, shift: false }, // Ctrl+Tab
+  prevTab: { key: 'Tab', ctrl: true, meta: false, alt: false, shift: true }, // Ctrl+Shift+Tab
 }
 
 const defaultTerminalSettings: TerminalSettings = {
@@ -129,6 +132,38 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
       useTunnelMiniMap: true,
       setUseTunnelMiniMap: (enabled) => set({ useTunnelMiniMap: enabled }),
       setAutoResumeSync: (enabled) => set({ autoResumeSync: enabled }),
+      setPlatformDefaults: (platform) =>
+        set((state) => {
+          // This function should only run once on startup.
+          // We check if the 'closeTab' shortcut is still the initial safe default.
+          // If the user has already changed it, we don't want to override their setting.
+          const currentCloseTab = state.shortcuts.closeTab
+          const isInitialDefault =
+            currentCloseTab.key === 'w' &&
+            currentCloseTab.ctrl &&
+            currentCloseTab.meta &&
+            currentCloseTab.shift
+
+          if (!isInitialDefault) {
+            return {} // User has already customized, do nothing.
+          }
+
+          const isMac = platform === 'darwin'
+          const platformAwareCloseTab = {
+            key: 'w',
+            ctrl: !isMac,
+            meta: isMac,
+            alt: false,
+            shift: !isMac,
+          }
+
+          return {
+            shortcuts: {
+              ...state.shortcuts,
+              closeTab: platformAwareCloseTab,
+            },
+          }
+        }),
     }),
     {
       name: 'devtools-settings-storage',

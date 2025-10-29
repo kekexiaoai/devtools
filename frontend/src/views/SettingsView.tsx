@@ -259,7 +259,8 @@ export function SettingsView({ platform }: { platform: string }) {
               <div>
                 <CardTitle>Keyboard Shortcuts</CardTitle>
                 <CardDescription>
-                  Customize global shortcuts for terminal operations.
+                  Customize global shortcuts. Some Ctrl-based shortcuts are
+                  reserved for terminal use.
                 </CardDescription>
               </div>
               <Button

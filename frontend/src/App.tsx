@@ -114,6 +114,7 @@ function AppContent() {
 
   // --- Global Settings Integration ---
   const appTheme = useSettingsStore((state) => state.theme)
+  const setPlatformDefaults = useSettingsStore((s) => s.setPlatformDefaults)
   const systemIsDark = useThemeDetector()
   const isDarkMode = useMemo(() => {
     if (appTheme === 'system') {
@@ -198,11 +199,19 @@ function AppContent() {
 
   useEffect(() => {
     Environment()
-      .then((info) => setPlatform(info.platform))
+      .then((info) => {
+        setPlatform(info.platform)
+        // Once we have the platform, set the platform-specific default shortcuts.
+        // This is done inside a `setTimeout` to ensure it runs after the store
+        // has been fully hydrated from localStorage by zustand/persist middleware.
+        setTimeout(() => {
+          setPlatformDefaults(info.platform)
+        }, 0)
+      })
       .catch((error) => {
         logger.error('Environment promise was rejected:', error)
       })
-  }, [logger])
+  }, [logger, setPlatformDefaults])
 
   // 适配系统主题
   // 使用 useEffect 来根据 isDarkMode 的变化，更新 <html> 标签的 class
@@ -712,6 +721,7 @@ function AppContent() {
           onReconnectTerminal={reconnectTerminal}
           onConnect={handleTerminalConnect}
           onStatusChange={updateTerminalStatus}
+          platform={platform}
           // 传递 isDarkMode
           isDarkMode={isDarkMode}
         />

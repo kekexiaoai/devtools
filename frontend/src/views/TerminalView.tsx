@@ -62,6 +62,7 @@ interface TerminalViewProps {
   onStatusChange: (sessionId: string, status: ConnectionStatus) => void
   isActive: boolean
   isDarkMode: boolean
+  platform: string
 }
 
 const defaultDarkTheme = gruvboxDarkDimmedTheme
@@ -78,6 +79,7 @@ export function TerminalView({
   onStatusChange,
   isActive,
   isDarkMode,
+  platform,
 }: TerminalViewProps) {
   const {
     terminalFontSize,
@@ -154,6 +156,8 @@ export function TerminalView({
         return
       }
 
+      const isMac = platform === 'darwin'
+
       const matchShortcut = (action: ShortcutAction): boolean => {
         const shortcut = shortcuts[action]
         if (
@@ -163,9 +167,14 @@ export function TerminalView({
           return false
         }
 
-        // For Ctrl/Meta, if both are true in config, it means "Cmd OR Ctrl".
+        // Handle "CmdOrCtrl" logic based on platform
         if (shortcut.ctrl && shortcut.meta) {
-          if (!event.ctrlKey && !event.metaKey) return false
+          // On Mac, this means Cmd. On others, it means Ctrl.
+          if (isMac) {
+            if (!event.metaKey || event.ctrlKey) return false // Must be Cmd, not Ctrl
+          } else {
+            if (!event.ctrlKey || event.metaKey) return false // Must be Ctrl, not Meta
+          }
         } else {
           // Otherwise, it's a strict match.
           if (shortcut.ctrl !== event.ctrlKey) return false
@@ -254,6 +263,7 @@ export function TerminalView({
     confirmOnCloseTerminal,
     handleOpenLocalTerminal,
     shortcuts,
+    platform,
   ])
 
   const handleStartRename = (session: TerminalSession, fromMenu = false) => {
