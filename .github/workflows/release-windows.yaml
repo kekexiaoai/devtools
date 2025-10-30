@@ -21,7 +21,7 @@ jobs:
       matrix:
         platform:
           - windows/amd64
-          #- windows/arm64
+          - windows/arm64
     steps:
       - name: Checkout source code
         uses: actions/checkout@v3
@@ -62,7 +62,24 @@ jobs:
       - name: Install chocolatey
         uses: crazy-max/ghaction-chocolatey@v2
         with:
-          args: install nsis jq
+          args: install nsis.install jq
+
+      - name: Add NSIS to PATH
+        shell: pwsh
+        run: |
+          $nsisPath = "C:\Program Files (x86)\NSIS"
+          if (Test-Path "$nsisPath\makensis.exe") {
+            echo "$nsisPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          } else {
+            $found = Get-ChildItem "C:\ProgramData\chocolatey" -Recurse -Filter makensis.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($found) {
+              echo "$($found.DirectoryName)" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            }
+          }
+
+      - name: Verify NSIS
+        shell: pwsh
+        run: where makensis
 
       - name: Install wails
         shell: bash
