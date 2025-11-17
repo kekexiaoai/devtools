@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -151,7 +152,7 @@ func UpdateRemoteFile(config types.SSHConfig, remotePath string, content string,
 	}
 	defer client.Close()
 
-	remoteDir := filepath.Dir(remotePath)
+	remoteDir := path.Dir(remotePath)
 	if err := client.MkdirAll(remoteDir); err != nil {
 		return fmt.Errorf("创建远程目录失败: %w", err)
 	}
@@ -197,7 +198,7 @@ func syncFile(client *sftp.Client, localPath, remotePath string) error {
 	defer srcFile.Close()
 
 	// 确保远程目录存在
-	remoteDir := filepath.Dir(remotePath)
+	remoteDir := path.Dir(remotePath)
 	if err := client.MkdirAll(remoteDir); err != nil {
 		return fmt.Errorf("创建远程目录失败: %w", err)
 	}
@@ -258,7 +259,7 @@ func ReconcileDirectory(client *sftp.Client, pair types.SyncPair, emitLog func(l
 		if err != nil {
 			return err
 		}
-		remotePath := filepath.ToSlash(filepath.Join(pair.RemotePath, relativePath))
+		remotePath := path.Join(pair.RemotePath, filepath.ToSlash(relativePath))
 
 		if d.IsDir() {
 			// 确保远程也创建对应的目录结构，即使是空目录
