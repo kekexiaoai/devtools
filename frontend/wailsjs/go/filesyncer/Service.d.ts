@@ -11,6 +11,8 @@ export function GetActiveWatcherIDs():Promise<Array<string>>;
 
 export function GetConfigs():Promise<Array<types.SSHConfig>>;
 
+export function GetDefaultHTMLTemplate():Promise<string>;
+
 export function GetSyncPairs(arg1:string):Promise<Array<types.SyncPair>>;
 
 export function SaveConfig(arg1:types.SSHConfig):Promise<void>;

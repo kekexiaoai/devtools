@@ -8,17 +8,22 @@ type LogEntry struct {
 	Message   string `json:"message"`
 }
 
-type SSHConfig struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	Host       string `json:"host"`
-	Port       int    `json:"port"`
-	User       string `json:"user"`
-	AuthMethod string `json:"authMethod"` // "password" or "key"
-	Password   string `json:"password"`   // 注意：生产环境中应加密
-	KeyPath    string `json:"keyPath"`
+// ClipboardConfig 包含了剪贴板同步功能的特定配置
+type ClipboardConfig struct {
+	FilePath     string `json:"filePath,omitempty"`
+	HTMLTemplate string `json:"htmlTemplate,omitempty"`
+}
 
-	ClipboardFilePath string `json:"clipboardFilePath,omitempty"`
+type SSHConfig struct {
+	ID         string          `json:"id"`
+	Name       string          `json:"name"`
+	Host       string          `json:"host"`
+	Port       int             `json:"port"`
+	User       string          `json:"user"`
+	AuthMethod string          `json:"authMethod"` // "password" or "key"
+	Password   string          `json:"password,omitempty"`
+	KeyPath    string          `json:"keyPath,omitempty"`
+	Clipboard  ClipboardConfig `json:"clipboard"`
 }
 
 type SyncPair struct {

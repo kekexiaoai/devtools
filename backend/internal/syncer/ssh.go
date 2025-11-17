@@ -84,29 +84,9 @@ func TestSSHConnection(cfg types.SSHConfig) (string, error) {
 	return "连接成功!", nil
 }
 
-// UpdateRemoteFile contains the updated HTML template with corrected JavaScript.
-func UpdateRemoteFile(config types.SSHConfig, remotePath string, content string, asHTML bool) error {
-	client, err := NewSFTPClient(config)
-	if err != nil {
-		return err
-	}
-	defer client.Close()
-
-	remoteDir := filepath.Dir(remotePath)
-	if err := client.MkdirAll(remoteDir); err != nil {
-		return fmt.Errorf("创建远程目录失败: %w", err)
-	}
-
-	f, err := client.Create(remotePath)
-	if err != nil {
-		return fmt.Errorf("创建远程文件失败: %w", err)
-	}
-	defer f.Close()
-
-	var contentToWrite []byte
-	if asHTML {
-		// This template now uses a fallback copy method that works with local files.
-		const tmpl = `<!DOCTYPE html>
+// defaultHTMLTemplate 包含了用于展示剪贴板内容的默认HTML模板。
+// 它提供了一个“复制”按钮，并使用了基本的样式。
+const defaultHTMLTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -158,6 +138,40 @@ func UpdateRemoteFile(config types.SSHConfig, remotePath string, content string,
 </body>
 </html>`
 
+// GetDefaultHTMLTemplate 返回用于剪贴板查看器的内置默认HTML模板。
+func GetDefaultHTMLTemplate() string {
+	return defaultHTMLTemplate
+}
+
+// UpdateRemoteFile contains the updated HTML template with corrected JavaScript.
+func UpdateRemoteFile(config types.SSHConfig, remotePath string, content string, asHTML bool) error {
+	client, err := NewSFTPClient(config)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	remoteDir := filepath.Dir(remotePath)
+	if err := client.MkdirAll(remoteDir); err != nil {
+		return fmt.Errorf("创建远程目录失败: %w", err)
+	}
+
+	f, err := client.Create(remotePath)
+	if err != nil {
+		return fmt.Errorf("创建远程文件失败: %w", err)
+	}
+	defer f.Close()
+
+	var contentToWrite []byte
+	if asHTML {
+		// 优先使用用户在配置中定义的模板
+		tmpl := config.Clipboard.HTMLTemplate
+		if tmpl == "" {
+			// 如果用户没有定义，则使用内置的默认模板
+			tmpl = defaultHTMLTemplate
+		}
+
+		// 解析并执行模板
 		t := template.Must(template.New("webpage").Parse(tmpl))
 		var buf bytes.Buffer
 		if err := t.Execute(&buf, content); err != nil {

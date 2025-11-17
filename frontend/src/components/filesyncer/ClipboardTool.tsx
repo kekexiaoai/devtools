@@ -30,6 +30,7 @@ import {
 import {
   SaveConfig,
   UpdateRemoteFileFromClipboard,
+  GetDefaultHTMLTemplate,
 } from '@wailsjs/go/filesyncer/Service'
 import { useDialog } from '@/hooks/useDialog'
 import { DialogDescription } from '@radix-ui/react-dialog'
@@ -39,14 +40,36 @@ interface ClipboardToolProps {
   onConfigUpdate: () => void
 }
 
+// 创建一个完全安全的默认对象，并确保类型正确
+const getSafeClipboard = (config: types.SSHConfig): types.ClipboardConfig => {
+  if (!config.clipboard || typeof config.clipboard !== 'object') {
+    return {} as types.ClipboardConfig
+  }
+  return config.clipboard
+}
+
 function ClipboardTool({ config, onConfigUpdate }: ClipboardToolProps) {
   const { showDialog } = useDialog()
 
   // 这个 state 用于追踪用户是否正在编辑远程文件路径
   const [isEditingPath, setIsEditingPath] = useState(false)
   // 这个 state 专门用于表单，避免直接修改 props
-  const [remotePath, setRemotePath] = useState(config.clipboardFilePath || '')
+  const [remotePath, setRemotePath] = useState(
+    getSafeClipboard(config)?.filePath || ''
+  )
 
+  // 模板编辑模态框状态
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
+  const [htmlTemplate, setHtmlTemplate] = useState(
+    config.clipboard?.htmlTemplate || ''
+  )
+  const [defaultTemplate, setDefaultTemplate] = useState('')
+  const isTemplatePristine = useMemo(
+    () => htmlTemplate === defaultTemplate,
+    [htmlTemplate, defaultTemplate]
+  )
+
+  const [previewHtml, setPreviewHtml] = useState('')
   // 模态框相关状态
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [clipboardContent, setClipboardContent] = useState('')
@@ -62,9 +85,48 @@ function ClipboardTool({ config, onConfigUpdate }: ClipboardToolProps) {
   // 当用户在左侧列表切换配置时，props.cofig 会改变
   // 这个 effect 会监听这个变化，并用新的 props 的值来更新组件内部的 state
   useEffect(() => {
-    setRemotePath(config.clipboardFilePath || '')
+    setRemotePath(config.clipboard?.filePath || '')
     setIsEditingPath(false) // 切换后总是回到非编辑状态
-  }, [config.clipboardFilePath, config.id])
+    setHtmlTemplate(config.clipboard?.htmlTemplate || '') // 同步模板
+  }, [config.clipboard?.filePath, config.clipboard?.htmlTemplate, config.id])
+
+  // 当模板编辑模态框打开时，获取一次默认模板用于比较
+  useEffect(() => {
+    if (isTemplateModalOpen) {
+      // 显式声明Promise类型并使用async/await模式，更加清晰和类型安全
+      const fetchTemplate = async (): Promise<void> => {
+        try {
+          // 确保TypeScript知道这是一个Promise<string>
+          const template: string = await GetDefaultHTMLTemplate()
+          setDefaultTemplate(template)
+        } catch (err) {
+          // 安全地处理错误对象
+          console.error('Failed to fetch default HTML template:', String(err))
+          // Even on error, set it to something to avoid accidental disabling
+          setDefaultTemplate('__error_fetching_template__')
+        }
+      }
+
+      void fetchTemplate()
+    }
+  }, [isTemplateModalOpen])
+  // 当模板内容变化时，生成预览用的HTML
+  useEffect(() => {
+    // 使用一段示例文本
+    const sampleContent =
+      'This is a preview of your clipboard content.\n\n' +
+      'It supports multiple lines and special characters like < > & " \' '
+
+    // 如果模板为空，则不显示预览
+    const templateToUse = htmlTemplate
+    if (!templateToUse) {
+      setPreviewHtml('<!-- Enter a template above to see a preview -->')
+      return
+    }
+    // 简单替换占位符
+    const renderedHtml = templateToUse.replace(/\{\{\.\}\}/g, sampleContent)
+    setPreviewHtml(renderedHtml)
+  }, [htmlTemplate])
 
   // --事件处理函数---------------------
   const handleSaveChanges = async () => {
@@ -78,8 +140,14 @@ function ClipboardTool({ config, onConfigUpdate }: ClipboardToolProps) {
 
     try {
       // 创建一个新的配置对象来保存，只更新我们修改的字段
-      const configToSave = { ...config, clipboardFilePath: remotePath }
-      await SaveConfig(configToSave)
+      const configToSave = {
+        ...config,
+        clipboard: {
+          ...config.clipboard,
+          filePath: remotePath,
+        },
+      }
+      await SaveConfig(configToSave as types.SSHConfig)
       onConfigUpdate() // 通知父组件数据已更新
       setIsEditingPath(false) // 保存成功后，切换回非编辑状态
     } catch (error) {
@@ -91,8 +159,42 @@ function ClipboardTool({ config, onConfigUpdate }: ClipboardToolProps) {
   }
 
   const cancelEdit = () => {
-    setRemotePath(config.clipboardFilePath || '') // 恢复原始值
+    setRemotePath(config.clipboard?.filePath || '') // 恢复原始值
     setIsEditingPath(false)
+  }
+
+  const handleSaveTemplate = async () => {
+    try {
+      const configToSave = {
+        ...config,
+        clipboard: {
+          ...config.clipboard,
+          htmlTemplate: htmlTemplate,
+        },
+      }
+      await SaveConfig(configToSave as types.SSHConfig)
+      onConfigUpdate()
+      setIsTemplateModalOpen(false)
+      await showDialog({
+        title: 'Success',
+        message: 'HTML template saved successfully!',
+      })
+    } catch (error) {
+      await showDialog({
+        title: 'Save Error',
+        message: `Failed to save template: ${String(error)}`,
+      })
+    }
+  }
+
+  const handleLoadExampleTemplate = () => {
+    // 从 state 中加载已经获取的默认模板到编辑器
+    setHtmlTemplate(defaultTemplate)
+  }
+
+  const handleRestoreDefault = () => {
+    // 清空模板即可，后端会在模板为空时使用默认值
+    setHtmlTemplate('')
   }
 
   const openEditorModal = () => {
@@ -111,7 +213,7 @@ function ClipboardTool({ config, onConfigUpdate }: ClipboardToolProps) {
     console.log('pastedText', pastedText)
 
     if (autoSyncOnPaste && pastedText) {
-      // 阻止默认的粘贴行为，我们自己来处理
+      // 阻止默认的粘贴行为， ourselves来处理
       event.preventDefault()
       console.log('clipboardContent-2', clipboardContent)
 
@@ -203,13 +305,15 @@ function ClipboardTool({ config, onConfigUpdate }: ClipboardToolProps) {
                 <p className="p-2 font-mono text-sm truncate">
                   {remotePath || 'Not set'}
                 </p>
-                <Button
-                  onClick={() => setIsEditingPath(true)}
-                  variant="outline"
-                  size="sm"
-                >
-                  Edit
-                </Button>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    onClick={() => setIsEditingPath(true)}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Edit Path
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -224,6 +328,63 @@ function ClipboardTool({ config, onConfigUpdate }: ClipboardToolProps) {
         </CardContent>
       </Card>
 
+      {/* HTML 模板编辑模态框 */}
+      <Dialog open={isTemplateModalOpen} onOpenChange={setIsTemplateModalOpen}>
+        <DialogContent className="sm:max-w-[70vw] h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Customize HTML Template</DialogTitle>
+            <DialogDescription>
+              Define the HTML structure for the synced content. Use{' '}
+              <code className="font-mono bg-muted px-1 py-0.5 rounded">
+                {'{{.'}
+                {'}}'}
+              </code>{' '}
+              as the placeholder for the clipboard content. Leave blank to use
+              the default template.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-rows-2 gap-4 flex-grow py-4 overflow-hidden">
+            {/* 编辑区域 */}
+            <Textarea
+              value={htmlTemplate}
+              onChange={(e) => setHtmlTemplate(e.target.value)}
+              placeholder="Paste your HTML template here..."
+              className="font-mono text-xs w-full h-full resize-none"
+            />
+            {/* 预览区域 */}
+            <div className="w-full h-full border rounded-md overflow-hidden bg-white">
+              <iframe
+                srcDoc={previewHtml}
+                title="Template Preview"
+                className="w-full h-full"
+                sandbox="allow-scripts allow-same-origin" // 允许脚本执行以预览按钮功能
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <div className="flex w-full justify-between">
+              <div className="flex items-center space-x-2">
+                <Button
+                  onClick={handleLoadExampleTemplate}
+                  disabled={isTemplatePristine}
+                  variant="ghost"
+                >
+                  Load Example
+                </Button>
+                <Button
+                  onClick={handleRestoreDefault}
+                  disabled={htmlTemplate === ''}
+                  variant="ghost"
+                  className="text-destructive hover:text-destructive"
+                >
+                  Restore Default
+                </Button>
+              </div>
+              <Button onClick={() => void handleSaveTemplate()}>Save</Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {/* 剪贴板编辑和同步的模态框 */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[70vw] h-[80vh] flex flex-col">
@@ -251,6 +412,16 @@ function ClipboardTool({ config, onConfigUpdate }: ClipboardToolProps) {
                   onCheckedChange={(checked) => setSyncAsHTML(Boolean(checked))}
                 />
                 <Label htmlFor="sync-html">Sync as viewable HTML</Label>
+                {syncAsHTML && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-auto p-0 text-xs"
+                    onClick={() => setIsTemplateModalOpen(true)}
+                  >
+                    Customize Template
+                  </Button>
+                )}
               </div>
               <div className="flex items-center space-x-2">
                 <Checkbox

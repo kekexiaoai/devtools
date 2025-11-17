@@ -174,7 +174,12 @@ func (s *Service) UpdateRemoteFileFromClipboard(configID string, remotePath stri
 	if !found {
 		return &syncconfig.ConfigNotFoundError{ConfigID: configID}
 	}
-	return syncer.UpdateRemoteFile(cfg, remotePath, content, asHTML)
+	return syncer.UpdateRemoteFile(cfg, cfg.Clipboard.FilePath, content, asHTML)
+}
+
+// GetDefaultHTMLTemplate 返回剪贴板同步的默认HTML模板。
+func (s *Service) GetDefaultHTMLTemplate() string {
+	return syncer.GetDefaultHTMLTemplate()
 }
 
 // --- 监控控制方法 ---

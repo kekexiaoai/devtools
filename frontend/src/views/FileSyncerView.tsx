@@ -39,6 +39,8 @@ import { useOnVisible } from '@/hooks/useOnVisible'
 import { appLogger } from '@/lib/logger'
 import { useSettingsStore } from '@/hooks/useSettingsStore'
 
+type SSHConfigData = Omit<types.SSHConfig, 'convertValues'>
+
 interface FileSyncerViewProps {
   isActive: boolean
   activeWatchers: Record<string, boolean>
@@ -52,13 +54,13 @@ export function FileSyncerView({
   activeWatchers,
   setActiveWatchers,
 }: FileSyncerViewProps) {
-  const [configs, setConfigs] = useState<types.SSHConfig[]>([])
+  const [configs, setConfigs] = useState<SSHConfigData[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   // 模态框相关
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingConfigId, setEditingConfigId] = useState<string | null>(null)
-  const initialFormState: types.SSHConfig = {
+  const initialFormState: SSHConfigData = {
     id: '',
     name: '',
     host: '',
@@ -67,9 +69,12 @@ export function FileSyncerView({
     authMethod: 'password',
     password: '',
     keyPath: '',
-    clipboardFilePath: '',
+    clipboard: {
+      filePath: '',
+      htmlTemplate: '',
+    },
   }
-  const [form, setForm] = useState<types.SSHConfig>(initialFormState)
+  const [form, setForm] = useState<SSHConfigData>(initialFormState)
   const [testResult, setTestResult] = useState({ status: '', message: '' })
 
   const autoResumeSync = useSettingsStore((s) => s.autoResumeSync)
@@ -418,7 +423,7 @@ export function FileSyncerView({
   const handleOpenEditModal = (id: string) => {
     const configToEdit = configs.find((c) => c.id === id)
     if (configToEdit) {
-      setForm({ ...configToEdit })
+      setForm({ ...configToEdit } as types.SSHConfig)
       setTestResult({ status: '', message: '' })
       setEditingConfigId(id)
       setIsModalOpen(true)
@@ -450,7 +455,7 @@ export function FileSyncerView({
     }
 
     try {
-      await SaveConfig(form)
+      await SaveConfig(form as types.SSHConfig)
       await showDialog({
         title: 'Success',
         message: 'Configuration saved!',
@@ -473,7 +478,7 @@ export function FileSyncerView({
   const handleTestConnection = async () => {
     setTestResult({ status: 'testing', message: 'Connecting...' })
     try {
-      const result = await TestConnection(form)
+      const result = await TestConnection(form as types.SSHConfig)
       setTestResult({ status: 'success', message: result })
     } catch (error) {
       setTestResult({ status: 'error', message: String(error) })
@@ -550,7 +555,7 @@ export function FileSyncerView({
       这会使它与右侧的 p-6 主内容区在视觉上自然分离开来 */}
       <div className="w-1/3 max-w-xs flex-shrink-0 bg-muted/50">
         <ConfigList
-          configs={configs}
+          configs={configs as types.SSHConfig[]}
           selectedId={selectedId}
           onSelect={handleSelect}
           onNew={handleOpenNewModal}
@@ -565,7 +570,7 @@ export function FileSyncerView({
         {selectedConfig ? (
           <ConfigDetail
             key={selectedConfig.id}
-            config={selectedConfig}
+            config={selectedConfig as types.SSHConfig}
             onConfigUpdate={() => void fetchConfigs()}
             isWatching={activeWatchers[selectedConfig.id] || false}
             onToggleWatcher={(id, isActive) => void toggleWatcher(id, isActive)}

@@ -18,6 +18,10 @@ export function GetConfigs() {
   return window['go']['filesyncer']['Service']['GetConfigs']();
 }
 
+export function GetDefaultHTMLTemplate() {
+  return window['go']['filesyncer']['Service']['GetDefaultHTMLTemplate']();
+}
+
 export function GetSyncPairs(arg1) {
   return window['go']['filesyncer']['Service']['GetSyncPairs'](arg1);
 }
