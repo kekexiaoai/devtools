@@ -6,7 +6,13 @@ import type { ISearchOptions } from '@xterm/addon-search'
 import { useDependencyTracer } from '@/hooks/useDependencyTracer'
 import { Button } from '@/components/ui/button'
 import type { ConnectionStatus } from '@/App'
-import { AlertTriangle, RefreshCw, Settings, RotateCcw } from 'lucide-react'
+import {
+  AlertTriangle,
+  RefreshCw,
+  Settings,
+  RotateCcw,
+  Search,
+} from 'lucide-react'
 import { useWebSocketTerminal } from '@/hooks/useWebSocketTerminal'
 import {
   Popover,
@@ -183,6 +189,8 @@ export function IntegratedTerminal({
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [isRegexEnabled, setIsRegexEnabled] = useState(false)
+  const [isCaseSensitive, setIsCaseSensitive] = useState(false)
+  const [isWholeWord, setIsWholeWord] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   // debug
   useEffect(() => {
@@ -355,13 +363,14 @@ export function IntegratedTerminal({
   }, [extendedTerminal, fitAddon, searchAddon, logger])
 
   const searchOptions: ISearchOptions = {
+    // 调整了高亮颜色，让当前匹配项更醒目
     decorations: {
-      matchBackground: '#ffb400', // 橙色背景
-      matchBorder: '#ffb400',
-      activeMatchBackground: '#ff8c00', // 更亮的橙色作为当前匹配项
-      activeMatchBorder: '#ffffff', // 为当前激活项添加白色边框，使其突出
-      matchOverviewRuler: '#ffb400', // 概览标尺中普通匹配项的颜色
-      activeMatchColorOverviewRuler: '#ffffff', // 概览标尺中当前激活项的颜色，使用白色以示区别
+      matchBackground: 'rgba(255, 180, 0, 0.4)', // 普通匹配项：半透明橙色
+      matchBorder: 'rgba(255, 180, 0, 0.7)',
+      activeMatchBackground: '#ff8c00', // 当前匹配项：更实、更亮的橙色
+      activeMatchBorder: '#ffffff',
+      matchOverviewRuler: 'rgba(255, 180, 0, 0.7)',
+      activeMatchColorOverviewRuler: '#ff8c00',
     },
   }
 
@@ -405,13 +414,54 @@ export function IntegratedTerminal({
     terminal.attachCustomKeyEventHandler(keyHandler)
   }, [terminal, searchAddon, isSearchOpen, logger]) // Dependency on isSearchOpen to correctly handle Escape
 
-  const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleOpenSearch = useCallback(() => {
+    setIsSearchOpen(true)
+    setTimeout(() => searchInputRef.current?.focus(), 0)
+  }, [])
+
+  const handleCloseSearch = useCallback(() => {
+    setIsSearchOpen(false)
+    searchAddon.clearDecorations()
+    terminal?.clearSelection()
+    terminal?.focus()
+  }, [searchAddon, terminal])
+
+  // --- Search Functionality ---
+  useEffect(() => {
+    if (!terminal) return
+
+    const keyHandler = (e: KeyboardEvent): boolean => {
+      // Ctrl+Shift+F or Cmd+F to open search
+      if (
+        ((e.ctrlKey && e.shiftKey) || e.metaKey) &&
+        e.key.toLowerCase() === 'f'
+      ) {
+        e.preventDefault()
+        handleOpenSearch()
+        return false // Prevent event from bubbling
+      }
+      // Escape to close search
+      if (isSearchOpen && e.key === 'Escape') {
+        e.preventDefault()
+        handleCloseSearch()
+        return false
+      }
+      return true // Allow other keys to be processed by xterm
+    }
+
+    // attachCustomKeyEventHandler is the recommended way to handle shortcuts
+    terminal.attachCustomKeyEventHandler(keyHandler)
+  }, [terminal, isSearchOpen, handleOpenSearch, handleCloseSearch]) // Dependency on isSearchOpen to correctly handle Escape
+
+  const handleSearchInputKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>
+  ) => {
     if (e.key === 'Enter') {
-      searchAddon.findNext(searchTerm, {
-        regex: isRegexEnabled,
-        ...searchOptions,
-        incremental: e.shiftKey,
-      })
+      if (e.shiftKey) {
+        executeSearch('previous')
+      } else {
+        executeSearch('next')
+      }
     }
   }
 
@@ -430,13 +480,17 @@ export function IntegratedTerminal({
     // 执行搜索
     if (direction === 'next') {
       searchAddon.findNext(searchTerm, {
-        ...searchOptions,
         regex: isRegexEnabled,
+        caseSensitive: isCaseSensitive,
+        wholeWord: isWholeWord,
+        ...searchOptions,
       })
     } else {
       searchAddon.findPrevious(searchTerm, {
-        ...searchOptions,
         regex: isRegexEnabled,
+        caseSensitive: isCaseSensitive,
+        wholeWord: isWholeWord,
+        ...searchOptions,
       })
     }
 
@@ -516,7 +570,7 @@ export function IntegratedTerminal({
       />
       {/* --- 搜索栏 --- */}
       {isSearchOpen && (
-        <div className="absolute top-0 right-10 z-30 bg-background/90 p-2 rounded-md shadow-lg flex items-center space-x-2 animate-in fade-in-50 slide-in-from-top-2 duration-200">
+        <div className="absolute top-1.5 right-22 z-30 bg-background/90 p-1 rounded-md shadow-lg flex items-center space-x-1 animate-in fade-in-50 slide-in-from-top-2 duration-200">
           <Input
             ref={searchInputRef}
             type="text"
@@ -524,20 +578,41 @@ export function IntegratedTerminal({
             className="h-8 w-48"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyDown={handleSearch}
+            onKeyDown={handleSearchInputKeyDown}
           />
           <Button
-            variant={isRegexEnabled ? 'secondary' : 'ghost'}
+            variant={isRegexEnabled ? 'accent' : 'ghost'}
             size="icon"
-            className="h-8 w-8 flex-shrink-0"
+            className="h-7 w-7 flex-shrink-0"
             title="Use Regular Expression"
             onClick={() => setIsRegexEnabled(!isRegexEnabled)}
           >
-            <span className="font-mono text-lg">.*</span>
+            <span className="font-mono text-base">.*</span>
+          </Button>
+          <Button
+            variant={isCaseSensitive ? 'accent' : 'ghost'}
+            size="icon"
+            className="h-7 w-7 flex-shrink-0"
+            title="Match Case"
+            onClick={() => setIsCaseSensitive(!isCaseSensitive)}
+          >
+            <span className="font-bold text-xs">Aa</span>
+          </Button>
+          <Button
+            variant={isWholeWord ? 'accent' : 'ghost'}
+            size="icon"
+            className="h-7 w-7 flex-shrink-0"
+            title="Match Whole Word"
+            onClick={() => setIsWholeWord(!isWholeWord)}
+          >
+            <span className="font-mono text-xs tracking-tighter">
+              [&quot; &quot;]
+            </span>
           </Button>
           <Button
             variant="ghost"
             size="sm"
+            className="ml-2"
             onClick={() => executeSearch('previous')}
           >
             Prev
@@ -552,15 +627,27 @@ export function IntegratedTerminal({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
-            onClick={() => setIsSearchOpen(false)}
+            className="h-7 w-7"
+            onClick={handleCloseSearch}
           >
             &times;
           </Button>
         </div>
       )}
-      {/* --- 设置面板 --- */}
-      <div className="absolute top-2 right-2 z-30" ref={settingsContainerRef}>
+      {/* --- 操作按钮区域 --- */}
+      <div
+        className="absolute top-2 right-2 z-30 flex items-center gap-1"
+        ref={settingsContainerRef}
+      >
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-gray-400 hover:text-white hover:bg-gray-700/50"
+          title="Search (⌘F)"
+          onClick={handleOpenSearch}
+        >
+          <Search className="h-4 w-4" />
+        </Button>
         <Popover>
           <PopoverTrigger asChild>
             <Button
