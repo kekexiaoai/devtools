@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useXTerm } from 'react-xtermjs'
 import { FitAddon } from '@xterm/addon-fit'
+import { SearchAddon } from '@xterm/addon-search'
+import type { ISearchOptions } from '@xterm/addon-search'
 import { useDependencyTracer } from '@/hooks/useDependencyTracer'
 import { Button } from '@/components/ui/button'
 import type { ConnectionStatus } from '@/App'
@@ -11,6 +13,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { Input } from '@/components/ui/input'
 import { debounce } from '@/lib/utils'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
@@ -133,6 +136,7 @@ export function IntegratedTerminal({
         fontSize: fontSize ?? 12,
         fontFamily: fontFamily ?? FONT_FAMILIES.default.value,
         theme,
+        allowProposedApi: true,
       }),
       // eslint-disable-next-line react-hooks/exhaustive-deps
       [] // 空依赖数组确保 options 引用永不改变
@@ -144,6 +148,7 @@ export function IntegratedTerminal({
   // 将 FitAddon 实例化一次
   // useMemo 确保它只在组件首次渲染时被创建
   const fitAddon = useMemo(() => new FitAddon(), [])
+  const searchAddon = useMemo(() => new SearchAddon(), [])
 
   // --- Logger Setup ---
   // Ref to hold the latest displayName, preventing it from being a dependency
@@ -174,6 +179,11 @@ export function IntegratedTerminal({
     'Terminal Dependencies'
   )
 
+  // --- Search State ---
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [isRegexEnabled, setIsRegexEnabled] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   // debug
   useEffect(() => {
     logger.info(`[useEffect] visible: ${isVisible}`)
@@ -337,11 +347,105 @@ export function IntegratedTerminal({
   // Load addons when terminal is ready
   useEffect(() => {
     if (extendedTerminal) {
+      logger.info('Loading addons...')
       extendedTerminal.loadAddon(fitAddon)
-      logger.info('FitAddon loaded.')
+      extendedTerminal.loadAddon(searchAddon)
+      logger.info('FitAddon and SearchAddon loaded.')
     }
-  }, [extendedTerminal, fitAddon, logger])
+  }, [extendedTerminal, fitAddon, searchAddon, logger])
 
+  const searchOptions: ISearchOptions = {
+    decorations: {
+      matchBackground: '#ffb400', // 橙色背景
+      matchBorder: '#ffb400',
+      activeMatchBackground: '#ff8c00', // 更亮的橙色作为当前匹配项
+      activeMatchBorder: '#ffffff', // 为当前激活项添加白色边框，使其突出
+      matchOverviewRuler: '#ffb400', // 概览标尺中普通匹配项的颜色
+      activeMatchColorOverviewRuler: '#ffffff', // 概览标尺中当前激活项的颜色，使用白色以示区别
+    },
+  }
+
+  // --- Search Functionality ---
+  useEffect(() => {
+    if (!terminal) return
+
+    const openSearch = () => {
+      setIsSearchOpen(true)
+      // Use setTimeout to focus after the input is rendered
+      setTimeout(() => searchInputRef.current?.focus(), 0)
+    }
+
+    const closeSearch = () => {
+      setIsSearchOpen(false)
+      searchAddon.clearDecorations()
+      terminal.clearSelection()
+      terminal.focus()
+    }
+
+    const keyHandler = (e: KeyboardEvent): boolean => {
+      // Ctrl+Shift+F or Cmd+F to open search
+      if (
+        ((e.ctrlKey && e.shiftKey) || e.metaKey) &&
+        e.key.toLowerCase() === 'f'
+      ) {
+        e.preventDefault()
+        openSearch()
+        return false // Prevent event from bubbling
+      }
+      // Escape to close search
+      if (isSearchOpen && e.key === 'Escape') {
+        e.preventDefault()
+        closeSearch()
+        return false
+      }
+      return true // Allow other keys to be processed by xterm
+    }
+
+    // attachCustomKeyEventHandler is the recommended way to handle shortcuts
+    terminal.attachCustomKeyEventHandler(keyHandler)
+  }, [terminal, searchAddon, isSearchOpen, logger]) // Dependency on isSearchOpen to correctly handle Escape
+
+  const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      searchAddon.findNext(searchTerm, {
+        regex: isRegexEnabled,
+        ...searchOptions,
+        incremental: e.shiftKey,
+      })
+    }
+  }
+
+  const executeSearch = (direction: 'next' | 'previous') => {
+    if (!terminal) return
+
+    // 保存当前主题的选择颜色
+    const originalSelectionColor = terminal.options.theme?.selectionBackground
+
+    // 临时设置选择颜色为透明，让搜索装饰器颜色可见
+    terminal.options.theme = {
+      ...terminal.options.theme,
+      selectionBackground: 'transparent',
+    }
+
+    // 执行搜索
+    if (direction === 'next') {
+      searchAddon.findNext(searchTerm, {
+        ...searchOptions,
+        regex: isRegexEnabled,
+      })
+    } else {
+      searchAddon.findPrevious(searchTerm, {
+        ...searchOptions,
+        regex: isRegexEnabled,
+      })
+    }
+
+    // 恢复原始的选择颜色
+    terminal.options.theme = {
+      ...terminal.options.theme,
+      selectionBackground: originalSelectionColor,
+    }
+  }
   // 自动重连本地会话
   useEffect(() => {
     if (
@@ -410,6 +514,51 @@ export function IntegratedTerminal({
         className="h-full w-full p-2"
         style={{ boxSizing: 'border-box', outline: 'none' }}
       />
+      {/* --- 搜索栏 --- */}
+      {isSearchOpen && (
+        <div className="absolute top-0 right-10 z-30 bg-background/90 p-2 rounded-md shadow-lg flex items-center space-x-2 animate-in fade-in-50 slide-in-from-top-2 duration-200">
+          <Input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search"
+            className="h-8 w-48"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyDown={handleSearch}
+          />
+          <Button
+            variant={isRegexEnabled ? 'secondary' : 'ghost'}
+            size="icon"
+            className="h-8 w-8 flex-shrink-0"
+            title="Use Regular Expression"
+            onClick={() => setIsRegexEnabled(!isRegexEnabled)}
+          >
+            <span className="font-mono text-lg">.*</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => executeSearch('previous')}
+          >
+            Prev
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => executeSearch('next')}
+          >
+            Next
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setIsSearchOpen(false)}
+          >
+            &times;
+          </Button>
+        </div>
+      )}
       {/* --- 设置面板 --- */}
       <div className="absolute top-2 right-2 z-30" ref={settingsContainerRef}>
         <Popover>
