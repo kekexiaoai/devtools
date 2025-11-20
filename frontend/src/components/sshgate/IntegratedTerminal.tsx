@@ -374,46 +374,6 @@ export function IntegratedTerminal({
     },
   }
 
-  // --- Search Functionality ---
-  useEffect(() => {
-    if (!terminal) return
-
-    const openSearch = () => {
-      setIsSearchOpen(true)
-      // Use setTimeout to focus after the input is rendered
-      setTimeout(() => searchInputRef.current?.focus(), 0)
-    }
-
-    const closeSearch = () => {
-      setIsSearchOpen(false)
-      searchAddon.clearDecorations()
-      terminal.clearSelection()
-      terminal.focus()
-    }
-
-    const keyHandler = (e: KeyboardEvent): boolean => {
-      // Ctrl+Shift+F or Cmd+F to open search
-      if (
-        ((e.ctrlKey && e.shiftKey) || e.metaKey) &&
-        e.key.toLowerCase() === 'f'
-      ) {
-        e.preventDefault()
-        openSearch()
-        return false // Prevent event from bubbling
-      }
-      // Escape to close search
-      if (isSearchOpen && e.key === 'Escape') {
-        e.preventDefault()
-        closeSearch()
-        return false
-      }
-      return true // Allow other keys to be processed by xterm
-    }
-
-    // attachCustomKeyEventHandler is the recommended way to handle shortcuts
-    terminal.attachCustomKeyEventHandler(keyHandler)
-  }, [terminal, searchAddon, isSearchOpen, logger]) // Dependency on isSearchOpen to correctly handle Escape
-
   const handleOpenSearch = useCallback(() => {
     setIsSearchOpen(true)
     setTimeout(() => searchInputRef.current?.focus(), 0)
