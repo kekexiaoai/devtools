@@ -68,6 +68,10 @@ describe('JsonToolsView text tools', () => {
       screen.getByTestId('text-tool-workspace').getAttribute('data-layout')
     ).toBe('hash')
     expect(screen.getByText('SHA-256 Hash')).toBeTruthy()
+    expect(
+      screen.queryByPlaceholderText('SHA-256 hash will be shown here...')
+    ).toBeNull()
+    expect(screen.getByText('SHA-256 hash will be shown here...')).toBeTruthy()
   })
 
   it('uses a number input for UUID count', () => {

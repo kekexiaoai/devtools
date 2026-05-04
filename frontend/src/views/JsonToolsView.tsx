@@ -662,9 +662,9 @@ function TextToolWorkspace({
       <div
         data-testid="text-tool-workspace"
         data-layout="hash"
-        className="grid h-full min-h-0 grid-rows-[minmax(140px,0.45fr)_auto] gap-3 overflow-hidden"
+        className="flex h-full min-h-0 flex-col gap-3 overflow-hidden"
       >
-        <ToolTextPanel
+        <CompactTextAreaField
           label={`${config.label} Input`}
           value={state.input}
           onChange={onInputChange}
@@ -723,6 +723,38 @@ function TextToolWorkspace({
         onChange={onOutputChange}
         placeholder={config.outputPlaceholder}
         readOnly
+      />
+    </div>
+  )
+}
+
+function CompactTextAreaField({
+  label,
+  onChange,
+  placeholder,
+  value,
+}: {
+  label: string
+  onChange: (value: string) => void
+  placeholder: string
+  value: string
+}) {
+  const inputId = `${label.toLowerCase().replaceAll(' ', '-')}-field`
+
+  return (
+    <div className="grid gap-1.5">
+      <label
+        htmlFor={inputId}
+        className="text-sm font-semibold text-foreground"
+      >
+        {label}
+      </label>
+      <Textarea
+        id={inputId}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-32 resize-y font-mono text-sm"
+        placeholder={placeholder}
       />
     </div>
   )
