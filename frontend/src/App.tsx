@@ -8,6 +8,7 @@ import { TerminalView } from './views/TerminalView'
 import { DashboardView } from './views/DashboardView'
 import { TunnelsView } from './views/TunnelsView'
 import { SettingsView } from './views/SettingsView'
+import { CommandPalette } from './components/CommandPalette'
 import { useSettingsStore } from './hooks/useSettingsStore'
 import { TitleBar } from '@/components/TitleBar'
 import { CreateTunnelDialog } from '@/components/tunnel/CreateTunnelDialog'
@@ -43,10 +44,22 @@ import {
   AlertDialogTitle,
 } from './components/ui/alert-dialog'
 
-import { Loader2 } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowRightLeft,
+  Braces,
+  FolderKanban,
+  LayoutDashboard,
+  Loader2,
+  Play,
+  PlusCircle,
+  Server,
+  Settings,
+  TerminalSquare,
+  TrainFrontTunnel,
+} from 'lucide-react'
 import { Button } from './components/ui/button'
 
-import { AlertTriangle } from 'lucide-react'
 import { useThemeDetector } from './hooks/useThemeDetector'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'sonner'
@@ -54,6 +67,7 @@ import { sshgate, sshtunnel, types } from '@wailsjs/go/models'
 import { useSshConnection } from './hooks/useSshConnection'
 import { useDialog } from './hooks/useDialog'
 import { appLogger } from './lib/logger'
+import type { CommandPaletteItem } from './lib/command-palette'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
 
@@ -102,6 +116,7 @@ function AppContent() {
   tunnelProfilesRef.current = tunnelProfiles
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false)
   const [startingProfileIds, setStartingProfileIds] = useState<string[]>([])
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
 
   const [activeTunnels, setActiveTunnels] = useState<
     sshtunnel.ActiveTunnelInfo[]
@@ -769,6 +784,157 @@ function AppContent() {
     setActiveTool(toolId)
   }, [])
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const isCommandShortcut =
+        (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k'
+      if (!isCommandShortcut) return
+
+      event.preventDefault()
+      setIsCommandPaletteOpen((open) => !open)
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  const commandPaletteCommands = useMemo<CommandPaletteItem[]>(() => {
+    const navigationCommands: CommandPaletteItem[] = [
+      {
+        id: 'navigate-dashboard',
+        title: 'Dashboard',
+        group: 'Navigate',
+        keywords: ['home', 'overview'],
+        icon: <LayoutDashboard className="h-4 w-4" />,
+        run: () => handleNavigate('Dashboard'),
+      },
+      {
+        id: 'navigate-ssh-gate',
+        title: 'SSH Gate',
+        group: 'Navigate',
+        keywords: ['host', 'server', 'config'],
+        icon: <Server className="h-4 w-4" />,
+        run: () => handleNavigate('SshGate'),
+      },
+      {
+        id: 'navigate-tunnels',
+        title: 'Tunnels',
+        group: 'Navigate',
+        keywords: ['ssh', 'forward', 'port'],
+        icon: <TrainFrontTunnel className="h-4 w-4" />,
+        run: () => handleNavigate('Tunnels'),
+      },
+      {
+        id: 'navigate-terminal',
+        title: 'Terminal',
+        group: 'Navigate',
+        keywords: ['shell', 'session'],
+        icon: <TerminalSquare className="h-4 w-4" />,
+        run: () => handleNavigate('Terminal'),
+      },
+      {
+        id: 'navigate-file-syncer',
+        title: 'File Syncer',
+        group: 'Navigate',
+        keywords: ['sync', 'files'],
+        icon: <ArrowRightLeft className="h-4 w-4" />,
+        run: () => handleNavigate('FileSyncer'),
+      },
+      {
+        id: 'navigate-json-tools',
+        title: 'JSON Tools',
+        group: 'Navigate',
+        keywords: ['format', 'json'],
+        icon: <Braces className="h-4 w-4" />,
+        run: () => handleNavigate('JsonTools'),
+      },
+      {
+        id: 'navigate-settings',
+        title: 'Settings',
+        group: 'Navigate',
+        keywords: ['preferences'],
+        icon: <Settings className="h-4 w-4" />,
+        run: () => setActiveTool('Settings'),
+      },
+    ]
+
+    const actionCommands: CommandPaletteItem[] = [
+      {
+        id: 'create-tunnel',
+        title: 'Create Tunnel',
+        group: 'Actions',
+        keywords: ['new', 'ssh', 'forward'],
+        icon: <PlusCircle className="h-4 w-4" />,
+        run: handleOpenCreateTunnel,
+      },
+      {
+        id: 'manage-tunnel-profiles',
+        title: 'Manage Tunnel Profiles',
+        group: 'Actions',
+        keywords: ['workspace', 'group'],
+        icon: <FolderKanban className="h-4 w-4" />,
+        run: () => setIsProfileDialogOpen(true),
+      },
+    ]
+
+    const activeConfigIds = new Set(
+      activeTunnels
+        .filter((tunnel) => tunnel.status === 'active')
+        .map((tunnel) => tunnel.configId)
+    )
+    const tunnelCommands = savedTunnels.map<CommandPaletteItem>((tunnel) => ({
+      id: `start-tunnel-${tunnel.id}`,
+      title: `Start Tunnel: ${tunnel.name}`,
+      group: 'Tunnels',
+      keywords: [
+        tunnel.hostAlias ?? '',
+        tunnel.remoteHost ?? '',
+        tunnel.tunnelType,
+        String(tunnel.localPort),
+      ],
+      disabled:
+        activeConfigIds.has(tunnel.id) || startingTunnelIds.includes(tunnel.id),
+      icon: <Play className="h-4 w-4" />,
+      run: () => handleStartTunnel(tunnel.id),
+    }))
+
+    const savedTunnelIds = new Set(savedTunnels.map((tunnel) => tunnel.id))
+    const profileCommands = tunnelProfiles.map<CommandPaletteItem>(
+      (profile) => {
+        const validTunnelCount = profile.tunnelIds.filter((id) =>
+          savedTunnelIds.has(id)
+        ).length
+        return {
+          id: `start-profile-${profile.id}`,
+          title: `Start Profile: ${profile.name}`,
+          group: 'Profiles',
+          keywords: ['workspace', 'tunnel', profile.name],
+          disabled:
+            validTunnelCount === 0 || startingProfileIds.includes(profile.id),
+          icon: <FolderKanban className="h-4 w-4" />,
+          run: () => handleStartTunnelProfile(profile.id),
+        }
+      }
+    )
+
+    return [
+      ...navigationCommands,
+      ...actionCommands,
+      ...profileCommands,
+      ...tunnelCommands,
+    ]
+  }, [
+    activeTunnels,
+    handleNavigate,
+    handleOpenCreateTunnel,
+    handleStartTunnel,
+    handleStartTunnelProfile,
+    savedTunnels,
+    startingProfileIds,
+    startingTunnelIds,
+    tunnelProfiles,
+  ])
+
   const toolViews = useMemo(() => {
     // useMemo 会“记住”这个对象的计算结果。
     // 只有当它的依赖项（如 activeTool, terminalSessions 等）发生变化时，
@@ -956,6 +1122,11 @@ function AppContent() {
         savedTunnels={savedTunnels}
         onSaveProfile={handleSaveTunnelProfile}
         onDeleteProfile={handleDeleteTunnelProfile}
+      />
+      <CommandPalette
+        open={isCommandPaletteOpen}
+        onOpenChange={setIsCommandPaletteOpen}
+        commands={commandPaletteCommands}
       />
     </>
   )
