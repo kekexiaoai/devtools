@@ -41,7 +41,121 @@ type TextToolAction =
   | 'timestamp-convert'
   | 'uuid-generate'
 
-export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
+type TextToolStatus = {
+  tone: 'success' | 'error' | 'info'
+  message: string
+} | null
+
+type TextToolState = {
+  input: string
+  output: string
+  status: TextToolStatus
+}
+
+type TextToolConfig = {
+  action: TextToolAction
+  label: string
+  inputPlaceholder: string
+  outputPlaceholder: string
+  requiresInput: boolean
+}
+
+const textToolConfigs: TextToolConfig[] = [
+  {
+    action: 'base64-encode',
+    label: 'Base64 Encode',
+    inputPlaceholder: 'Text to encode as Base64...',
+    outputPlaceholder: 'Base64 output will be shown here...',
+    requiresInput: true,
+  },
+  {
+    action: 'base64-decode',
+    label: 'Base64 Decode',
+    inputPlaceholder: 'Base64 text to decode...',
+    outputPlaceholder: 'Decoded text will be shown here...',
+    requiresInput: true,
+  },
+  {
+    action: 'url-encode',
+    label: 'URL Encode',
+    inputPlaceholder: 'Text to URL encode...',
+    outputPlaceholder: 'URL encoded output will be shown here...',
+    requiresInput: true,
+  },
+  {
+    action: 'url-decode',
+    label: 'URL Decode',
+    inputPlaceholder: 'URL encoded text to decode...',
+    outputPlaceholder: 'URL decoded output will be shown here...',
+    requiresInput: true,
+  },
+  {
+    action: 'hash-md5',
+    label: 'MD5',
+    inputPlaceholder: 'Text to hash with MD5...',
+    outputPlaceholder: 'MD5 hash will be shown here...',
+    requiresInput: true,
+  },
+  {
+    action: 'hash-sha256',
+    label: 'SHA-256',
+    inputPlaceholder: 'Text to hash with SHA-256...',
+    outputPlaceholder: 'SHA-256 hash will be shown here...',
+    requiresInput: true,
+  },
+  {
+    action: 'hash-sha1',
+    label: 'SHA-1',
+    inputPlaceholder: 'Text to hash with SHA-1...',
+    outputPlaceholder: 'SHA-1 hash will be shown here...',
+    requiresInput: true,
+  },
+  {
+    action: 'hash-sha512',
+    label: 'SHA-512',
+    inputPlaceholder: 'Text to hash with SHA-512...',
+    outputPlaceholder: 'SHA-512 hash will be shown here...',
+    requiresInput: true,
+  },
+  {
+    action: 'jwt-decode',
+    label: 'JWT Decode',
+    inputPlaceholder: 'JWT token to decode...',
+    outputPlaceholder: 'Decoded JWT JSON will be shown here...',
+    requiresInput: true,
+  },
+  {
+    action: 'timestamp-convert',
+    label: 'Timestamp',
+    inputPlaceholder: 'Unix timestamp in seconds or milliseconds...',
+    outputPlaceholder: 'Timestamp conversion will be shown here...',
+    requiresInput: true,
+  },
+  {
+    action: 'uuid-generate',
+    label: 'UUID',
+    inputPlaceholder: 'UUID count, 1-100. Leave empty for 1...',
+    outputPlaceholder: 'Generated UUIDs will be shown here...',
+    requiresInput: false,
+  },
+]
+
+function createInitialTextToolStates(): Record<TextToolAction, TextToolState> {
+  return Object.fromEntries(
+    textToolConfigs.map((config) => [
+      config.action,
+      { input: '', output: '', status: null },
+    ])
+  ) as Record<TextToolAction, TextToolState>
+}
+
+export function JsonToolsView({
+  isDarkMode,
+  defaultTab = 'json',
+}: {
+  isDarkMode: boolean
+  defaultTab?: 'json' | 'text'
+}) {
   const [input, setInput] = useState('')
   const [outputObject, setOutputObject] = useState({})
   const [isInputVisible, setIsInputVisible] = useState(true)
@@ -50,12 +164,11 @@ export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
     message: string
   }>({ isValid: null, message: '' })
 
-  const [textInput, setTextInput] = useState('')
-  const [textOutput, setTextOutput] = useState('')
-  const [textStatus, setTextStatus] = useState<{
-    isValid: boolean | null
-    message: string
-  }>({ isValid: null, message: '' })
+  const [activeTextTool, setActiveTextTool] =
+    useState<TextToolAction>('base64-encode')
+  const [textToolStates, setTextToolStates] = useState<
+    Record<TextToolAction, TextToolState>
+  >(createInitialTextToolStates)
 
   const { showDialog } = useDialog()
 
@@ -126,23 +239,63 @@ export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
     setValidation({ isValid: null, message: '' })
   }
 
-  const runTextTool = async (action: TextToolAction) => {
+  const currentTextTool = textToolConfigs.find(
+    (config) => config.action === activeTextTool
+  )
+  const currentTextToolState = textToolStates[activeTextTool]
+
+  const updateTextToolState = (
+    action: TextToolAction,
+    updater: (state: TextToolState) => TextToolState
+  ) => {
+    setTextToolStates((prev) => ({
+      ...prev,
+      [action]: updater(prev[action]),
+    }))
+  }
+
+  const runTextTool = async () => {
+    const config = currentTextTool
+    const state = currentTextToolState
+    if (!config) return
+
+    if (config.requiresInput && !state.input.trim()) {
+      updateTextToolState(config.action, (prev) => ({
+        ...prev,
+        output: '',
+        status: {
+          tone: 'info',
+          message: 'Enter input before running this tool.',
+        },
+      }))
+      return
+    }
+
     try {
-      const nextOutput = await transformText(action, textInput)
-      setTextOutput(nextOutput)
-      setTextStatus({ isValid: true, message: getTextToolLabel(action) })
+      const nextOutput = await transformText(config.action, state.input)
+      updateTextToolState(config.action, (prev) => ({
+        ...prev,
+        output: nextOutput,
+        status: {
+          tone: 'success',
+          message: getTextToolLabel(config.action),
+        },
+      }))
     } catch (error) {
-      setTextOutput('')
-      setTextStatus({
-        isValid: false,
-        message: error instanceof Error ? error.message : String(error),
-      })
+      updateTextToolState(config.action, (prev) => ({
+        ...prev,
+        output: '',
+        status: {
+          tone: 'error',
+          message: error instanceof Error ? error.message : String(error),
+        },
+      }))
     }
   }
 
   const copyTextOutput = async () => {
     try {
-      await navigator.clipboard.writeText(textOutput)
+      await navigator.clipboard.writeText(currentTextToolState.output)
       await showDialog({
         title: 'Success',
         message: 'Text output copied to clipboard!',
@@ -158,13 +311,15 @@ export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
   }
 
   const clearTextTools = () => {
-    setTextInput('')
-    setTextOutput('')
-    setTextStatus({ isValid: null, message: '' })
+    updateTextToolState(activeTextTool, () => ({
+      input: '',
+      output: '',
+      status: null,
+    }))
   }
 
   return (
-    <Tabs defaultValue="json" className="h-full bg-background p-2">
+    <Tabs defaultValue={defaultTab} className="h-full bg-background p-2">
       <div className="flex-shrink-0">
         <TabsList>
           <TabsTrigger value="json">
@@ -261,107 +416,84 @@ export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
       </TabsContent>
 
       <TabsContent value="text" className="min-h-0">
-        <div className="flex h-full flex-col space-y-4">
-          <div className="flex-shrink-0 flex flex-wrap items-center gap-2">
-            <Button onClick={() => void runTextTool('base64-encode')}>
-              <LockKeyhole className="mr-2 h-4 w-4" /> Base64 Encode
-            </Button>
-            <Button
-              onClick={() => void runTextTool('base64-decode')}
-              variant="outline"
-            >
-              <LockKeyhole className="mr-2 h-4 w-4" /> Base64 Decode
-            </Button>
-            <Button
-              onClick={() => void runTextTool('url-encode')}
-              variant="outline"
-            >
-              <Link className="mr-2 h-4 w-4" /> URL Encode
-            </Button>
-            <Button
-              onClick={() => void runTextTool('url-decode')}
-              variant="outline"
-            >
-              <Link className="mr-2 h-4 w-4" /> URL Decode
-            </Button>
-            <Button
-              onClick={() => void runTextTool('hash-md5')}
-              variant="outline"
-            >
-              MD5
-            </Button>
-            <Button
-              onClick={() => void runTextTool('hash-sha256')}
-              variant="outline"
-            >
-              SHA-256
-            </Button>
-            <Button
-              onClick={() => void runTextTool('hash-sha1')}
-              variant="outline"
-            >
-              SHA-1
-            </Button>
-            <Button
-              onClick={() => void runTextTool('hash-sha512')}
-              variant="outline"
-            >
-              SHA-512
-            </Button>
-            <Button
-              onClick={() => void runTextTool('jwt-decode')}
-              variant="outline"
-            >
-              JWT Decode
-            </Button>
-            <Button
-              onClick={() => void runTextTool('timestamp-convert')}
-              variant="outline"
-            >
-              Timestamp
-            </Button>
-            <Button
-              onClick={() => void runTextTool('uuid-generate')}
-              variant="outline"
-            >
-              UUID
-            </Button>
-            <div className="flex-grow" />
-            <Button
-              onClick={() => void copyTextOutput()}
-              variant="secondary"
-              disabled={!textOutput}
-            >
-              <ClipboardCopy className="mr-2 h-4 w-4" /> Copy Output
-            </Button>
-            <Button onClick={clearTextTools} variant="destructive">
-              <Eraser className="mr-2 h-4 w-4" /> Clear
-            </Button>
-          </div>
+        {currentTextTool && (
+          <Tabs
+            value={activeTextTool}
+            onValueChange={(value) =>
+              setActiveTextTool(value as TextToolAction)
+            }
+            className="h-full min-h-0"
+          >
+            <div className="flex h-full min-h-0 flex-col space-y-4">
+              <TabsList className="h-auto flex-wrap justify-start">
+                {textToolConfigs.map((config) => (
+                  <TabsTrigger
+                    key={config.action}
+                    value={config.action}
+                    onClick={() => setActiveTextTool(config.action)}
+                  >
+                    {config.action.startsWith('base64') && (
+                      <LockKeyhole className="h-4 w-4" />
+                    )}
+                    {config.action.startsWith('url') && (
+                      <Link className="h-4 w-4" />
+                    )}
+                    {config.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
 
-          {textStatus.isValid !== null && (
-            <StatusMessage
-              isValid={textStatus.isValid}
-              message={textStatus.message}
-            />
-          )}
+              <div className="flex-shrink-0 flex items-center gap-2">
+                <Button onClick={() => void runTextTool()}>
+                  <ArrowRightLeft className="mr-2 h-4 w-4" /> Run
+                </Button>
+                <Button
+                  onClick={() => void copyTextOutput()}
+                  variant="secondary"
+                  disabled={!currentTextToolState.output}
+                >
+                  <ClipboardCopy className="mr-2 h-4 w-4" /> Copy Output
+                </Button>
+                <Button onClick={clearTextTools} variant="destructive">
+                  <Eraser className="mr-2 h-4 w-4" /> Clear
+                </Button>
+              </div>
 
-          <div className="flex-grow grid grid-cols-1 gap-3 overflow-hidden min-h-0 lg:grid-cols-2">
-            <ToolTextPanel
-              label="Input"
-              value={textInput}
-              onChange={setTextInput}
-              placeholder="Paste text, Base64, or URL encoded content here..."
-            />
-            <ToolTextPanel
-              label="Output"
-              value={textOutput}
-              onChange={setTextOutput}
-              placeholder="Converted text will be shown here..."
-              readOnly
-            />
-          </div>
-        </div>
+              {currentTextToolState.status && (
+                <StatusMessage
+                  tone={currentTextToolState.status.tone}
+                  message={currentTextToolState.status.message}
+                />
+              )}
+
+              <div className="flex-grow grid grid-cols-1 gap-3 overflow-hidden min-h-0 lg:grid-cols-2">
+                <ToolTextPanel
+                  label={`${currentTextTool.label} Input`}
+                  value={currentTextToolState.input}
+                  onChange={(value) =>
+                    updateTextToolState(activeTextTool, (prev) => ({
+                      ...prev,
+                      input: value,
+                    }))
+                  }
+                  placeholder={currentTextTool.inputPlaceholder}
+                />
+                <ToolTextPanel
+                  label={`${currentTextTool.label} Output`}
+                  value={currentTextToolState.output}
+                  onChange={(value) =>
+                    updateTextToolState(activeTextTool, (prev) => ({
+                      ...prev,
+                      output: value,
+                    }))
+                  }
+                  placeholder={currentTextTool.outputPlaceholder}
+                  readOnly
+                />
+              </div>
+            </div>
+          </Tabs>
+        )}
       </TabsContent>
     </Tabs>
   )
@@ -369,18 +501,24 @@ export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
 
 function StatusMessage({
   isValid,
+  tone,
   message,
 }: {
-  isValid: boolean
+  isValid?: boolean
+  tone?: 'success' | 'error' | 'info'
   message: string
 }) {
+  const currentTone = tone ?? (isValid ? 'success' : 'error')
+  const toneClassName = {
+    success:
+      'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300',
+    error: 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300',
+    info: 'bg-muted text-muted-foreground',
+  }[currentTone]
+
   return (
     <div
-      className={`flex-shrink-0 p-2 rounded-md text-sm font-medium ${
-        isValid
-          ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
-          : 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
-      }`}
+      className={`flex-shrink-0 p-2 rounded-md text-sm font-medium ${toneClassName}`}
     >
       {message}
     </div>
