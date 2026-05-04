@@ -361,6 +361,25 @@ export function IntegratedTerminal({
     }
   }, [extendedTerminal, fitAddon, searchAddon, logger])
 
+  useEffect(() => {
+    if (!terminal) return
+
+    const handleInsertSnippet = (event: Event) => {
+      const detail = (event as CustomEvent).detail as
+        | { sessionId?: string; text?: string }
+        | undefined
+      if (!detail || detail.sessionId !== id || !detail.text) return
+
+      terminal.paste(detail.text)
+      terminal.focus()
+    }
+
+    window.addEventListener('terminal:insert-snippet', handleInsertSnippet)
+    return () => {
+      window.removeEventListener('terminal:insert-snippet', handleInsertSnippet)
+    }
+  }, [id, terminal])
+
   const searchOptions: ISearchOptions = {
     // 调整了高亮颜色，让当前匹配项更醒目
     decorations: {

@@ -18,6 +18,9 @@ import {
   XIcon,
   MoreVertical,
   ChevronDown,
+  ScrollText,
+  Send,
+  Trash2,
 } from 'lucide-react'
 import {
   ContextMenu,
@@ -50,8 +53,21 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { useSettingsStore, type ShortcutAction } from '@/hooks/useSettingsStore'
+import {
+  createTerminalSnippet,
+  deleteTerminalSnippet,
+  loadTerminalSnippets,
+  saveTerminalSnippets,
+  type TerminalSnippet,
+} from '@/lib/terminal-snippets'
 
 interface TerminalViewProps {
   terminalSessions: TerminalSession[]
@@ -118,6 +134,11 @@ export function TerminalView({
   >(null)
   const [dontAskAgain, setDontAskAgain] = useState(false)
   const [splitSessionId, setSplitSessionId] = useState<string | null>(null)
+  const [snippets, setSnippets] = useState<TerminalSnippet[]>(() =>
+    loadTerminalSnippets()
+  )
+  const [snippetName, setSnippetName] = useState('')
+  const [snippetCommand, setSnippetCommand] = useState('')
 
   // Effect to handle all theme updates, including system theme changes
   const currentTerminalTheme = useMemo((): ITheme => {
@@ -339,6 +360,41 @@ export function TerminalView({
       setSplitSessionId(nextSession.id)
     }
   }, [activeTerminalId, terminalSessions])
+
+  const updateSnippets = useCallback((nextSnippets: TerminalSnippet[]) => {
+    setSnippets(nextSnippets)
+    saveTerminalSnippets(nextSnippets)
+  }, [])
+
+  const handleAddSnippet = useCallback(() => {
+    const nextSnippet = createTerminalSnippet(snippetName, snippetCommand)
+    if (!nextSnippet.name || !nextSnippet.command) return
+    updateSnippets([...snippets, nextSnippet])
+    setSnippetName('')
+    setSnippetCommand('')
+  }, [snippetCommand, snippetName, snippets, updateSnippets])
+
+  const handleDeleteSnippet = useCallback(
+    (id: string) => {
+      updateSnippets(deleteTerminalSnippet(snippets, id))
+    },
+    [snippets, updateSnippets]
+  )
+
+  const handleInsertSnippet = useCallback(
+    (command: string, run: boolean) => {
+      if (!activeTerminalId) return
+      window.dispatchEvent(
+        new CustomEvent('terminal:insert-snippet', {
+          detail: {
+            sessionId: activeTerminalId,
+            text: run ? `${command}\r` : command,
+          },
+        })
+      )
+    },
+    [activeTerminalId]
+  )
 
   // Determine if the currently active tab is hidden inside the dropdown
   const isActiveTabHidden =
@@ -685,6 +741,105 @@ export function TerminalView({
         </div>
 
         <div className="ml-auto flex items-center gap-2 p-1 flex-shrink-0">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                title="Command Snippets"
+                disabled={!activeTerminalId}
+              >
+                <ScrollText className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-96">
+              <div className="grid gap-4">
+                <div>
+                  <h4 className="font-medium leading-none">Command Snippets</h4>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Insert or run saved commands in the active terminal.
+                  </p>
+                </div>
+
+                <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                  {snippets.map((snippet) => (
+                    <div
+                      key={snippet.id}
+                      className="rounded-md border border-border p-2"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium">
+                            {snippet.name}
+                          </div>
+                          <div className="truncate font-mono text-xs text-muted-foreground">
+                            {snippet.command}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              handleInsertSnippet(snippet.command, false)
+                            }
+                          >
+                            Insert
+                          </Button>
+                          <Button
+                            size="icon"
+                            className="h-8 w-8"
+                            title="Run"
+                            onClick={() =>
+                              handleInsertSnippet(snippet.command, true)
+                            }
+                          >
+                            <Send className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 hover:text-destructive"
+                            title="Delete"
+                            onClick={() => handleDeleteSnippet(snippet.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid gap-2 border-t border-border pt-3">
+                  <Input
+                    value={snippetName}
+                    onChange={(event) => setSnippetName(event.target.value)}
+                    placeholder="Name"
+                  />
+                  <Input
+                    value={snippetCommand}
+                    onChange={(event) => setSnippetCommand(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        handleAddSnippet()
+                      }
+                    }}
+                    placeholder="Command"
+                    className="font-mono"
+                  />
+                  <Button
+                    onClick={handleAddSnippet}
+                    disabled={!snippetName.trim() || !snippetCommand.trim()}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Snippet
+                  </Button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
           {splitSession ? (
             <Button
               onClick={() => setSplitSessionId(null)}
