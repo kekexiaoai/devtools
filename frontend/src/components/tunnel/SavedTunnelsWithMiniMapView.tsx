@@ -187,6 +187,7 @@ interface SavedTunnelsWithMiniMapViewProps {
   onOrderChange: (orderedIds: string[]) => void
   onOpenInTerminal: (tunnel: sshtunnel.SavedTunnelConfig) => void
   onEditTunnel: (tunnel: sshtunnel.SavedTunnelConfig) => void
+  onOpenTunnelDetail: (id: string) => void
 }
 
 export const SavedTunnelsWithMiniMapView: React.FC<
@@ -213,6 +214,7 @@ export const SavedTunnelsWithMiniMapView: React.FC<
   onOpenInTerminal,
   onOrderChange,
   onEditTunnel,
+  onOpenTunnelDetail,
 }) => {
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -446,6 +448,7 @@ export const SavedTunnelsWithMiniMapView: React.FC<
                       onDuplicate={() => void onDuplicateTunnel(tunnel.id)}
                       lastError={tunnelErrors.get(tunnel.id)}
                       onOpenInTerminal={() => onOpenInTerminal(tunnel)}
+                      onOpenDetail={() => onOpenTunnelDetail(tunnel.id)}
                       isStarting={startingTunnelIds.includes(tunnel.id)}
                       isCheckingHealth={
                         !!activeTunnel &&

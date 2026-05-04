@@ -24,6 +24,8 @@ type TunnelStatus string
 const (
 	// StatusActive means the tunnel is running normally.
 	StatusActive TunnelStatus = "active"
+	// StatusStopped means the saved tunnel currently has no runtime tunnel.
+	StatusStopped TunnelStatus = "stopped"
 	// StatusDisconnected means the tunnel lost its connection unexpectedly.
 	StatusDisconnected TunnelStatus = "disconnected"
 	// StatusStopping means the tunnel is being shut down by the user.
@@ -120,6 +122,32 @@ type ActiveTunnelInfo struct {
 	HealthCheckCount     int          `json:"healthCheckCount"`
 }
 
+// TunnelLogEntry is one event in a saved tunnel's independent runtime log.
+type TunnelLogEntry struct {
+	Sequence  int64  `json:"sequence"`
+	Timestamp string `json:"timestamp"`
+	Level     string `json:"level"`
+	Message   string `json:"message"`
+}
+
+// TunnelHealthSnapshot summarizes the latest known health state for a saved tunnel.
+type TunnelHealthSnapshot struct {
+	Status               TunnelStatus `json:"status"`
+	StatusMsg            string       `json:"statusMsg"`
+	StartedAt            string       `json:"startedAt"`
+	LastStateChangeAt    string       `json:"lastStateChangeAt"`
+	LastHealthCheckAt    string       `json:"lastHealthCheckAt"`
+	LastHealthCheckError string       `json:"lastHealthCheckError"`
+	CheckCount           int          `json:"checkCount"`
+}
+
+// TunnelRuntimeDetail combines runtime status and logs for one saved tunnel.
+type TunnelRuntimeDetail struct {
+	ActiveTunnel *ActiveTunnelInfo    `json:"activeTunnel,omitempty"`
+	Health       TunnelHealthSnapshot `json:"health"`
+	Logs         []TunnelLogEntry     `json:"logs"`
+}
+
 // Manager 负责管理所有活动的隧道
 type Manager struct {
 	activeTunnels map[string]*Tunnel
@@ -131,6 +159,10 @@ type Manager struct {
 	eventDebouncer        *time.Timer
 	eventDebounceDuration time.Duration
 	eventMu               sync.Mutex
+
+	tunnelLogs map[string][]TunnelLogEntry
+	logSeq     int64
+	logMu      sync.RWMutex
 }
 
 // NewManager 是隧道管理器的构造函数
@@ -139,6 +171,7 @@ func NewManager(sshMgr *sshmanager.Manager) *Manager {
 		activeTunnels:         make(map[string]*Tunnel),
 		sshManager:            sshMgr,
 		eventDebounceDuration: 200 * time.Millisecond, // A sensible default
+		tunnelLogs:            make(map[string][]TunnelLogEntry),
 	}
 }
 
@@ -177,10 +210,13 @@ func (m *Manager) Shutdown() {
 
 // CreateTunnelFromConfig is the core tunnel creation logic. It takes a pre-built connection configuration.
 func (m *Manager) CreateTunnelFromConfig(configID, alias string, localPort int, gatewayPorts bool, tunnelType, remoteAddr string, connConfig *sshmanager.ConnectionConfig) (string, error) {
+	m.RecordTunnelLog(configID, "INFO", fmt.Sprintf("Starting %s tunnel on local port %d via %s.", tunnelType, localPort, alias))
+
 	// 1. Dial SSH server
 	serverAddr := fmt.Sprintf("%s:%s", connConfig.HostName, connConfig.Port)
 	sshClient, err := ssh.Dial("tcp", serverAddr, connConfig.ClientConfig)
 	if err != nil {
+		m.RecordTunnelLog(configID, "ERROR", fmt.Sprintf("SSH connection failed: %v", err))
 		return "", err // Return raw error for the service layer to inspect and translate.
 	}
 
@@ -193,6 +229,7 @@ func (m *Manager) CreateTunnelFromConfig(configID, alias string, localPort int, 
 	listener, err := net.Listen("tcp", localAddr)
 	if err != nil {
 		sshClient.Close()
+		m.RecordTunnelLog(configID, "ERROR", fmt.Sprintf("Local listener failed on %s: %v", localAddr, err))
 		return "", err // Return raw error for the service layer to inspect and translate.
 	}
 
@@ -221,6 +258,7 @@ func (m *Manager) CreateTunnelFromConfig(configID, alias string, localPort int, 
 	m.mu.Unlock()
 
 	log.Printf("Started %s forward tunnel %s: %s -> %s (via %s)", tunnelType, tunnelID, tunnel.LocalAddr, tunnel.RemoteAddr, alias)
+	m.RecordTunnelLog(configID, "SUCCESS", fmt.Sprintf("Tunnel started: %s -> %s.", tunnel.LocalAddr, tunnel.RemoteAddr))
 
 	// 4. Start background goroutines for the tunnel's lifecycle
 	//    - runTunnel: Accepts and forwards connections.
@@ -243,6 +281,7 @@ func (m *Manager) monitorSSHConnection(tunnel *Tunnel) {
 	// This blocks until the connection is closed for any reason.
 	waitErr := tunnel.sshClient.Wait()
 	log.Printf("SSH connection for tunnel %s (alias: %s) closed: %v.", tunnel.ID, tunnel.Alias, waitErr)
+	m.RecordTunnelLog(tunnel.ConfigID, "WARN", fmt.Sprintf("SSH connection closed: %v", waitErr))
 
 	m.mu.Lock()
 	// Re-fetch the tunnel to get the most current state inside the lock.
@@ -269,6 +308,7 @@ func (m *Manager) monitorSSHConnection(tunnel *Tunnel) {
 func (m *Manager) runTunnel(tunnel *Tunnel, ctx context.Context) {
 	defer m.cleanupTunnel(tunnel.ID) // 确保隧道退出时被清理
 	log.Printf("Tunnel %s: runTunnel loop started.", tunnel.ID)
+	m.RecordTunnelLog(tunnel.ConfigID, "INFO", "Listener loop started.")
 
 	// 启动一个 goroutine，它的唯一作用是在 context 被取消时关闭 listener。
 	// 这样可以解除下面 listener.Accept() 的阻塞。
@@ -281,6 +321,7 @@ func (m *Manager) runTunnel(tunnel *Tunnel, ctx context.Context) {
 	utils.SafeGo(log.Default(), func() {
 		<-ctx.Done()
 		log.Printf("Tunnel %s: Context cancelled, closing listener to unblock Accept().", tunnel.ID)
+		m.RecordTunnelLog(tunnel.ConfigID, "INFO", "Stop requested; closing local listener.")
 		tunnel.listener.Close()
 	})
 
@@ -294,15 +335,18 @@ func (m *Manager) runTunnel(tunnel *Tunnel, ctx context.Context) {
 			case <-ctx.Done():
 				// context 被取消，是预期的关闭流程。
 				log.Printf("Tunnel %s: Listener closed as part of graceful shutdown.", tunnel.ID)
+				m.RecordTunnelLog(tunnel.ConfigID, "INFO", "Listener closed after graceful shutdown.")
 				return
 			default:
 				// context 没有被取消，这是一个意外的错误。
 				log.Printf("Tunnel %s: Error accepting connection: %v. Shutting down.", tunnel.ID, err)
+				m.RecordTunnelLog(tunnel.ConfigID, "ERROR", fmt.Sprintf("Local listener accept failed: %v", err))
 				return
 			}
 		}
 
 		log.Printf("Tunnel %s: Accepted new local connection from %s", tunnel.ID, localConn.RemoteAddr())
+		m.RecordTunnelLog(tunnel.ConfigID, "INFO", fmt.Sprintf("Accepted local connection from %s.", localConn.RemoteAddr()))
 		// 根据隧道类型，分派到不同的处理器
 		switch tunnel.Type {
 		case "local":
@@ -311,6 +355,7 @@ func (m *Manager) runTunnel(tunnel *Tunnel, ctx context.Context) {
 			go m.handleSocks5Connection(localConn, tunnel)
 		default:
 			log.Printf("Unknown tunnel type '%s' for tunnel ID %s. Closing connection.", tunnel.Type, tunnel.ID)
+			m.RecordTunnelLog(tunnel.ConfigID, "ERROR", fmt.Sprintf("Unknown tunnel type %q; closing connection.", tunnel.Type))
 			localConn.Close()
 		}
 	}
@@ -325,6 +370,7 @@ func (m *Manager) forwardLocalConnection(localConn net.Conn, tunnel *Tunnel) {
 	remoteConn, err := tunnel.sshClient.Dial("tcp", tunnel.RemoteAddr)
 	if err != nil {
 		log.Printf("Tunnel %s failed to dial remote addr %s: %v", tunnel.ID, tunnel.RemoteAddr, err)
+		m.RecordTunnelLog(tunnel.ConfigID, "ERROR", fmt.Sprintf("Remote dial failed for %s: %v", tunnel.RemoteAddr, err))
 		return
 	}
 	defer remoteConn.Close()
@@ -429,6 +475,7 @@ func (m *Manager) handleSocks5Connection(localConn net.Conn, tunnel *Tunnel) {
 	remoteConn, err := tunnel.sshClient.Dial("tcp", destAddr)
 	if err != nil {
 		log.Printf("SOCKS5: failed to dial remote addr %s via tunnel %s: %v", destAddr, tunnel.ID, err)
+		m.RecordTunnelLog(tunnel.ConfigID, "ERROR", fmt.Sprintf("SOCKS5 dial failed for %s: %v", destAddr, err))
 		sendSocks5ErrorReply(localConn, repHostUnreachable)
 		return
 	}
@@ -443,6 +490,7 @@ func (m *Manager) handleSocks5Connection(localConn net.Conn, tunnel *Tunnel) {
 	}
 
 	log.Printf("Tunnel %s: SOCKS5 connection established for %s to %s", tunnel.ID, localConn.RemoteAddr(), destAddr)
+	m.RecordTunnelLog(tunnel.ConfigID, "INFO", fmt.Sprintf("SOCKS5 connection established to %s.", destAddr))
 
 	// 6. Forward data
 	m.proxyData(localConn, remoteConn)
@@ -499,6 +547,7 @@ func (m *Manager) StopForward(tunnelID string) error {
 	case StatusActive:
 		// For active tunnels, initiate a graceful shutdown.
 		log.Printf("User requested stop for active tunnel %s. Changing status to 'stopping'.", tunnelID)
+		m.RecordTunnelLog(tunnel.ConfigID, "INFO", "User requested tunnel stop.")
 		tunnel.Status = StatusStopping
 		tunnel.StatusMsg = "User initiated stop."
 		tunnel.LastStateChangeAt = time.Now().UTC()
@@ -508,12 +557,14 @@ func (m *Manager) StopForward(tunnelID string) error {
 		// For disconnected tunnels, the user is just clearing it from the list.
 		// Resources are already closed, so we just remove it from the map.
 		log.Printf("User requested to clear disconnected tunnel %s.", tunnelID)
+		m.RecordTunnelLog(tunnel.ConfigID, "INFO", "Cleared disconnected tunnel from active list.")
 		delete(m.activeTunnels, tunnelID)
 		// Manually trigger event as cleanupTunnel won't be called for this case.
 		m.debounceChangeEvent()
 	case StatusStopping:
 		// Already being stopped, do nothing.
 		log.Printf("Stop request for tunnel %s ignored, already in 'stopping' state.", tunnelID)
+		m.RecordTunnelLog(tunnel.ConfigID, "INFO", "Stop request ignored because tunnel is already stopping.")
 	}
 
 	m.mu.Unlock()
@@ -545,8 +596,10 @@ func (m *Manager) cleanupTunnel(tunnelID string) {
 	if tunnel.Status == StatusStopping {
 		delete(m.activeTunnels, tunnelID)
 		log.Printf("Completed cleanup and removed tunnel %s from active list.", tunnelID)
+		m.RecordTunnelLog(tunnel.ConfigID, "SUCCESS", "Tunnel stopped and resources were released.")
 	} else {
 		log.Printf("Completed resource cleanup for tunnel %s. It remains in 'disconnected' state.", tunnelID)
+		m.RecordTunnelLog(tunnel.ConfigID, "WARN", "Tunnel resources were released after disconnection.")
 	}
 
 	m.debounceChangeEvent()
@@ -580,21 +633,25 @@ func (m *Manager) GetActiveTunnels() []ActiveTunnelInfo {
 
 	info := make([]ActiveTunnelInfo, 0, len(m.activeTunnels))
 	for _, tunnel := range m.activeTunnels {
-		info = append(info, ActiveTunnelInfo{
-			ID:                   tunnel.ID,
-			ConfigID:             tunnel.ConfigID,
-			Alias:                tunnel.Alias,
-			Type:                 tunnel.Type,
-			LocalAddr:            tunnel.LocalAddr,
-			RemoteAddr:           tunnel.RemoteAddr,
-			Status:               tunnel.Status,
-			StatusMsg:            tunnel.StatusMsg,
-			StartedAt:            formatHealthTime(tunnel.StartedAt),
-			LastStateChangeAt:    formatHealthTime(tunnel.LastStateChangeAt),
-			LastHealthCheckAt:    formatHealthTime(tunnel.LastHealthCheckAt),
-			LastHealthCheckError: tunnel.LastHealthCheckError,
-			HealthCheckCount:     tunnel.HealthCheckCount,
-		})
+		info = append(info, activeTunnelInfoFromTunnel(tunnel))
 	}
 	return info
+}
+
+func activeTunnelInfoFromTunnel(tunnel *Tunnel) ActiveTunnelInfo {
+	return ActiveTunnelInfo{
+		ID:                   tunnel.ID,
+		ConfigID:             tunnel.ConfigID,
+		Alias:                tunnel.Alias,
+		Type:                 tunnel.Type,
+		LocalAddr:            tunnel.LocalAddr,
+		RemoteAddr:           tunnel.RemoteAddr,
+		Status:               tunnel.Status,
+		StatusMsg:            tunnel.StatusMsg,
+		StartedAt:            formatHealthTime(tunnel.StartedAt),
+		LastStateChangeAt:    formatHealthTime(tunnel.LastStateChangeAt),
+		LastHealthCheckAt:    formatHealthTime(tunnel.LastHealthCheckAt),
+		LastHealthCheckError: tunnel.LastHealthCheckError,
+		HealthCheckCount:     tunnel.HealthCheckCount,
+	}
 }

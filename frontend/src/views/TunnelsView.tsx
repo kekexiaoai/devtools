@@ -5,6 +5,7 @@ import {
   DeleteTunnelConfig,
   DeletePassword,
   DuplicateTunnelConfig,
+  GetTunnelDetail,
   StopForward,
 } from '@wailsjs/go/sshgate/Service'
 import { GetListeningPorts } from '@wailsjs/go/backend/App'
@@ -33,6 +34,7 @@ import {
   type TunnelStatusFilter,
 } from '@/lib/tunnel-filters'
 import { getTunnelPortConflictMap } from '@/lib/tunnel-port-conflicts'
+import { TunnelDetailSheet } from '@/components/tunnel/TunnelDetailSheet'
 
 interface TunnelsViewProps {
   onConnect: SshConnectionHook['connect']
@@ -82,6 +84,11 @@ export function TunnelsView({
   const [tagsByTunnel, setTagsByTunnel] = useState<Record<string, string[]>>(
     () => loadTunnelTags()
   )
+  const [detailTunnelId, setDetailTunnelId] = useState<string | null>(null)
+  const [tunnelDetail, setTunnelDetail] = useState<sshgate.TunnelDetail | null>(
+    null
+  )
+  const [isLoadingTunnelDetail, setIsLoadingTunnelDetail] = useState(false)
 
   const logger = useMemo(() => {
     return appLogger.withPrefix('TunnelsView')
@@ -155,6 +162,35 @@ export function TunnelsView({
     },
     [savedTunnels, visibleTunnels, onOrderChange]
   )
+
+  const refreshTunnelDetail = useCallback(async () => {
+    if (!detailTunnelId) return
+
+    setIsLoadingTunnelDetail(true)
+    try {
+      setTunnelDetail(await GetTunnelDetail(detailTunnelId))
+    } catch (error) {
+      logger.warn('Failed to load tunnel detail', error)
+      toast.error(`Failed to load tunnel detail: ${String(error)}`)
+    } finally {
+      setIsLoadingTunnelDetail(false)
+    }
+  }, [detailTunnelId, logger])
+
+  useEffect(() => {
+    void refreshTunnelDetail()
+  }, [refreshTunnelDetail, activeTunnels])
+
+  const handleOpenTunnelDetail = useCallback((id: string) => {
+    setDetailTunnelId(id)
+  }, [])
+
+  const handleTunnelDetailOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setDetailTunnelId(null)
+      setTunnelDetail(null)
+    }
+  }, [])
 
   const handleOpenInTerminal = useCallback(
     (tunnel: sshtunnel.SavedTunnelConfig) => {
@@ -315,6 +351,7 @@ export function TunnelsView({
             tunnelErrors={tunnelErrors}
             onOpenInTerminal={handleOpenInTerminal}
             onEditTunnel={onEditTunnel}
+            onOpenTunnelDetail={handleOpenTunnelDetail}
           />
         ) : (
           <SavedTunnelsView
@@ -339,9 +376,24 @@ export function TunnelsView({
             tunnelErrors={tunnelErrors}
             onOpenInTerminal={handleOpenInTerminal}
             onEditTunnel={onEditTunnel}
+            onOpenTunnelDetail={handleOpenTunnelDetail}
           />
         )}
       </div>
+      <TunnelDetailSheet
+        open={!!detailTunnelId}
+        detail={tunnelDetail}
+        isLoading={isLoadingTunnelDetail}
+        isCheckingHealth={
+          !!tunnelDetail?.runtime.activeTunnel &&
+          checkingTunnelIds.includes(tunnelDetail.runtime.activeTunnel.id)
+        }
+        onOpenChange={handleTunnelDetailOpenChange}
+        onRefresh={() => void refreshTunnelDetail()}
+        onStart={onStartTunnel}
+        onStop={onStopTunnel}
+        onCheckHealth={onCheckTunnelHealth}
+      />
     </div>
   )
 }

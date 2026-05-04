@@ -81,6 +81,12 @@ func (m *Manager) CheckTunnelHealth(tunnelID string) (*TunnelHealthCheckResult, 
 	}
 	m.mu.Unlock()
 
+	if result.Healthy {
+		m.RecordTunnelLog(tunnel.ConfigID, "SUCCESS", "Manual health check passed.")
+	} else {
+		m.RecordTunnelLog(tunnel.ConfigID, "ERROR", fmt.Sprintf("Manual health check failed: %s", result.Error))
+	}
+
 	m.debounceChangeEvent()
 	return result, nil
 }

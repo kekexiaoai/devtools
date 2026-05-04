@@ -43,6 +43,7 @@ interface SavedTunnelsViewProps {
   tunnelErrors: Map<string, Error>
   onOpenInTerminal: (tunnel: sshtunnel.SavedTunnelConfig) => void
   onEditTunnel: (tunnel: sshtunnel.SavedTunnelConfig) => void
+  onOpenTunnelDetail: (id: string) => void
 }
 
 export function SavedTunnelsView({
@@ -67,6 +68,7 @@ export function SavedTunnelsView({
   tunnelErrors,
   onOpenInTerminal,
   onEditTunnel,
+  onOpenTunnelDetail,
 }: SavedTunnelsViewProps) {
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const sensors = useSensors(
@@ -160,6 +162,7 @@ export function SavedTunnelsView({
                   onDuplicate={() => void onDuplicateTunnel(tunnel.id)}
                   onEdit={onEditTunnel}
                   onOpenInTerminal={() => onOpenInTerminal(tunnel)}
+                  onOpenDetail={() => onOpenTunnelDetail(tunnel.id)}
                   isSelected={activeDragId === tunnel.id}
                 />
               </SortableTunnelItem>
@@ -197,6 +200,7 @@ export function SavedTunnelsView({
                 onDuplicate={() => {}}
                 onEdit={() => {}}
                 onOpenInTerminal={() => {}}
+                onOpenDetail={() => {}}
                 isSelected={true}
               />
             </div>

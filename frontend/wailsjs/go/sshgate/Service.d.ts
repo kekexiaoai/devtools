@@ -33,6 +33,8 @@ export function GetSSHHosts():Promise<Array<types.SSHHost>>;
 
 export function GetSavedTunnels():Promise<Array<sshtunnel.SavedTunnelConfig>>;
 
+export function GetTunnelDetail(arg1:string):Promise<sshgate.TunnelDetail>;
+
 export function GetTunnelProfiles():Promise<Array<sshgate.TunnelProfile>>;
 
 export function ReloadSSHHosts():Promise<void>;

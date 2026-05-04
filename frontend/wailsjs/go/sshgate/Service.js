@@ -58,6 +58,10 @@ export function GetSavedTunnels() {
   return window['go']['sshgate']['Service']['GetSavedTunnels']();
 }
 
+export function GetTunnelDetail(arg1) {
+  return window['go']['sshgate']['Service']['GetTunnelDetail'](arg1);
+}
+
 export function GetTunnelProfiles() {
   return window['go']['sshgate']['Service']['GetTunnelProfiles']();
 }

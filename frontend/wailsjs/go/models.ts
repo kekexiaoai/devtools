@@ -141,6 +141,38 @@ export namespace menu {
 
 export namespace sshgate {
 	
+	export class TunnelDetail {
+	    config: sshtunnel.SavedTunnelConfig;
+	    runtime: sshtunnel.TunnelRuntimeDetail;
+	
+	    static createFrom(source: any = {}) {
+	        return new TunnelDetail(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.config = this.convertValues(source["config"], sshtunnel.SavedTunnelConfig);
+	        this.runtime = this.convertValues(source["runtime"], sshtunnel.TunnelRuntimeDetail);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class TunnelPreflightCheck {
 	    name: string;
 	    status: string;
@@ -367,6 +399,82 @@ export namespace sshtunnel {
 	        this.sshStatus = source["sshStatus"];
 	        this.error = source["error"];
 	    }
+	}
+	export class TunnelHealthSnapshot {
+	    status: string;
+	    statusMsg: string;
+	    startedAt: string;
+	    lastStateChangeAt: string;
+	    lastHealthCheckAt: string;
+	    lastHealthCheckError: string;
+	    checkCount: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TunnelHealthSnapshot(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.statusMsg = source["statusMsg"];
+	        this.startedAt = source["startedAt"];
+	        this.lastStateChangeAt = source["lastStateChangeAt"];
+	        this.lastHealthCheckAt = source["lastHealthCheckAt"];
+	        this.lastHealthCheckError = source["lastHealthCheckError"];
+	        this.checkCount = source["checkCount"];
+	    }
+	}
+	export class TunnelLogEntry {
+	    sequence: number;
+	    timestamp: string;
+	    level: string;
+	    message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TunnelLogEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sequence = source["sequence"];
+	        this.timestamp = source["timestamp"];
+	        this.level = source["level"];
+	        this.message = source["message"];
+	    }
+	}
+	export class TunnelRuntimeDetail {
+	    activeTunnel?: ActiveTunnelInfo;
+	    health: TunnelHealthSnapshot;
+	    logs: TunnelLogEntry[];
+	
+	    static createFrom(source: any = {}) {
+	        return new TunnelRuntimeDetail(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.activeTunnel = this.convertValues(source["activeTunnel"], ActiveTunnelInfo);
+	        this.health = this.convertValues(source["health"], TunnelHealthSnapshot);
+	        this.logs = this.convertValues(source["logs"], TunnelLogEntry);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }

@@ -26,6 +26,7 @@ import {
   ChevronsUpDown,
   Activity,
   ShieldCheck,
+  FileText,
 } from 'lucide-react'
 import {
   Collapsible,
@@ -62,6 +63,7 @@ interface SavedTunnelItemProps {
   onEdit: (tunnel: sshtunnel.SavedTunnelConfig) => void
   onDuplicate: () => void
   onOpenInTerminal: () => void
+  onOpenDetail: () => void
   lastError?: Error
   isStarting: boolean
   isCheckingHealth: boolean
@@ -201,6 +203,7 @@ export function SavedTunnelItem({
   onEdit,
   onDuplicate,
   onOpenInTerminal,
+  onOpenDetail,
   lastError,
   isStarting,
   isCheckingHealth,
@@ -424,6 +427,9 @@ export function SavedTunnelItem({
         </div>
       </CardContent>
       <CardFooter className="px-4 pb-0 flex justify-end space-x-2">
+        <Button variant="outline" size="sm" onClick={onOpenDetail}>
+          <FileText className="mr-2 h-4 w-4" /> Details
+        </Button>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>

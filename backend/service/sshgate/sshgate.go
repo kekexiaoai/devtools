@@ -547,6 +547,7 @@ func (s *Service) StartTunnelFromConfig(configID string, password string) (strin
 	if savedConfig == nil {
 		return "", fmt.Errorf("tunnel configuration with ID %s not found", configID)
 	}
+	s.tunnelManager.RecordTunnelLog(configID, "INFO", fmt.Sprintf("Preparing tunnel %q.", savedConfig.Name))
 
 	var connConfig *sshmanager.ConnectionConfig
 	var aliasForDisplay string
@@ -559,10 +560,12 @@ func (s *Service) StartTunnelFromConfig(configID string, password string) (strin
 		if err != nil {
 			// Do not use %w to wrap the error. The underlying error can be a complex type that causes
 			// serialization issues with the Wails IPC bridge. Use err.Error() to convert it to a simple string.
+			s.tunnelManager.RecordTunnelLog(configID, "ERROR", fmt.Sprintf("Connection config failed for alias %q: %s", aliasForDisplay, err.Error()))
 			return "", fmt.Errorf("failed to get connection config for alias '%s': %s", aliasForDisplay, err.Error())
 		}
 	case "manual":
 		if savedConfig.ManualHost == nil {
+			s.tunnelManager.RecordTunnelLog(configID, "ERROR", "Manual host info is missing.")
 			return "", fmt.Errorf("manual host info is missing for tunnel config %s", configID)
 		}
 		// For manual hosts, we use the config Name as a unique identifier for display/logging.
@@ -581,9 +584,11 @@ func (s *Service) StartTunnelFromConfig(configID string, password string) (strin
 		if err != nil {
 			// Do not use %w to wrap the error. The underlying error can be a complex type that causes
 			// serialization issues with the Wails IPC bridge. Use err.Error() to convert it to a simple string.
+			s.tunnelManager.RecordTunnelLog(configID, "ERROR", fmt.Sprintf("Manual connection config failed: %s", err.Error()))
 			return "", fmt.Errorf("failed to build connection config for manual host: %s", err.Error())
 		}
 	default:
+		s.tunnelManager.RecordTunnelLog(configID, "ERROR", fmt.Sprintf("Unknown host source %q.", savedConfig.HostSource))
 		return "", fmt.Errorf("unknown host source '%s' for tunnel config %s", savedConfig.HostSource, configID)
 	}
 
@@ -594,12 +599,15 @@ func (s *Service) StartTunnelFromConfig(configID string, password string) (strin
 	case "dynamic":
 		remoteAddr = "SOCKS5 Proxy"
 	default:
+		s.tunnelManager.RecordTunnelLog(configID, "ERROR", fmt.Sprintf("Unsupported tunnel type %q.", savedConfig.TunnelType))
 		return "", fmt.Errorf("unsupported tunnel type '%s'", savedConfig.TunnelType)
 	}
 
 	result, err := s.tunnelManager.CreateTunnelFromConfig(configID, aliasForDisplay, savedConfig.LocalPort, savedConfig.GatewayPorts, savedConfig.TunnelType, remoteAddr, connConfig)
 	if err != nil {
-		return "", s.translateNetworkError(err, aliasForDisplay)
+		translatedErr := s.translateNetworkError(err, aliasForDisplay)
+		s.tunnelManager.RecordTunnelLog(configID, "ERROR", translatedErr.Error())
+		return "", translatedErr
 	}
 	return result, nil
 }
