@@ -14,6 +14,7 @@ import { TitleBar } from '@/components/TitleBar'
 import { CreateTunnelDialog } from '@/components/tunnel/CreateTunnelDialog'
 import { TunnelProfileDialog } from '@/components/tunnel/TunnelProfileDialog'
 import {
+  CheckTunnelHealth,
   DeleteTunnelProfile,
   GetActiveTunnels,
   GetSavedTunnels,
@@ -124,6 +125,7 @@ function AppContent() {
   const activeTunnelsRef = useRef(activeTunnels)
   activeTunnelsRef.current = activeTunnels
   const [startingTunnelIds, setStartingTunnelIds] = useState<string[]>([])
+  const [checkingTunnelIds, setCheckingTunnelIds] = useState<string[]>([])
   const [tunnelErrors, setTunnelErrors] = useState<Map<string, Error>>(
     new Map()
   )
@@ -446,6 +448,40 @@ function AppContent() {
       }
     },
     [logger]
+  )
+
+  const handleCheckTunnelHealth = useCallback(
+    (runtimeId: string) => {
+      void (async () => {
+        const activeTunnel = activeTunnelsRef.current.find(
+          (t) => t.id === runtimeId
+        )
+        if (!activeTunnel) {
+          toast.error('Could not find active tunnel.')
+          return
+        }
+
+        setCheckingTunnelIds((prev) => [...prev, runtimeId])
+        try {
+          const result = await CheckTunnelHealth(runtimeId)
+          await fetchActiveTunnels(false)
+          if (result.healthy) {
+            toast.success(`Tunnel "${activeTunnel.alias}" is healthy.`)
+          } else {
+            toast.error(
+              `Tunnel "${activeTunnel.alias}" health check failed: ${
+                result.error ?? 'unknown error'
+              }`
+            )
+          }
+        } catch (error) {
+          toast.error(`Health check failed: ${String(error)}`)
+        } finally {
+          setCheckingTunnelIds((prev) => prev.filter((id) => id !== runtimeId))
+        }
+      })()
+    },
+    [fetchActiveTunnels]
   )
 
   const startTunnel = useCallback(
@@ -978,10 +1014,12 @@ function AppContent() {
           savedTunnels={savedTunnels}
           activeTunnels={activeTunnels}
           startingTunnelIds={startingTunnelIds}
+          checkingTunnelIds={checkingTunnelIds}
           tunnelErrors={tunnelErrors}
           isLoadingTunnels={isLoadingTunnels}
           onStartTunnel={handleStartTunnel}
           onStopTunnel={handleStopTunnel}
+          onCheckTunnelHealth={handleCheckTunnelHealth}
           onOrderChange={handleOrderChange}
           onOpenCreateTunnel={handleOpenCreateTunnel}
           onOpenProfileManager={() => setIsProfileDialogOpen(true)}
@@ -1012,6 +1050,7 @@ function AppContent() {
     savedTunnels,
     activeTunnels,
     startingTunnelIds,
+    checkingTunnelIds,
     handleStartTunnelProfile,
     tunnelProfiles,
     startingProfileIds,
@@ -1024,6 +1063,7 @@ function AppContent() {
     isLoadingTunnels,
     handleOrderChange,
     handleEditTunnel,
+    handleCheckTunnelHealth,
     terminalSessions,
     closeTerminal,
     renameTerminal,

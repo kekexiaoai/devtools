@@ -22,6 +22,7 @@ import {
   Terminal,
   AlertTriangle,
   ChevronsUpDown,
+  Activity,
 } from 'lucide-react'
 import {
   Collapsible,
@@ -38,18 +39,21 @@ import { TunnelStatusIndicator } from './TunnelStatusIndicator'
 import { appLogger } from '@/lib/logger'
 import { sshtunnel } from '@wailsjs/go/models'
 import { formatTunnelDescription } from '@/lib/tunnel-utils'
+import { formatTunnelTimestamp, formatTunnelUptime } from '@/lib/tunnel-health'
 
 interface SavedTunnelItemProps {
   tunnel: sshtunnel.SavedTunnelConfig
   activeTunnel?: sshtunnel.ActiveTunnelInfo
   onStart: (id: string) => void
   onStop: (id: string) => void
+  onCheckHealth: (runtimeId: string) => void
   onDelete: () => void
   onEdit: (tunnel: sshtunnel.SavedTunnelConfig) => void
   onDuplicate: () => void
   onOpenInTerminal: () => void
   lastError?: Error
   isStarting: boolean
+  isCheckingHealth: boolean
   isSelected: boolean
 }
 
@@ -151,12 +155,14 @@ export function SavedTunnelItem({
   activeTunnel,
   onStart,
   onStop,
+  onCheckHealth,
   onDelete,
   onEdit,
   onDuplicate,
   onOpenInTerminal,
   lastError,
   isStarting,
+  isCheckingHealth,
   isSelected,
 }: SavedTunnelItemProps) {
   const status = activeTunnel?.status
@@ -235,6 +241,33 @@ export function SavedTunnelItem({
               <p className="break-all leading-relaxed">{lastError.message}</p>
             </div>
           )}
+          {activeTunnel && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-muted-foreground">
+              <div className="rounded-md bg-muted px-2 py-1">
+                <span className="block">Uptime</span>
+                <span className="font-medium text-foreground">
+                  {formatTunnelUptime(activeTunnel.startedAt)}
+                </span>
+              </div>
+              <div className="rounded-md bg-muted px-2 py-1">
+                <span className="block">Last Check</span>
+                <span className="font-medium text-foreground">
+                  {formatTunnelTimestamp(activeTunnel.lastHealthCheckAt)}
+                </span>
+              </div>
+              <div className="rounded-md bg-muted px-2 py-1">
+                <span className="block">Checks</span>
+                <span className="font-medium text-foreground">
+                  {activeTunnel.healthCheckCount}
+                </span>
+              </div>
+              {activeTunnel.lastHealthCheckError && (
+                <div className="sm:col-span-3 text-destructive break-all">
+                  {activeTunnel.lastHealthCheckError}
+                </div>
+              )}
+            </div>
+          )}
           <CommandDisplay tunnel={tunnel} />
         </div>
       </CardContent>
@@ -264,6 +297,21 @@ export function SavedTunnelItem({
         <Button variant="outline" size="sm" onClick={onDuplicate}>
           <Copy className="mr-2 h-4 w-4" /> Duplicate
         </Button>
+        {activeTunnel && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onCheckHealth(activeTunnel.id)}
+            disabled={isBusy || isCheckingHealth}
+          >
+            {isCheckingHealth ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Activity className="mr-2 h-4 w-4" />
+            )}
+            Check
+          </Button>
+        )}
         <Button variant="outline" size="sm" onClick={() => onEdit(tunnel)}>
           <Pencil className="mr-2 h-4 w-4" /> Edit
         </Button>

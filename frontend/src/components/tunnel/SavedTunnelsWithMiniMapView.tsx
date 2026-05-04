@@ -168,8 +168,10 @@ interface SavedTunnelsWithMiniMapViewProps {
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
   isLoading: boolean
   startingTunnelIds: string[]
+  checkingTunnelIds: string[]
   onStartTunnel: (id: string) => void
   onStopTunnel: (runtimeId: string) => void
+  onCheckTunnelHealth: (runtimeId: string) => void
   onDeleteTunnel: (id: string) => void | Promise<void>
   onDuplicateTunnel: (id: string) => void | Promise<void>
   tunnelErrors: Map<string, Error>
@@ -185,8 +187,10 @@ export const SavedTunnelsWithMiniMapView: React.FC<
   activeTunnels,
   isLoading,
   startingTunnelIds,
+  checkingTunnelIds,
   onStartTunnel,
   onStopTunnel,
+  onCheckTunnelHealth,
   onDeleteTunnel,
   onDuplicateTunnel,
   tunnelErrors,
@@ -419,12 +423,17 @@ export const SavedTunnelsWithMiniMapView: React.FC<
                       activeTunnel={activeTunnel}
                       onStart={onStartTunnel}
                       onStop={onStopTunnel}
+                      onCheckHealth={onCheckTunnelHealth}
                       onDelete={() => void onDeleteTunnel(tunnel.id)}
                       onEdit={onEditTunnel}
                       onDuplicate={() => void onDuplicateTunnel(tunnel.id)}
                       lastError={tunnelErrors.get(tunnel.id)}
                       onOpenInTerminal={() => onOpenInTerminal(tunnel)}
                       isStarting={startingTunnelIds.includes(tunnel.id)}
+                      isCheckingHealth={
+                        !!activeTunnel &&
+                        checkingTunnelIds.includes(activeTunnel.id)
+                      }
                       isSelected={selectedNavId === tunnel.id}
                     />
                   </div>

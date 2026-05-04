@@ -21,10 +21,12 @@ interface TunnelsViewProps {
   savedTunnels: sshtunnel.SavedTunnelConfig[]
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
   startingTunnelIds: string[]
+  checkingTunnelIds: string[]
   tunnelErrors: Map<string, Error>
   isLoadingTunnels: boolean
   onStartTunnel: (id: string) => void
   onStopTunnel: (runtimeId: string) => void
+  onCheckTunnelHealth: (runtimeId: string) => void
   onOrderChange: (orderedIds: string[]) => void
   onOpenCreateTunnel: () => void
   onOpenProfileManager: () => void
@@ -36,10 +38,12 @@ export function TunnelsView({
   savedTunnels,
   activeTunnels,
   startingTunnelIds,
+  checkingTunnelIds,
   tunnelErrors,
   isLoadingTunnels,
   onStartTunnel,
   onStopTunnel,
+  onCheckTunnelHealth,
   onOrderChange,
   onOpenCreateTunnel,
   onOpenProfileManager,
@@ -155,8 +159,10 @@ export function TunnelsView({
             activeTunnels={activeTunnels}
             isLoading={isLoadingTunnels}
             startingTunnelIds={startingTunnelIds}
+            checkingTunnelIds={checkingTunnelIds}
             onStartTunnel={onStartTunnel}
             onStopTunnel={onStopTunnel}
+            onCheckTunnelHealth={onCheckTunnelHealth}
             onDeleteTunnel={handleDeleteTunnel}
             onDuplicateTunnel={handleDuplicateTunnel}
             onOrderChange={onOrderChange}
@@ -170,8 +176,10 @@ export function TunnelsView({
             activeTunnels={activeTunnels}
             isLoading={isLoadingTunnels}
             startingTunnelIds={startingTunnelIds}
+            checkingTunnelIds={checkingTunnelIds}
             onStartTunnel={onStartTunnel}
             onStopTunnel={onStopTunnel}
+            onCheckTunnelHealth={onCheckTunnelHealth}
             onDeleteTunnel={handleDeleteTunnel}
             onDuplicateTunnel={handleDuplicateTunnel}
             onOrderChange={onOrderChange}

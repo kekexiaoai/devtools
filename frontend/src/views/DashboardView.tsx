@@ -22,6 +22,7 @@ import {
 import { type ToolId } from '@/types'
 
 import { formatTunnelDescription } from '@/lib/tunnel-utils'
+import { getTunnelHealthSummary } from '@/lib/tunnel-health'
 import { appLogger, logMeta } from '@/lib/logger'
 import { debounce } from '@/lib/utils'
 
@@ -55,7 +56,7 @@ export function DashboardView({
   startingProfileIds,
 }: DashboardViewProps) {
   const systemStatus = {
-    activeTunnels: activeTunnels.length,
+    ...getTunnelHealthSummary(activeTunnels),
     activeSyncs: activeSyncsCount,
   }
 
@@ -325,9 +326,20 @@ export function DashboardView({
                 className="flex items-center justify-between w-full p-3 -m-3 rounded-lg hover:bg-accent text-left"
                 onClick={() => onNavigate('Tunnels')}
               >
-                <span className="text-muted-foreground">Active Tunnels</span>
+                <span className="text-muted-foreground">Healthy Tunnels</span>
                 <span className="font-bold text-lg">
-                  {systemStatus.activeTunnels}
+                  {systemStatus.healthy}
+                </span>
+              </button>
+              <button
+                className="flex items-center justify-between w-full p-3 -m-3 rounded-lg hover:bg-accent text-left"
+                onClick={() => onNavigate('Tunnels')}
+              >
+                <span className="text-muted-foreground">
+                  Disconnected Tunnels
+                </span>
+                <span className="font-bold text-lg text-destructive">
+                  {systemStatus.disconnected}
                 </span>
               </button>
               <button

@@ -24,8 +24,10 @@ interface SavedTunnelsViewProps {
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
   isLoading: boolean
   startingTunnelIds: string[]
+  checkingTunnelIds: string[]
   onStartTunnel: (id: string) => void
   onStopTunnel: (runtimeId: string) => void
+  onCheckTunnelHealth: (runtimeId: string) => void
   onDeleteTunnel: (id: string) => void | Promise<void>
   onDuplicateTunnel: (id: string) => void | Promise<void>
   onOrderChange: (orderedIds: string[]) => void
@@ -39,8 +41,10 @@ export function SavedTunnelsView({
   activeTunnels,
   isLoading,
   startingTunnelIds,
+  checkingTunnelIds,
   onStartTunnel,
   onStopTunnel,
+  onCheckTunnelHealth,
   onDeleteTunnel,
   onDuplicateTunnel,
   onOrderChange,
@@ -113,23 +117,31 @@ export function SavedTunnelsView({
         strategy={verticalListSortingStrategy}
       >
         <div className="space-y-1 overflow-y-auto h-full pr-2">
-          {savedTunnels.map((tunnel) => (
-            <SortableTunnelItem key={tunnel.id} id={tunnel.id}>
-              <SavedTunnelItem
-                tunnel={tunnel}
-                activeTunnel={activeTunnelMap.get(tunnel.id)}
-                isStarting={startingTunnelIds.includes(tunnel.id)}
-                lastError={tunnelErrors.get(tunnel.id)}
-                onStart={onStartTunnel}
-                onStop={onStopTunnel}
-                onDelete={() => void onDeleteTunnel(tunnel.id)}
-                onDuplicate={() => void onDuplicateTunnel(tunnel.id)}
-                onEdit={onEditTunnel}
-                onOpenInTerminal={() => onOpenInTerminal(tunnel)}
-                isSelected={activeDragId === tunnel.id}
-              />
-            </SortableTunnelItem>
-          ))}
+          {savedTunnels.map((tunnel) => {
+            const activeTunnel = activeTunnelMap.get(tunnel.id)
+            return (
+              <SortableTunnelItem key={tunnel.id} id={tunnel.id}>
+                <SavedTunnelItem
+                  tunnel={tunnel}
+                  activeTunnel={activeTunnel}
+                  isStarting={startingTunnelIds.includes(tunnel.id)}
+                  isCheckingHealth={
+                    !!activeTunnel &&
+                    checkingTunnelIds.includes(activeTunnel.id)
+                  }
+                  lastError={tunnelErrors.get(tunnel.id)}
+                  onStart={onStartTunnel}
+                  onStop={onStopTunnel}
+                  onCheckHealth={onCheckTunnelHealth}
+                  onDelete={() => void onDeleteTunnel(tunnel.id)}
+                  onDuplicate={() => void onDuplicateTunnel(tunnel.id)}
+                  onEdit={onEditTunnel}
+                  onOpenInTerminal={() => onOpenInTerminal(tunnel)}
+                  isSelected={activeDragId === tunnel.id}
+                />
+              </SortableTunnelItem>
+            )
+          })}
         </div>
       </SortableContext>
       <DragOverlay dropAnimation={null}>
@@ -144,9 +156,11 @@ export function SavedTunnelsView({
                 tunnel={activeDragItem}
                 activeTunnel={activeTunnelMap.get(activeDragItem.id)}
                 isStarting={startingTunnelIds.includes(activeDragItem.id)}
+                isCheckingHealth={false}
                 lastError={tunnelErrors.get(activeDragItem.id)}
                 onStart={() => {}}
                 onStop={() => {}}
+                onCheckHealth={() => {}}
                 onDelete={() => {}}
                 onDuplicate={() => {}}
                 onEdit={() => {}}
