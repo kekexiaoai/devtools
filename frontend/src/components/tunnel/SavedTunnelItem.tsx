@@ -40,6 +40,7 @@ import { appLogger } from '@/lib/logger'
 import { sshtunnel } from '@wailsjs/go/models'
 import { formatTunnelDescription } from '@/lib/tunnel-utils'
 import { formatTunnelTimestamp, formatTunnelUptime } from '@/lib/tunnel-health'
+import type { TunnelAutoRestartState } from '@/lib/tunnel-auto-restart'
 
 interface SavedTunnelItemProps {
   tunnel: sshtunnel.SavedTunnelConfig
@@ -54,6 +55,7 @@ interface SavedTunnelItemProps {
   lastError?: Error
   isStarting: boolean
   isCheckingHealth: boolean
+  autoRestartState?: TunnelAutoRestartState
   isSelected: boolean
 }
 
@@ -163,6 +165,7 @@ export function SavedTunnelItem({
   lastError,
   isStarting,
   isCheckingHealth,
+  autoRestartState,
   isSelected,
 }: SavedTunnelItemProps) {
   const status = activeTunnel?.status
@@ -173,6 +176,20 @@ export function SavedTunnelItem({
   const hasLastError = !!lastError && !isRunning && !isStarting
   const canOpenInTerminal =
     tunnel.hostSource === 'ssh_config' && !!tunnel.hostAlias
+  const autoRestartLabel = useMemo(() => {
+    if (!autoRestartState || !isDisconnected) return ''
+    if (autoRestartState.exhausted) {
+      return `Auto restart exhausted after ${autoRestartState.attempts} attempts.`
+    }
+    if (autoRestartState.nextRetryAt) {
+      const seconds = Math.max(
+        1,
+        Math.ceil((autoRestartState.nextRetryAt - Date.now()) / 1000)
+      )
+      return `Auto restart pending in ${seconds}s. Attempt ${autoRestartState.attempts}/3.`
+    }
+    return `Auto restart attempt ${autoRestartState.attempts}/3 in progress.`
+  }, [autoRestartState, isDisconnected])
 
   const cardStateStyles = useMemo(() => {
     if (isRunning) {
@@ -239,6 +256,12 @@ export function SavedTunnelItem({
             <div className="mt-2 text-xs text-destructive flex items-start gap-2 p-2 bg-destructive/10 rounded-md">
               <AlertTriangle className="h-4 w-4 mt-px shrink-0" />
               <p className="break-all leading-relaxed">{lastError.message}</p>
+            </div>
+          )}
+          {autoRestartLabel && (
+            <div className="mt-2 text-xs text-yellow-700 dark:text-yellow-400 flex items-start gap-2 p-2 bg-yellow-500/10 rounded-md">
+              <Activity className="h-4 w-4 mt-px shrink-0" />
+              <p className="leading-relaxed">{autoRestartLabel}</p>
             </div>
           )}
           {activeTunnel && (

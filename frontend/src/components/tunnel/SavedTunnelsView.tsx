@@ -18,6 +18,7 @@ import { SavedTunnelItem } from './SavedTunnelItem'
 import { SortableTunnelItem } from './SortableTunnelItem'
 import { sshtunnel } from '@wailsjs/go/models'
 import { Loader2 } from 'lucide-react'
+import type { TunnelAutoRestartState } from '@/lib/tunnel-auto-restart'
 
 interface SavedTunnelsViewProps {
   savedTunnels: sshtunnel.SavedTunnelConfig[]
@@ -25,6 +26,7 @@ interface SavedTunnelsViewProps {
   isLoading: boolean
   startingTunnelIds: string[]
   checkingTunnelIds: string[]
+  autoRestartState: Record<string, TunnelAutoRestartState>
   onStartTunnel: (id: string) => void
   onStopTunnel: (runtimeId: string) => void
   onCheckTunnelHealth: (runtimeId: string) => void
@@ -42,6 +44,7 @@ export function SavedTunnelsView({
   isLoading,
   startingTunnelIds,
   checkingTunnelIds,
+  autoRestartState,
   onStartTunnel,
   onStopTunnel,
   onCheckTunnelHealth,
@@ -129,6 +132,7 @@ export function SavedTunnelsView({
                     !!activeTunnel &&
                     checkingTunnelIds.includes(activeTunnel.id)
                   }
+                  autoRestartState={autoRestartState[tunnel.id]}
                   lastError={tunnelErrors.get(tunnel.id)}
                   onStart={onStartTunnel}
                   onStop={onStopTunnel}
@@ -157,6 +161,7 @@ export function SavedTunnelsView({
                 activeTunnel={activeTunnelMap.get(activeDragItem.id)}
                 isStarting={startingTunnelIds.includes(activeDragItem.id)}
                 isCheckingHealth={false}
+                autoRestartState={autoRestartState[activeDragItem.id]}
                 lastError={tunnelErrors.get(activeDragItem.id)}
                 onStart={() => {}}
                 onStop={() => {}}

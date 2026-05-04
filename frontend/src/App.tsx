@@ -69,6 +69,10 @@ import { useSshConnection } from './hooks/useSshConnection'
 import { useDialog } from './hooks/useDialog'
 import { appLogger } from './lib/logger'
 import type { CommandPaletteItem } from './lib/command-palette'
+import {
+  getNextAutoRestartPlan,
+  type TunnelAutoRestartState,
+} from './lib/tunnel-auto-restart'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
 
@@ -126,6 +130,15 @@ function AppContent() {
   activeTunnelsRef.current = activeTunnels
   const [startingTunnelIds, setStartingTunnelIds] = useState<string[]>([])
   const [checkingTunnelIds, setCheckingTunnelIds] = useState<string[]>([])
+  const [autoRestartState, setAutoRestartState] = useState<
+    Record<string, TunnelAutoRestartState>
+  >({})
+  const autoRestartStateRef = useRef(autoRestartState)
+  autoRestartStateRef.current = autoRestartState
+  const autoRestartTimersRef = useRef<Record<string, number>>({})
+  const previousTunnelStatusRef = useRef<
+    Record<string, sshtunnel.ActiveTunnelInfo>
+  >({})
   const [tunnelErrors, setTunnelErrors] = useState<Map<string, Error>>(
     new Map()
   )
@@ -146,6 +159,9 @@ function AppContent() {
 
   // --- Global Settings Integration ---
   const appTheme = useSettingsStore((state) => state.theme)
+  const autoRestartDisconnectedTunnels = useSettingsStore(
+    (state) => state.autoRestartDisconnectedTunnels
+  )
   const setPlatformDefaults = useSettingsStore((s) => s.setPlatformDefaults)
   const systemIsDark = useThemeDetector()
   const isDarkMode = useMemo(() => {
@@ -439,8 +455,10 @@ function AppContent() {
       try {
         const tunnels = await GetActiveTunnels()
         setActiveTunnels(tunnels)
+        return tunnels
       } catch (error) {
         logger.error(`Failed to fetch active tunnels: ${String(error)}`)
+        return []
       } finally {
         if (isInitialLoad) {
           setIsLoadingTunnels(false)
@@ -553,6 +571,92 @@ function AppContent() {
     [startTunnel]
   )
 
+  const clearAutoRestartTimer = useCallback((configId: string) => {
+    const timer = autoRestartTimersRef.current[configId]
+    if (timer) {
+      window.clearTimeout(timer)
+      delete autoRestartTimersRef.current[configId]
+    }
+  }, [])
+
+  const clearAutoRestartState = useCallback(
+    (configId: string) => {
+      clearAutoRestartTimer(configId)
+      setAutoRestartState((current) => {
+        if (!current[configId]) return current
+        const next = { ...current }
+        delete next[configId]
+        return next
+      })
+    },
+    [clearAutoRestartTimer]
+  )
+
+  const scheduleAutoRestart = useCallback(
+    (configId: string) => {
+      if (autoRestartTimersRef.current[configId]) return
+
+      const currentState = autoRestartStateRef.current[configId]
+      const plan = getNextAutoRestartPlan(currentState?.attempts ?? 0)
+      if (plan.exhausted) {
+        setAutoRestartState((current) => ({
+          ...current,
+          [configId]: {
+            attempts: plan.attempts,
+            exhausted: true,
+          },
+        }))
+        return
+      }
+
+      const nextRetryAt = Date.now() + plan.delayMs
+      setAutoRestartState((current) => ({
+        ...current,
+        [configId]: {
+          attempts: plan.attempts,
+          nextRetryAt,
+          exhausted: false,
+        },
+      }))
+
+      autoRestartTimersRef.current[configId] = window.setTimeout(() => {
+        delete autoRestartTimersRef.current[configId]
+        setAutoRestartState((current) => ({
+          ...current,
+          [configId]: {
+            ...(current[configId] ?? { attempts: plan.attempts }),
+            attempts: plan.attempts,
+            exhausted: false,
+            nextRetryAt: undefined,
+          },
+        }))
+
+        void (async () => {
+          await startTunnel(configId)
+          const tunnels = await fetchActiveTunnels(false)
+          const restarted = tunnels.some(
+            (tunnel) =>
+              tunnel.configId === configId && tunnel.status === 'active'
+          )
+          if (restarted) {
+            clearAutoRestartState(configId)
+            return
+          }
+
+          if (autoRestartDisconnectedTunnels) {
+            scheduleAutoRestart(configId)
+          }
+        })()
+      }, plan.delayMs)
+    },
+    [
+      autoRestartDisconnectedTunnels,
+      clearAutoRestartState,
+      fetchActiveTunnels,
+      startTunnel,
+    ]
+  )
+
   const handleStartTunnelProfile = useCallback(
     (profileId: string) => {
       void (async () => {
@@ -608,6 +712,62 @@ function AppContent() {
     },
     [startTunnel]
   )
+
+  useEffect(() => {
+    const savedTunnelIds = new Set(savedTunnels.map((tunnel) => tunnel.id))
+    const nextStatusMap = Object.fromEntries(
+      activeTunnels.map((tunnel) => [tunnel.id, tunnel])
+    )
+
+    for (const tunnel of activeTunnels) {
+      if (tunnel.status === 'active') {
+        clearAutoRestartState(tunnel.configId)
+        continue
+      }
+
+      if (
+        !autoRestartDisconnectedTunnels ||
+        tunnel.status !== 'disconnected' ||
+        !savedTunnelIds.has(tunnel.configId)
+      ) {
+        continue
+      }
+
+      const previousTunnel = previousTunnelStatusRef.current[tunnel.id]
+      const transitionedFromActive = previousTunnel?.status === 'active'
+      const existingState = autoRestartStateRef.current[tunnel.configId]
+      if (
+        transitionedFromActive ||
+        (existingState && !existingState.exhausted)
+      ) {
+        scheduleAutoRestart(tunnel.configId)
+      }
+    }
+
+    previousTunnelStatusRef.current = nextStatusMap
+  }, [
+    activeTunnels,
+    autoRestartDisconnectedTunnels,
+    clearAutoRestartState,
+    savedTunnels,
+    scheduleAutoRestart,
+  ])
+
+  useEffect(() => {
+    if (autoRestartDisconnectedTunnels) return
+
+    Object.keys(autoRestartTimersRef.current).forEach(clearAutoRestartTimer)
+    setAutoRestartState({})
+  }, [autoRestartDisconnectedTunnels, clearAutoRestartTimer])
+
+  useEffect(() => {
+    return () => {
+      Object.values(autoRestartTimersRef.current).forEach((timer) =>
+        window.clearTimeout(timer)
+      )
+      autoRestartTimersRef.current = {}
+    }
+  }, [])
 
   const handleSaveTunnelProfile = useCallback(
     async (profile: sshgate.TunnelProfile) => {
@@ -1015,6 +1175,7 @@ function AppContent() {
           activeTunnels={activeTunnels}
           startingTunnelIds={startingTunnelIds}
           checkingTunnelIds={checkingTunnelIds}
+          autoRestartState={autoRestartState}
           tunnelErrors={tunnelErrors}
           isLoadingTunnels={isLoadingTunnels}
           onStartTunnel={handleStartTunnel}
@@ -1051,6 +1212,7 @@ function AppContent() {
     activeTunnels,
     startingTunnelIds,
     checkingTunnelIds,
+    autoRestartState,
     handleStartTunnelProfile,
     tunnelProfiles,
     startingProfileIds,

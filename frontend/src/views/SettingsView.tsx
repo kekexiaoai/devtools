@@ -118,6 +118,23 @@ export function SettingsView({ platform }: { platform: string }) {
                 onCheckedChange={settings.setUseTunnelMiniMap}
               />
             </div>
+            <div className="flex items-center justify-between">
+              <Label
+                htmlFor="auto-restart-disconnected-tunnels"
+                className="flex flex-col items-start gap-1.5"
+              >
+                <span>Auto restart disconnected tunnels</span>
+                <span className="font-normal text-muted-foreground text-xs">
+                  Try up to 3 delayed restarts when a running tunnel
+                  disconnects.
+                </span>
+              </Label>
+              <Switch
+                id="auto-restart-disconnected-tunnels"
+                checked={settings.autoRestartDisconnectedTunnels}
+                onCheckedChange={settings.setAutoRestartDisconnectedTunnels}
+              />
+            </div>
           </CardContent>
         </Card>
 

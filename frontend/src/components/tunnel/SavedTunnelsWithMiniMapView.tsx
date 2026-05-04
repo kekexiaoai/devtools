@@ -40,6 +40,7 @@ import {
 import { sshtunnel } from '@wailsjs/go/models'
 import { SavedTunnelItem } from './SavedTunnelItem'
 import { appLogger } from '@/lib/logger'
+import type { TunnelAutoRestartState } from '@/lib/tunnel-auto-restart'
 
 // Helper for the sortable wrapper
 const SortableWrapper = ({
@@ -169,6 +170,7 @@ interface SavedTunnelsWithMiniMapViewProps {
   isLoading: boolean
   startingTunnelIds: string[]
   checkingTunnelIds: string[]
+  autoRestartState: Record<string, TunnelAutoRestartState>
   onStartTunnel: (id: string) => void
   onStopTunnel: (runtimeId: string) => void
   onCheckTunnelHealth: (runtimeId: string) => void
@@ -188,6 +190,7 @@ export const SavedTunnelsWithMiniMapView: React.FC<
   isLoading,
   startingTunnelIds,
   checkingTunnelIds,
+  autoRestartState,
   onStartTunnel,
   onStopTunnel,
   onCheckTunnelHealth,
@@ -434,6 +437,7 @@ export const SavedTunnelsWithMiniMapView: React.FC<
                         !!activeTunnel &&
                         checkingTunnelIds.includes(activeTunnel.id)
                       }
+                      autoRestartState={autoRestartState[tunnel.id]}
                       isSelected={selectedNavId === tunnel.id}
                     />
                   </div>

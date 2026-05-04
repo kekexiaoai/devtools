@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import { appLogger } from '@/lib/logger'
 import { useSettingsStore } from '@/hooks/useSettingsStore'
 import { useDialog } from '@/hooks/useDialog'
+import type { TunnelAutoRestartState } from '@/lib/tunnel-auto-restart'
 
 interface TunnelsViewProps {
   onConnect: SshConnectionHook['connect']
@@ -22,6 +23,7 @@ interface TunnelsViewProps {
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
   startingTunnelIds: string[]
   checkingTunnelIds: string[]
+  autoRestartState: Record<string, TunnelAutoRestartState>
   tunnelErrors: Map<string, Error>
   isLoadingTunnels: boolean
   onStartTunnel: (id: string) => void
@@ -39,6 +41,7 @@ export function TunnelsView({
   activeTunnels,
   startingTunnelIds,
   checkingTunnelIds,
+  autoRestartState,
   tunnelErrors,
   isLoadingTunnels,
   onStartTunnel,
@@ -160,6 +163,7 @@ export function TunnelsView({
             isLoading={isLoadingTunnels}
             startingTunnelIds={startingTunnelIds}
             checkingTunnelIds={checkingTunnelIds}
+            autoRestartState={autoRestartState}
             onStartTunnel={onStartTunnel}
             onStopTunnel={onStopTunnel}
             onCheckTunnelHealth={onCheckTunnelHealth}
@@ -177,6 +181,7 @@ export function TunnelsView({
             isLoading={isLoadingTunnels}
             startingTunnelIds={startingTunnelIds}
             checkingTunnelIds={checkingTunnelIds}
+            autoRestartState={autoRestartState}
             onStartTunnel={onStartTunnel}
             onStopTunnel={onStopTunnel}
             onCheckTunnelHealth={onCheckTunnelHealth}
