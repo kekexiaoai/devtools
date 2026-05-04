@@ -24,6 +24,25 @@ describe('HTTPClientView', () => {
     expect(screen.getByText('Send a request to see the response.')).toBeTruthy()
   })
 
+  it('uses compact panels with collapsible request editors', () => {
+    render(<HTTPClientView />)
+
+    expect(screen.getByTestId('http-request-panel-header').className).toContain(
+      'px-4 py-3'
+    )
+    expect(
+      screen.getByTestId('http-response-panel-header').className
+    ).toContain('px-4 py-3')
+    expect(screen.queryByPlaceholderText('Header-Name: value')).toBeNull()
+    expect(screen.queryByPlaceholderText('Request body...')).toBeNull()
+
+    fireEvent.click(screen.getByTestId('http-request-headers-trigger'))
+    fireEvent.click(screen.getByTestId('http-request-body-trigger'))
+
+    expect(screen.getByPlaceholderText('Header-Name: value')).toBeTruthy()
+    expect(screen.getByPlaceholderText('Request body...')).toBeTruthy()
+  })
+
   it('keeps history collapsed until requested', () => {
     render(<HTTPClientView />)
 

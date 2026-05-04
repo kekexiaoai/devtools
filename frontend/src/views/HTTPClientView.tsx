@@ -47,6 +47,9 @@ export function HTTPClientView() {
     loadHTTPClientHistory()
   )
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  const [isRequestHeadersOpen, setIsRequestHeadersOpen] = useState(false)
+  const [isRequestBodyOpen, setIsRequestBodyOpen] = useState(false)
+  const [isResponseHeadersOpen, setIsResponseHeadersOpen] = useState(false)
   const [selectedHistoryItem, setSelectedHistoryItem] =
     useState<HTTPClientHistoryItem | null>(null)
 
@@ -100,6 +103,8 @@ export function HTTPClientView() {
     setHeadersText(selectedHistoryItem.headersText ?? '')
     setBody(selectedHistoryItem.body ?? '')
     setTimeoutSeconds(selectedHistoryItem.timeoutSeconds ?? '30')
+    setIsRequestHeadersOpen(Boolean(selectedHistoryItem.headersText))
+    setIsRequestBodyOpen(Boolean(selectedHistoryItem.body))
     setSelectedHistoryItem(null)
     setIsHistoryOpen(false)
   }
@@ -200,12 +205,15 @@ export function HTTPClientView() {
       >
         <Card
           data-testid="http-request-panel"
-          className="min-h-0 overflow-hidden"
+          className="min-h-0 gap-0 overflow-hidden py-0"
         >
-          <CardHeader className="pb-3">
+          <CardHeader
+            data-testid="http-request-panel-header"
+            className="border-b px-4 py-3"
+          >
             <CardTitle>Request</CardTitle>
           </CardHeader>
-          <CardContent className="grid h-full min-h-0 grid-rows-[auto_minmax(110px,0.34fr)_minmax(150px,0.66fr)] gap-3 pb-6">
+          <CardContent className="flex h-full min-h-0 flex-col gap-2 p-4">
             <div className="grid gap-2 md:grid-cols-[8rem_1fr_5rem]">
               <select
                 value={method}
@@ -233,26 +241,49 @@ export function HTTPClientView() {
                 title="Timeout seconds"
               />
             </div>
-            <Textarea
-              value={headersText}
-              onChange={(event) => setHeadersText(event.target.value)}
-              className="h-full min-h-0 resize-none font-mono text-sm"
-              placeholder="Header-Name: value"
-            />
-            <Textarea
-              value={body}
-              onChange={(event) => setBody(event.target.value)}
-              className="h-full min-h-0 resize-none font-mono text-sm"
-              placeholder="Request body..."
-            />
+            <CompactSection
+              open={isRequestHeadersOpen}
+              onOpenChange={setIsRequestHeadersOpen}
+              title="Request Headers"
+              summary={
+                headersText
+                  ? `${headersText.split('\n').length} lines`
+                  : 'empty'
+              }
+              triggerTestId="http-request-headers-trigger"
+            >
+              <Textarea
+                value={headersText}
+                onChange={(event) => setHeadersText(event.target.value)}
+                className="h-28 resize-none font-mono text-sm"
+                placeholder="Header-Name: value"
+              />
+            </CompactSection>
+            <CompactSection
+              open={isRequestBodyOpen}
+              onOpenChange={setIsRequestBodyOpen}
+              title="Request Body"
+              summary={body ? `${body.length} bytes` : 'empty'}
+              triggerTestId="http-request-body-trigger"
+            >
+              <Textarea
+                value={body}
+                onChange={(event) => setBody(event.target.value)}
+                className="h-48 resize-none font-mono text-sm"
+                placeholder="Request body..."
+              />
+            </CompactSection>
           </CardContent>
         </Card>
 
         <Card
           data-testid="http-response-panel"
-          className="min-h-0 overflow-hidden"
+          className="min-h-0 gap-0 overflow-hidden py-0"
         >
-          <CardHeader className="pb-3">
+          <CardHeader
+            data-testid="http-response-panel-header"
+            className="border-b px-4 py-3"
+          >
             <CardTitle className="flex items-center justify-between gap-3">
               <span>Response</span>
               {response && (
@@ -267,7 +298,7 @@ export function HTTPClientView() {
               )}
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(220px,1fr)] gap-3 pb-6">
+          <CardContent className="flex h-full min-h-0 flex-col gap-2 p-4">
             {error && (
               <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
                 {error}
@@ -286,17 +317,24 @@ export function HTTPClientView() {
                 </div>
                 <Textarea
                   readOnly
-                  value={responseHeadersText}
-                  className="h-28 resize-none font-mono text-xs"
-                  placeholder="Response headers"
-                />
-                <Textarea
-                  readOnly
                   value={response.body}
                   data-testid="http-response-body"
-                  className="h-full min-h-0 resize-none font-mono text-sm"
+                  className="min-h-0 flex-1 resize-none font-mono text-sm"
                   placeholder="Response body"
                 />
+                <CompactSection
+                  open={isResponseHeadersOpen}
+                  onOpenChange={setIsResponseHeadersOpen}
+                  title="Response Headers"
+                  summary={`${response.headers.length} headers`}
+                >
+                  <Textarea
+                    readOnly
+                    value={responseHeadersText}
+                    className="h-28 resize-none font-mono text-xs"
+                    placeholder="Response headers"
+                  />
+                </CompactSection>
               </>
             ) : (
               <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">
@@ -390,6 +428,45 @@ function HistoryDetailRow({ label, value }: { label: string; value: string }) {
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
       <span className="truncate font-mono text-sm">{value}</span>
     </div>
+  )
+}
+
+function CompactSection({
+  children,
+  onOpenChange,
+  open,
+  summary,
+  title,
+  triggerTestId,
+}: {
+  children: ReactNode
+  onOpenChange: (open: boolean) => void
+  open: boolean
+  summary: string
+  title: string
+  triggerTestId?: string
+}) {
+  return (
+    <Collapsible open={open} onOpenChange={onOpenChange}>
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          data-testid={triggerTestId}
+          className="flex h-9 w-full items-center justify-between gap-3 rounded-md border bg-muted/20 px-3 text-left text-sm hover:bg-muted/50"
+        >
+          <span className="font-medium">{title}</span>
+          <span className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+            <span className="truncate">{summary}</span>
+            <ChevronDown
+              className={`h-4 w-4 shrink-0 transition-transform ${
+                open ? 'rotate-180' : ''
+              }`}
+            />
+          </span>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pt-2">{children}</CollapsibleContent>
+    </Collapsible>
   )
 }
 
