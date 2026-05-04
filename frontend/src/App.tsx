@@ -1126,9 +1126,9 @@ function AppContent() {
       },
       {
         id: 'navigate-json-tools',
-        title: 'JSON Tools',
+        title: 'Tools',
         group: 'Navigate',
-        keywords: ['format', 'json'],
+        keywords: ['format', 'json', 'base64', 'url', 'text'],
         icon: <Braces className="h-4 w-4" />,
         run: () => handleNavigate('JsonTools'),
       },

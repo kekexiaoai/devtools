@@ -1,47 +1,52 @@
 import { useState } from 'react'
-
-// --- 导入 shadcn/ui 和图标 ---
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
+import ReactJson from 'react-json-view'
 import {
   ArrowRightLeft,
-  Download,
-  ClipboardCopy,
-  Trash2,
+  Braces,
   ChevronLeft,
   ChevronRight,
+  ClipboardCopy,
+  Download,
+  Eraser,
+  Link,
+  LockKeyhole,
+  Trash2,
 } from 'lucide-react'
 
-// --- 导入编辑器和JSON视图 ---
-import ReactJson from 'react-json-view'
-
-// --- 导入 Wails 原生对话框 ---
-// import { ShowErrorDialog, ShowInfoDialog } from '@wailsjs/go/backend/App'
+import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 import { useDialog } from '@/hooks/useDialog'
+import {
+  decodeBase64Text,
+  decodeUrlText,
+  encodeBase64Text,
+  encodeUrlText,
+} from '@/lib/text-tools'
 
-// React 组件就是一个函数
+type TextToolAction =
+  | 'base64-encode'
+  | 'base64-decode'
+  | 'url-encode'
+  | 'url-decode'
+
 export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
-  // --- 教学：使用 useState Hook 管理状态 ---
-  // 每个 useState 都管理着组件中的一小块独立数据
-  const [input, setInput] = useState('') // 左侧输入框的文本内容
-  const [outputObject, setOutputObject] = useState({}) // 右侧输出的JS对象
-  const [isInputVisible, setIsInputVisible] = useState(true) // 左侧面板是否可见
+  const [input, setInput] = useState('')
+  const [outputObject, setOutputObject] = useState({})
+  const [isInputVisible, setIsInputVisible] = useState(true)
   const [validation, setValidation] = useState<{
     isValid: boolean | null
     message: string
-  }>({ isValid: null, message: '' }) // 校验结果
+  }>({ isValid: null, message: '' })
+
+  const [textInput, setTextInput] = useState('')
+  const [textOutput, setTextOutput] = useState('')
+  const [textStatus, setTextStatus] = useState<{
+    isValid: boolean | null
+    message: string
+  }>({ isValid: null, message: '' })
 
   const { showDialog } = useDialog()
-
-  // --- 教学：使用 useMemo Hook 进行性能优化 ---
-  // useMemo 会缓存一个计算结果。只有当它的依赖项(这里是 isDarkMode)改变时，
-  // 它才会重新计算，避免了在每次组件渲染时都去检测暗黑模式。
-  // const isDarkMode = useMemo(
-  //   () =>
-  //     window.matchMedia &&
-  //     window.matchMedia('(prefers-color-scheme: dark)').matches,
-  //   []
-  // )
 
   const toggleInputView = () => {
     setIsInputVisible(!isInputVisible)
@@ -83,11 +88,10 @@ export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
     }
   }
 
-  const copyOutput = async () => {
+  const copyJsonOutput = async () => {
     try {
       const formattedText = JSON.stringify(outputObject, null, 2)
       await navigator.clipboard.writeText(formattedText)
-      // await ShowInfoDialog('Success', 'Formatted JSON copied to clipboard!')
       await showDialog({
         title: 'Success',
         message: 'Formatted JSON copied to clipboard!',
@@ -97,7 +101,6 @@ export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)
 
-      // await ShowErrorDialog('Error', `Failed to copy: ${errorMessage}`)
       await showDialog({
         title: 'Error',
         message: `Failed to copy: ${errorMessage}`,
@@ -106,112 +109,282 @@ export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
     }
   }
 
-  const clearAll = () => {
+  const clearJson = () => {
     setInput('')
     setOutputObject({})
     setValidation({ isValid: null, message: '' })
   }
 
+  const runTextTool = (action: TextToolAction) => {
+    try {
+      const nextOutput = transformText(action, textInput)
+      setTextOutput(nextOutput)
+      setTextStatus({ isValid: true, message: getTextToolLabel(action) })
+    } catch (error) {
+      setTextOutput('')
+      setTextStatus({
+        isValid: false,
+        message: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  const copyTextOutput = async () => {
+    try {
+      await navigator.clipboard.writeText(textOutput)
+      await showDialog({
+        title: 'Success',
+        message: 'Text output copied to clipboard!',
+        type: 'info',
+      })
+    } catch (error) {
+      await showDialog({
+        title: 'Error',
+        message: `Failed to copy: ${String(error)}`,
+        type: 'error',
+      })
+    }
+  }
+
+  const clearTextTools = () => {
+    setTextInput('')
+    setTextOutput('')
+    setTextStatus({ isValid: null, message: '' })
+  }
+
   return (
-    <div className="h-full flex flex-col p-2 space-y-4 bg-background">
-      {/* 顶部操作按钮栏 */}
-      <div className="flex-shrink-0 flex items-center gap-x-2">
-        <Button onClick={formatAndValidate}>
-          <ArrowRightLeft className="mr-2 h-4 w-4" /> Format / Validate
-        </Button>
-        <Button onClick={() => void minifyAndCopy()} variant="outline">
-          <Download className="mr-2 h-4 w-4" /> Minify & Copy
-        </Button>
-        <div className="flex-grow" />
-        {/* 使用箭头函数包裹异步函数 */}
-        <Button
-          onClick={() => void copyOutput()}
-          variant="secondary"
-          disabled={Object.keys(outputObject).length === 0}
-        >
-          <ClipboardCopy className="mr-2 h-4 w-4" /> Copy Output
-        </Button>
-        <Button onClick={clearAll} variant="destructive">
-          <Trash2 className="mr-2 h-4 w-4" /> Clear All
-        </Button>
+    <Tabs defaultValue="json" className="h-full bg-background p-2">
+      <div className="flex-shrink-0">
+        <TabsList>
+          <TabsTrigger value="json">
+            <Braces className="h-4 w-4" />
+            JSON
+          </TabsTrigger>
+          <TabsTrigger value="text">
+            <LockKeyhole className="h-4 w-4" />
+            Text Tools
+          </TabsTrigger>
+        </TabsList>
       </div>
 
-      {/* 校验结果反馈区 */}
-      {validation.isValid !== null && (
-        <div
-          className={`flex-shrink-0 p-2 rounded-md text-sm font-medium ${
-            validation.isValid
-              ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
-              : 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
-          }`}
-        >
-          {validation.message}
-        </div>
-      )}
+      <TabsContent value="json" className="min-h-0">
+        <div className="flex h-full flex-col space-y-4">
+          <div className="flex-shrink-0 flex items-center gap-x-2">
+            <Button onClick={formatAndValidate}>
+              <ArrowRightLeft className="mr-2 h-4 w-4" /> Format / Validate
+            </Button>
+            <Button onClick={() => void minifyAndCopy()} variant="outline">
+              <Download className="mr-2 h-4 w-4" /> Minify & Copy
+            </Button>
+            <div className="flex-grow" />
+            <Button
+              onClick={() => void copyJsonOutput()}
+              variant="secondary"
+              disabled={Object.keys(outputObject).length === 0}
+            >
+              <ClipboardCopy className="mr-2 h-4 w-4" /> Copy Output
+            </Button>
+            <Button onClick={clearJson} variant="destructive">
+              <Trash2 className="mr-2 h-4 w-4" /> Clear
+            </Button>
+          </div>
 
-      {/* 输入/输出面板 */}
-      <div className="flex-grow flex items-stretch gap-x-2 overflow-hidden min-h-0">
-        {/* 输入区 (可收起) */}
-        {isInputVisible && (
-          <div className="w-1/2 h-full flex flex-col transition-all duration-300">
-            <label className="mb-1 text-sm font-semibold text-foreground">
-              Input
-            </label>
-            {/* 使用 relative/absolute 布局确保 Textarea 能正确填充 flex 容器 */}
-            <div className="flex-grow w-full relative">
-              <div className="absolute inset-0 border border-border rounded-md">
-                <Textarea
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  className="h-full w-full resize-none border-0 bg-transparent p-2 focus-visible:ring-0"
-                  placeholder="Paste your JSON here..."
-                />
+          {validation.isValid !== null && (
+            <StatusMessage
+              isValid={validation.isValid}
+              message={validation.message}
+            />
+          )}
+
+          <div className="flex-grow flex items-stretch gap-x-2 overflow-hidden min-h-0">
+            {isInputVisible && (
+              <ToolTextPanel
+                label="Input"
+                value={input}
+                onChange={setInput}
+                placeholder="Paste your JSON here..."
+                className="w-1/2"
+              />
+            )}
+
+            <div className="flex-shrink-0 flex items-center justify-center">
+              <Button
+                onClick={toggleInputView}
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+              >
+                {isInputVisible ? (
+                  <ChevronLeft className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+
+            <div
+              className={`h-full flex flex-col transition-all duration-75 ${isInputVisible ? 'w-1/2' : 'w-full'}`}
+            >
+              <label className="mb-1 text-sm font-semibold text-foreground">
+                Output
+              </label>
+              <div className="w-full flex-grow p-2 bg-muted/50 rounded-md border border-border overflow-auto">
+                {Object.keys(outputObject).length > 0 ? (
+                  <ReactJson
+                    src={outputObject}
+                    theme={isDarkMode ? 'ocean' : 'rjv-default'}
+                    iconStyle="square"
+                    collapsed={3}
+                    displayDataTypes={false}
+                    name={false}
+                  />
+                ) : (
+                  <div className="text-muted-foreground">
+                    Result will be shown here...
+                  </div>
+                )}
               </div>
             </div>
           </div>
-        )}
-
-        {/* 分隔和切换按钮 */}
-        <div className="flex-shrink-0 flex items-center justify-center">
-          <Button
-            onClick={toggleInputView}
-            variant="outline"
-            size="icon"
-            className="h-8 w-8"
-          >
-            {isInputVisible ? (
-              <ChevronLeft className="h-4 w-4" />
-            ) : (
-              <ChevronRight className="h-4 w-4" />
-            )}
-          </Button>
         </div>
+      </TabsContent>
 
-        {/* 输出区 */}
-        <div
-          className={`h-full flex flex-col transition-all duration-75 ${isInputVisible ? 'w-1/2' : 'w-full'}`}
-        >
-          <label className="mb-1 text-sm font-semibold text-foreground">
-            Output
-          </label>
-          <div className="w-full flex-grow p-2 bg-muted/50 rounded-md border border-border overflow-auto">
-            {Object.keys(outputObject).length > 0 ? (
-              <ReactJson
-                src={outputObject}
-                theme={isDarkMode ? 'ocean' : 'rjv-default'}
-                iconStyle="square"
-                collapsed={3}
-                displayDataTypes={false}
-                name={false}
-              />
-            ) : (
-              <div className="text-muted-foreground">
-                Result will be shown here...
-              </div>
-            )}
+      <TabsContent value="text" className="min-h-0">
+        <div className="flex h-full flex-col space-y-4">
+          <div className="flex-shrink-0 flex flex-wrap items-center gap-2">
+            <Button onClick={() => runTextTool('base64-encode')}>
+              <LockKeyhole className="mr-2 h-4 w-4" /> Base64 Encode
+            </Button>
+            <Button
+              onClick={() => runTextTool('base64-decode')}
+              variant="outline"
+            >
+              <LockKeyhole className="mr-2 h-4 w-4" /> Base64 Decode
+            </Button>
+            <Button onClick={() => runTextTool('url-encode')} variant="outline">
+              <Link className="mr-2 h-4 w-4" /> URL Encode
+            </Button>
+            <Button onClick={() => runTextTool('url-decode')} variant="outline">
+              <Link className="mr-2 h-4 w-4" /> URL Decode
+            </Button>
+            <div className="flex-grow" />
+            <Button
+              onClick={() => void copyTextOutput()}
+              variant="secondary"
+              disabled={!textOutput}
+            >
+              <ClipboardCopy className="mr-2 h-4 w-4" /> Copy Output
+            </Button>
+            <Button onClick={clearTextTools} variant="destructive">
+              <Eraser className="mr-2 h-4 w-4" /> Clear
+            </Button>
           </div>
+
+          {textStatus.isValid !== null && (
+            <StatusMessage
+              isValid={textStatus.isValid}
+              message={textStatus.message}
+            />
+          )}
+
+          <div className="flex-grow grid grid-cols-1 gap-3 overflow-hidden min-h-0 lg:grid-cols-2">
+            <ToolTextPanel
+              label="Input"
+              value={textInput}
+              onChange={setTextInput}
+              placeholder="Paste text, Base64, or URL encoded content here..."
+            />
+            <ToolTextPanel
+              label="Output"
+              value={textOutput}
+              onChange={setTextOutput}
+              placeholder="Converted text will be shown here..."
+              readOnly
+            />
+          </div>
+        </div>
+      </TabsContent>
+    </Tabs>
+  )
+}
+
+function StatusMessage({
+  isValid,
+  message,
+}: {
+  isValid: boolean
+  message: string
+}) {
+  return (
+    <div
+      className={`flex-shrink-0 p-2 rounded-md text-sm font-medium ${
+        isValid
+          ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
+          : 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
+      }`}
+    >
+      {message}
+    </div>
+  )
+}
+
+function ToolTextPanel({
+  label,
+  value,
+  onChange,
+  placeholder,
+  readOnly,
+  className = '',
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+  readOnly?: boolean
+  className?: string
+}) {
+  return (
+    <div className={`h-full min-h-0 flex flex-col ${className}`}>
+      <label className="mb-1 text-sm font-semibold text-foreground">
+        {label}
+      </label>
+      <div className="flex-grow w-full relative min-h-[180px]">
+        <div className="absolute inset-0 border border-border rounded-md">
+          <Textarea
+            value={value}
+            readOnly={readOnly}
+            onChange={(event) => onChange(event.target.value)}
+            className="h-full w-full resize-none border-0 bg-transparent p-2 font-mono text-sm focus-visible:ring-0"
+            placeholder={placeholder}
+          />
         </div>
       </div>
     </div>
   )
+}
+
+function transformText(action: TextToolAction, value: string): string {
+  switch (action) {
+    case 'base64-encode':
+      return encodeBase64Text(value)
+    case 'base64-decode':
+      return decodeBase64Text(value)
+    case 'url-encode':
+      return encodeUrlText(value)
+    case 'url-decode':
+      return decodeUrlText(value)
+  }
+}
+
+function getTextToolLabel(action: TextToolAction): string {
+  switch (action) {
+    case 'base64-encode':
+      return 'Base64 encoded.'
+    case 'base64-decode':
+      return 'Base64 decoded.'
+    case 'url-encode':
+      return 'URL encoded.'
+    case 'url-decode':
+      return 'URL decoded.'
+  }
 }

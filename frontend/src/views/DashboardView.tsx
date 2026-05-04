@@ -139,7 +139,7 @@ export function DashboardView({
                 onClick={() => onNavigate('JsonTools')}
               >
                 <FileJson className="h-6 w-6 mb-2" />
-                <span>JSON Tools</span>
+                <span>Tools</span>
               </Button>
               <Button
                 variant="outline"

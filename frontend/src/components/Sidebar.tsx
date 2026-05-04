@@ -25,7 +25,7 @@ const tools = [
   { id: 'Terminal', icon: TerminalSquare, label: 'Terminal' },
   { id: 'Diagnostics', icon: ActivitySquare, label: 'Diagnostics' },
   { id: 'FileSyncer', icon: ArrowRightLeft, label: 'File Syncer' },
-  { id: 'JsonTools', icon: Braces, label: 'JSON Tools' },
+  { id: 'JsonTools', icon: Braces, label: 'Tools' },
 ]
 
 function NavButton({
