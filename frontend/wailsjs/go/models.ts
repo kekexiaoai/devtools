@@ -156,6 +156,11 @@ export namespace sshtunnel {
 	    remoteAddr: string;
 	    status: string;
 	    statusMsg: string;
+	    startedAt: string;
+	    lastStateChangeAt: string;
+	    lastHealthCheckAt: string;
+	    lastHealthCheckError: string;
+	    healthCheckCount: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new ActiveTunnelInfo(source);
@@ -171,6 +176,11 @@ export namespace sshtunnel {
 	        this.remoteAddr = source["remoteAddr"];
 	        this.status = source["status"];
 	        this.statusMsg = source["statusMsg"];
+	        this.startedAt = source["startedAt"];
+	        this.lastStateChangeAt = source["lastStateChangeAt"];
+	        this.lastHealthCheckAt = source["lastHealthCheckAt"];
+	        this.lastHealthCheckError = source["lastHealthCheckError"];
+	        this.healthCheckCount = source["healthCheckCount"];
 	    }
 	}
 	export class ManualHostInfo {
@@ -238,6 +248,28 @@ export namespace sshtunnel {
 		    }
 		    return a;
 		}
+	}
+	export class TunnelHealthCheckResult {
+	    tunnelId: string;
+	    checkedAt: string;
+	    healthy: boolean;
+	    localListenerStatus: string;
+	    sshStatus: string;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TunnelHealthCheckResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tunnelId = source["tunnelId"];
+	        this.checkedAt = source["checkedAt"];
+	        this.healthy = source["healthy"];
+	        this.localListenerStatus = source["localListenerStatus"];
+	        this.sshStatus = source["sshStatus"];
+	        this.error = source["error"];
+	    }
 	}
 
 }
