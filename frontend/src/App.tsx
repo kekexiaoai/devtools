@@ -79,7 +79,16 @@ import {
 import {
   formatTunnelPortConflictSummary,
   getTunnelPortConflictMap,
+  type TunnelPortConflict,
 } from './lib/tunnel-port-conflicts'
+import {
+  addTunnelFailureHistoryEntry,
+  clearTunnelFailureHistory,
+  loadTunnelFailureHistory,
+  saveTunnelFailureHistory,
+  type TunnelFailureHistoryEntry,
+} from './lib/tunnel-failure-history'
+import { diagnoseTunnelStartFailure } from './lib/tunnel-start-diagnostics'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
 
@@ -159,6 +168,9 @@ function AppContent() {
   const [tunnelErrors, setTunnelErrors] = useState<Map<string, Error>>(
     new Map()
   )
+  const [tunnelFailureHistory, setTunnelFailureHistory] = useState<
+    TunnelFailureHistoryEntry[]
+  >(() => loadTunnelFailureHistory())
   const [isLoadingTunnels, setIsLoadingTunnels] = useState(true)
   const [shouldStartNext, setShouldStartNext] = useState(false)
   const prevTunnelsRef = useRef<sshtunnel.SavedTunnelConfig[] | undefined>(
@@ -564,6 +576,51 @@ function AppContent() {
     [verifyAndGetPassword]
   )
 
+  const recordTunnelFailure = useCallback(
+    async (tunnel: sshtunnel.SavedTunnelConfig, error: Error) => {
+      let portConflicts: TunnelPortConflict[] = []
+      try {
+        const listeningPorts = await GetListeningPorts()
+        portConflicts =
+          getTunnelPortConflictMap(
+            savedTunnelsRef.current,
+            activeTunnelsRef.current,
+            listeningPorts
+          ).get(tunnel.id) ?? []
+      } catch (historyError) {
+        logger.warn('Could not enrich tunnel failure history', historyError)
+      }
+
+      const diagnosis = diagnoseTunnelStartFailure({
+        tunnel,
+        error,
+        portConflicts,
+      })
+      const entry: TunnelFailureHistoryEntry = {
+        id: `${Date.now()}-${tunnel.id}`,
+        tunnelId: tunnel.id,
+        tunnelName: tunnel.name,
+        failedAt: new Date().toISOString(),
+        errorMessage: error.message,
+        reason: diagnosis.reason,
+        details: diagnosis.details,
+        suggestions: diagnosis.suggestions,
+      }
+
+      setTunnelFailureHistory((current) => {
+        const next = addTunnelFailureHistoryEntry(current, entry)
+        saveTunnelFailureHistory(next)
+        return next
+      })
+    },
+    [logger]
+  )
+
+  const handleClearTunnelFailureHistory = useCallback(() => {
+    clearTunnelFailureHistory()
+    setTunnelFailureHistory([])
+  }, [])
+
   const confirmTunnelsPortConflicts = useCallback(
     async (
       tunnels: sshtunnel.SavedTunnelConfig[],
@@ -668,6 +725,7 @@ function AppContent() {
           toast.error(errorMessage)
         }
         setTunnelErrors((prev) => new Map(prev).set(id, err))
+        void recordTunnelFailure(tunnel, err)
       } finally {
         // This will run for success, error, and cancellation cases.
         setStartingTunnelIds((prev) =>
@@ -675,7 +733,12 @@ function AppContent() {
         )
       }
     },
-    [confirmTunnelsPortConflicts, fetchActiveTunnels, verifyAndGetPassword]
+    [
+      confirmTunnelsPortConflicts,
+      fetchActiveTunnels,
+      recordTunnelFailure,
+      verifyAndGetPassword,
+    ]
   )
 
   const handleStartTunnel = useCallback(
@@ -1352,6 +1415,8 @@ function AppContent() {
           savedTunnels={savedTunnels}
           tunnelProfiles={tunnelProfiles}
           tunnelErrors={tunnelErrors}
+          tunnelFailureHistory={tunnelFailureHistory}
+          onClearTunnelFailureHistory={handleClearTunnelFailureHistory}
         />
       ),
       Settings: <SettingsView platform={platform} />,
@@ -1375,6 +1440,8 @@ function AppContent() {
     handleTerminalConnect,
     connect,
     tunnelErrors,
+    tunnelFailureHistory,
+    handleClearTunnelFailureHistory,
     isLoadingTunnels,
     handleOrderChange,
     handleEditTunnel,

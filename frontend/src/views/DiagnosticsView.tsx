@@ -19,6 +19,7 @@ import {
 import { getTunnelHealthSummary } from '@/lib/tunnel-health'
 import { getTunnelPortConflictMap } from '@/lib/tunnel-port-conflicts'
 import { buildTunnelFailureDiagnostics } from '@/lib/tunnel-start-diagnostics'
+import type { TunnelFailureHistoryEntry } from '@/lib/tunnel-failure-history'
 import { Copy, Loader2, RefreshCw, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -27,6 +28,8 @@ interface DiagnosticsViewProps {
   savedTunnels: sshtunnel.SavedTunnelConfig[]
   tunnelProfiles: sshgate.TunnelProfile[]
   tunnelErrors: Map<string, Error>
+  tunnelFailureHistory: TunnelFailureHistoryEntry[]
+  onClearTunnelFailureHistory: () => void
 }
 
 export function DiagnosticsView({
@@ -34,6 +37,8 @@ export function DiagnosticsView({
   savedTunnels,
   tunnelProfiles,
   tunnelErrors,
+  tunnelFailureHistory,
+  onClearTunnelFailureHistory,
 }: DiagnosticsViewProps) {
   const [snapshot, setSnapshot] = useState<backend.DiagnosticsSnapshot | null>(
     null
@@ -72,6 +77,7 @@ export function DiagnosticsView({
       `Tunnel profiles: ${tunnelProfiles.length}`,
       `Listening ports: ${listeningPorts.length}`,
       `Tunnel startup failures: ${tunnelFailureDiagnostics.length}`,
+      `Stored failure history: ${tunnelFailureHistory.length}`,
     ].join('\n')
   }, [
     snapshot,
@@ -80,6 +86,7 @@ export function DiagnosticsView({
     tunnelProfiles.length,
     listeningPorts.length,
     tunnelFailureDiagnostics.length,
+    tunnelFailureHistory.length,
   ])
 
   const refresh = useCallback(async () => {
@@ -144,6 +151,15 @@ export function DiagnosticsView({
             <Trash2 className="mr-2 h-4 w-4" />
             Clear View
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onClearTunnelFailureHistory}
+            disabled={tunnelFailureHistory.length === 0}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Clear Failure History
+          </Button>
         </div>
       </div>
 
@@ -178,6 +194,10 @@ export function DiagnosticsView({
             <Metric
               label="Startup Failures"
               value={tunnelFailureDiagnostics.length}
+            />
+            <Metric
+              label="Failure History"
+              value={tunnelFailureHistory.length}
             />
           </CardContent>
         </Card>
@@ -219,6 +239,45 @@ export function DiagnosticsView({
             ) : (
               <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">
                 No tunnel startup failures recorded in this session.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="xl:col-span-3">
+          <CardHeader>
+            <CardTitle>Tunnel Failure History</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {tunnelFailureHistory.length > 0 ? (
+              <div className="space-y-3">
+                {tunnelFailureHistory.map((entry) => (
+                  <div key={entry.id} className="rounded-md border p-3 text-sm">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="font-medium">{entry.tunnelName}</div>
+                        <div className="text-xs text-destructive">
+                          {entry.reason}
+                        </div>
+                      </div>
+                      <div className="font-mono text-xs text-muted-foreground">
+                        {entry.failedAt}
+                      </div>
+                    </div>
+                    <p className="whitespace-pre-wrap break-all text-xs text-muted-foreground">
+                      {entry.details}
+                    </p>
+                    <ul className="mt-2 list-disc space-y-1 pl-4 text-xs">
+                      {entry.suggestions.map((suggestion) => (
+                        <li key={suggestion}>{suggestion}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">
+                No persisted tunnel failure history.
               </div>
             )}
           </CardContent>
