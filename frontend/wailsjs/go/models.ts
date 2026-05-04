@@ -18,6 +18,26 @@ export namespace backend {
 	        this.logFilePath = source["logFilePath"];
 	    }
 	}
+	export class ListeningPort {
+	    command: string;
+	    pid: string;
+	    address: string;
+	    port: string;
+	    protocol: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ListeningPort(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.command = source["command"];
+	        this.pid = source["pid"];
+	        this.address = source["address"];
+	        this.port = source["port"];
+	        this.protocol = source["protocol"];
+	    }
+	}
 
 }
 

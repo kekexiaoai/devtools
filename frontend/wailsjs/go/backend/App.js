@@ -22,6 +22,10 @@ export function GetDiagnosticsSnapshot() {
   return window['go']['backend']['App']['GetDiagnosticsSnapshot']();
 }
 
+export function GetListeningPorts() {
+  return window['go']['backend']['App']['GetListeningPorts']();
+}
+
 export function IsDebug() {
   return window['go']['backend']['App']['IsDebug']();
 }

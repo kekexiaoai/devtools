@@ -15,6 +15,8 @@ export function ForceQuit():Promise<void>;
 
 export function GetDiagnosticsSnapshot():Promise<backend.DiagnosticsSnapshot>;
 
+export function GetListeningPorts():Promise<Array<backend.ListeningPort>>;
+
 export function IsDebug():Promise<boolean>;
 
 export function IsQuitting():Promise<boolean>;
