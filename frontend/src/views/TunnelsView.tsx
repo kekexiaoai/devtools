@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { SavedTunnelsView } from '@/components/tunnel/SavedTunnelsView'
 import { SavedTunnelsWithMiniMapView } from '@/components/tunnel/SavedTunnelsWithMiniMapView'
 import {
@@ -7,7 +7,8 @@ import {
   DuplicateTunnelConfig,
   StopForward,
 } from '@wailsjs/go/sshgate/Service'
-import { sshtunnel } from '@wailsjs/go/models'
+import { GetListeningPorts } from '@wailsjs/go/backend/App'
+import { backend, sshtunnel } from '@wailsjs/go/models'
 import { Button } from '@/components/ui/button'
 import { FolderKanban, PlusCircle } from 'lucide-react'
 import { SshConnectionHook } from '@/hooks/useSshConnection'
@@ -16,6 +17,7 @@ import { appLogger } from '@/lib/logger'
 import { useSettingsStore } from '@/hooks/useSettingsStore'
 import { useDialog } from '@/hooks/useDialog'
 import type { TunnelAutoRestartState } from '@/lib/tunnel-auto-restart'
+import { getTunnelPortConflictMap } from '@/lib/tunnel-port-conflicts'
 
 interface TunnelsViewProps {
   onConnect: SshConnectionHook['connect']
@@ -59,6 +61,29 @@ export function TunnelsView({
   }, [])
 
   const { showDialog } = useDialog()
+  const [listeningPorts, setListeningPorts] = useState<backend.ListeningPort[]>(
+    []
+  )
+
+  const refreshListeningPorts = useCallback(async () => {
+    try {
+      setListeningPorts(await GetListeningPorts())
+    } catch (error) {
+      logger.warn('Failed to refresh listening ports', error)
+    }
+  }, [logger])
+
+  useEffect(() => {
+    void refreshListeningPorts()
+    const timer = window.setInterval(() => {
+      void refreshListeningPorts()
+    }, 15000)
+    return () => window.clearInterval(timer)
+  }, [refreshListeningPorts])
+
+  const portConflicts = useMemo(() => {
+    return getTunnelPortConflictMap(savedTunnels, activeTunnels, listeningPorts)
+  }, [savedTunnels, activeTunnels, listeningPorts])
 
   const handleOpenInTerminal = useCallback(
     (tunnel: sshtunnel.SavedTunnelConfig) => {
@@ -164,6 +189,7 @@ export function TunnelsView({
             startingTunnelIds={startingTunnelIds}
             checkingTunnelIds={checkingTunnelIds}
             autoRestartState={autoRestartState}
+            portConflicts={portConflicts}
             onStartTunnel={onStartTunnel}
             onStopTunnel={onStopTunnel}
             onCheckTunnelHealth={onCheckTunnelHealth}
@@ -182,6 +208,7 @@ export function TunnelsView({
             startingTunnelIds={startingTunnelIds}
             checkingTunnelIds={checkingTunnelIds}
             autoRestartState={autoRestartState}
+            portConflicts={portConflicts}
             onStartTunnel={onStartTunnel}
             onStopTunnel={onStopTunnel}
             onCheckTunnelHealth={onCheckTunnelHealth}

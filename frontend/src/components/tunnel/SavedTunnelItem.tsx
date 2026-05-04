@@ -41,6 +41,7 @@ import { sshtunnel } from '@wailsjs/go/models'
 import { formatTunnelDescription } from '@/lib/tunnel-utils'
 import { formatTunnelTimestamp, formatTunnelUptime } from '@/lib/tunnel-health'
 import type { TunnelAutoRestartState } from '@/lib/tunnel-auto-restart'
+import type { TunnelPortConflict } from '@/lib/tunnel-port-conflicts'
 
 interface SavedTunnelItemProps {
   tunnel: sshtunnel.SavedTunnelConfig
@@ -56,6 +57,7 @@ interface SavedTunnelItemProps {
   isStarting: boolean
   isCheckingHealth: boolean
   autoRestartState?: TunnelAutoRestartState
+  portConflicts?: TunnelPortConflict[]
   isSelected: boolean
 }
 
@@ -152,6 +154,22 @@ const formatHostInfo = (tunnel: sshtunnel.SavedTunnelConfig): string => {
   return 'via Unknown Host'
 }
 
+const formatPortConflict = (conflict: TunnelPortConflict): string => {
+  if (conflict.kind === 'duplicate') {
+    return `Local port ${conflict.port} is also used by "${conflict.peerName}".`
+  }
+
+  return `Local port ${conflict.port} is already used by ${conflict.process} (PID ${conflict.pid}) on ${conflict.address}.`
+}
+
+const getPortConflictKey = (conflict: TunnelPortConflict): string => {
+  if (conflict.kind === 'duplicate') {
+    return `${conflict.kind}-${conflict.port}-${conflict.peerId}`
+  }
+
+  return `${conflict.kind}-${conflict.port}-${conflict.address}-${conflict.pid}`
+}
+
 export function SavedTunnelItem({
   tunnel,
   activeTunnel,
@@ -166,6 +184,7 @@ export function SavedTunnelItem({
   isStarting,
   isCheckingHealth,
   autoRestartState,
+  portConflicts = [],
   isSelected,
 }: SavedTunnelItemProps) {
   const status = activeTunnel?.status
@@ -174,6 +193,7 @@ export function SavedTunnelItem({
   const isDisconnected = status === 'disconnected'
   const isBusy = isStarting || isStopping
   const hasLastError = !!lastError && !isRunning && !isStarting
+  const hasPortConflicts = portConflicts.length > 0
   const canOpenInTerminal =
     tunnel.hostSource === 'ssh_config' && !!tunnel.hostAlias
   const autoRestartLabel = useMemo(() => {
@@ -201,8 +221,11 @@ export function SavedTunnelItem({
     if (isBusy) {
       return 'border-l-yellow-500'
     }
+    if (hasPortConflicts) {
+      return 'border-l-yellow-500'
+    }
     return 'border-l-transparent'
-  }, [isRunning, isDisconnected, isBusy])
+  }, [isRunning, isDisconnected, isBusy, hasPortConflicts])
 
   return (
     <Card
@@ -256,6 +279,18 @@ export function SavedTunnelItem({
             <div className="mt-2 text-xs text-destructive flex items-start gap-2 p-2 bg-destructive/10 rounded-md">
               <AlertTriangle className="h-4 w-4 mt-px shrink-0" />
               <p className="break-all leading-relaxed">{lastError.message}</p>
+            </div>
+          )}
+          {hasPortConflicts && (
+            <div className="mt-2 text-xs text-yellow-700 dark:text-yellow-400 flex items-start gap-2 p-2 bg-yellow-500/10 rounded-md">
+              <AlertTriangle className="h-4 w-4 mt-px shrink-0" />
+              <div className="space-y-1 leading-relaxed">
+                {portConflicts.map((conflict) => (
+                  <p key={getPortConflictKey(conflict)}>
+                    {formatPortConflict(conflict)}
+                  </p>
+                ))}
+              </div>
             </div>
           )}
           {autoRestartLabel && (

@@ -41,6 +41,7 @@ import { sshtunnel } from '@wailsjs/go/models'
 import { SavedTunnelItem } from './SavedTunnelItem'
 import { appLogger } from '@/lib/logger'
 import type { TunnelAutoRestartState } from '@/lib/tunnel-auto-restart'
+import type { TunnelPortConflict } from '@/lib/tunnel-port-conflicts'
 
 // Helper for the sortable wrapper
 const SortableWrapper = ({
@@ -171,6 +172,7 @@ interface SavedTunnelsWithMiniMapViewProps {
   startingTunnelIds: string[]
   checkingTunnelIds: string[]
   autoRestartState: Record<string, TunnelAutoRestartState>
+  portConflicts: Map<string, TunnelPortConflict[]>
   onStartTunnel: (id: string) => void
   onStopTunnel: (runtimeId: string) => void
   onCheckTunnelHealth: (runtimeId: string) => void
@@ -191,6 +193,7 @@ export const SavedTunnelsWithMiniMapView: React.FC<
   startingTunnelIds,
   checkingTunnelIds,
   autoRestartState,
+  portConflicts,
   onStartTunnel,
   onStopTunnel,
   onCheckTunnelHealth,
@@ -438,6 +441,7 @@ export const SavedTunnelsWithMiniMapView: React.FC<
                         checkingTunnelIds.includes(activeTunnel.id)
                       }
                       autoRestartState={autoRestartState[tunnel.id]}
+                      portConflicts={portConflicts.get(tunnel.id)}
                       isSelected={selectedNavId === tunnel.id}
                     />
                   </div>
