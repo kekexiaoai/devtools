@@ -480,109 +480,122 @@ export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
       className="h-full bg-background p-2"
     >
       <div className="flex h-full min-h-0 gap-3">
-        <div className="flex w-48 shrink-0 flex-col gap-3 overflow-y-auto border-r border-border pr-3">
-          <TabsList className="h-auto w-full flex-col items-stretch justify-start">
-            <TabsTrigger
-              value="json"
-              className="w-full justify-start"
-              onClick={() => setActiveTool('json')}
-            >
-              <Braces className="h-4 w-4" />
-              JSON
-            </TabsTrigger>
-            {textToolConfigs.map((config) => (
+        <div
+          data-testid="tool-sidebar"
+          className="flex w-48 shrink-0 flex-col overflow-hidden border-r border-border pr-3"
+        >
+          <div
+            data-testid="tool-list-scroll-area"
+            className="min-h-0 flex-1 overflow-y-auto"
+          >
+            <TabsList className="h-auto w-full flex-col items-stretch justify-start">
               <TabsTrigger
-                key={config.action}
-                value={config.action}
+                value="json"
                 className="w-full justify-start"
-                onClick={() => setActiveTool(config.action)}
+                onClick={() => setActiveTool('json')}
               >
-                <TextToolIcon action={config.action} />
-                {config.label}
+                <Braces className="h-4 w-4" />
+                JSON
               </TabsTrigger>
-            ))}
-          </TabsList>
+              {textToolConfigs.map((config) => (
+                <TabsTrigger
+                  key={config.action}
+                  value={config.action}
+                  className="w-full justify-start"
+                  onClick={() => setActiveTool(config.action)}
+                >
+                  <TextToolIcon action={config.action} />
+                  {config.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
 
-          {activeTool === 'json' ? (
-            <>
-              <div className="flex flex-col gap-2">
-                <Button onClick={formatAndValidate} className="justify-start">
-                  <ArrowRightLeft className="mr-2 h-4 w-4" />
-                  Format
-                </Button>
-                <Button
-                  onClick={() => void minifyAndCopy()}
-                  variant="outline"
-                  className="justify-start"
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Minify
-                </Button>
-                <Button
-                  onClick={() => void copyJsonOutput()}
-                  variant="secondary"
-                  disabled={Object.keys(outputObject).length === 0}
-                  className="justify-start"
-                >
-                  <ClipboardCopy className="mr-2 h-4 w-4" />
-                  Copy
-                </Button>
-                <Button
-                  onClick={clearJson}
-                  variant="destructive"
-                  className="justify-start"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Clear
-                </Button>
-              </div>
-
-              {validation.isValid !== null && (
-                <StatusMessage
-                  isValid={validation.isValid}
-                  message={validation.message}
-                />
-              )}
-            </>
-          ) : (
-            currentTextToolState && (
+          <div
+            data-testid="tool-action-panel"
+            className="mt-3 flex shrink-0 flex-col gap-3 border-t border-border pt-3"
+          >
+            {activeTool === 'json' ? (
               <>
                 <div className="flex flex-col gap-2">
-                  <Button
-                    onClick={() => void runTextTool()}
-                    className="justify-start"
-                  >
+                  <Button onClick={formatAndValidate} className="justify-start">
                     <ArrowRightLeft className="mr-2 h-4 w-4" />
-                    Run
+                    Format
                   </Button>
                   <Button
-                    onClick={() => void copyTextOutput()}
+                    onClick={() => void minifyAndCopy()}
+                    variant="outline"
+                    className="justify-start"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Minify
+                  </Button>
+                  <Button
+                    onClick={() => void copyJsonOutput()}
                     variant="secondary"
-                    disabled={!currentTextToolState.output}
+                    disabled={Object.keys(outputObject).length === 0}
                     className="justify-start"
                   >
                     <ClipboardCopy className="mr-2 h-4 w-4" />
                     Copy
                   </Button>
                   <Button
-                    onClick={clearTextTools}
+                    onClick={clearJson}
                     variant="destructive"
                     className="justify-start"
                   >
-                    <Eraser className="mr-2 h-4 w-4" />
+                    <Trash2 className="mr-2 h-4 w-4" />
                     Clear
                   </Button>
                 </div>
 
-                {currentTextToolState.status && (
+                {validation.isValid !== null && (
                   <StatusMessage
-                    tone={currentTextToolState.status.tone}
-                    message={currentTextToolState.status.message}
+                    isValid={validation.isValid}
+                    message={validation.message}
                   />
                 )}
               </>
-            )
-          )}
+            ) : (
+              currentTextToolState && (
+                <>
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      onClick={() => void runTextTool()}
+                      className="justify-start"
+                    >
+                      <ArrowRightLeft className="mr-2 h-4 w-4" />
+                      Run
+                    </Button>
+                    <Button
+                      onClick={() => void copyTextOutput()}
+                      variant="secondary"
+                      disabled={!currentTextToolState.output}
+                      className="justify-start"
+                    >
+                      <ClipboardCopy className="mr-2 h-4 w-4" />
+                      Copy
+                    </Button>
+                    <Button
+                      onClick={clearTextTools}
+                      variant="destructive"
+                      className="justify-start"
+                    >
+                      <Eraser className="mr-2 h-4 w-4" />
+                      Clear
+                    </Button>
+                  </div>
+
+                  {currentTextToolState.status && (
+                    <StatusMessage
+                      tone={currentTextToolState.status.tone}
+                      message={currentTextToolState.status.message}
+                    />
+                  )}
+                </>
+              )
+            )}
+          </div>
         </div>
 
         <div className="min-w-0 flex-grow overflow-hidden">

@@ -59,6 +59,24 @@ describe('JsonToolsView text tools', () => {
     ).toBe('stacked')
   })
 
+  it('keeps tool actions outside the scrolling tool list', () => {
+    renderJsonToolsView()
+
+    expect(screen.getByTestId('tool-list-scroll-area').className).toContain(
+      'overflow-y-auto'
+    )
+    expect(screen.getByTestId('tool-action-panel').className).toContain(
+      'shrink-0'
+    )
+    expect(screen.getByTestId('tool-action-panel').textContent).toContain(
+      'Format'
+    )
+
+    fireEvent.click(screen.getByRole('tab', { name: /Cron Parser/i }))
+
+    expect(screen.getByTestId('tool-action-panel').textContent).toContain('Run')
+  })
+
   it('uses a compact hash result layout', () => {
     renderJsonToolsView()
 
