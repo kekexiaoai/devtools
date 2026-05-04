@@ -96,6 +96,12 @@ import {
   type TunnelFailureHistoryEntry,
 } from './lib/tunnel-failure-history'
 import { diagnoseTunnelStartFailure } from './lib/tunnel-start-diagnostics'
+import {
+  getAutoRestorableTerminalSessions,
+  parseRestorableTerminalSessions,
+  serializeRestorableTerminalSessions,
+  terminalSessionRestoreKey,
+} from './lib/terminal-session-restore'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
 
@@ -128,6 +134,8 @@ function AppContent() {
   )
   const terminalSessionsRef = useRef(terminalSessions)
   terminalSessionsRef.current = terminalSessions
+  const pendingTerminalDisplayNamesRef = useRef<Map<string, string>>(new Map())
+  const terminalSessionsRestoredRef = useRef(false)
   // --- State for active syncs (lifted from FileSyncerView) ---
   const [activeWatchers, setActiveWatchers] = useState<Record<string, boolean>>(
     {}
@@ -1152,9 +1160,13 @@ function AppContent() {
           counter++
           displayName = `${baseName} (${counter})`
         }
+        const restoredDisplayName = pendingTerminalDisplayNamesRef.current.get(
+          sessionInfo.id
+        )
+        pendingTerminalDisplayNamesRef.current.delete(sessionInfo.id)
         const newSession: TerminalSession = {
           ...sessionInfo,
-          displayName,
+          displayName: restoredDisplayName || displayName,
           status: 'connecting', // 初始化状态为连接中
         }
         setTerminalSessions((prev) => [...prev, newSession])
@@ -1219,6 +1231,39 @@ function AppContent() {
     showDialog,
     onOpenTerminal: createNewTerminalSession,
   })
+
+  useEffect(() => {
+    if (!isBackendReady || terminalSessionsRestoredRef.current) return
+
+    terminalSessionsRestoredRef.current = true
+    const restoredSessions = getAutoRestorableTerminalSessions(
+      parseRestorableTerminalSessions(
+        localStorage.getItem(terminalSessionRestoreKey)
+      )
+    )
+
+    restoredSessions.forEach((session) => {
+      pendingTerminalDisplayNamesRef.current.set(
+        session.id,
+        session.displayName
+      )
+      void connect({
+        alias: session.alias,
+        type: session.type,
+        sessionID: session.id,
+        strategy: 'internal',
+      })
+    })
+  }, [connect, isBackendReady])
+
+  useEffect(() => {
+    if (!terminalSessionsRestoredRef.current) return
+
+    localStorage.setItem(
+      terminalSessionRestoreKey,
+      serializeRestorableTerminalSessions(terminalSessions)
+    )
+  }, [terminalSessions])
 
   const reconnectTerminal = useCallback(
     (sessionId: string) => {

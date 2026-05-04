@@ -6,12 +6,19 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { IntegratedTerminal } from '@/components/sshgate/IntegratedTerminal'
 import type { ConnectionStatus, TerminalSession } from '@/App'
 import { Button } from '@/components/ui/button'
-import { Plus, XIcon, MoreVertical, ChevronDown } from 'lucide-react'
+import {
+  Columns2,
+  PanelRightClose,
+  Plus,
+  XIcon,
+  MoreVertical,
+  ChevronDown,
+} from 'lucide-react'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -110,6 +117,7 @@ export function TerminalView({
     string | null
   >(null)
   const [dontAskAgain, setDontAskAgain] = useState(false)
+  const [splitSessionId, setSplitSessionId] = useState<string | null>(null)
 
   // Effect to handle all theme updates, including system theme changes
   const currentTerminalTheme = useMemo((): ITheme => {
@@ -304,6 +312,33 @@ export function TerminalView({
       activeSession: index > -1 ? terminalSessions[index] : null,
     }
   }, [terminalSessions, activeTerminalId])
+
+  useEffect(() => {
+    if (
+      splitSessionId &&
+      (!terminalSessions.some((session) => session.id === splitSessionId) ||
+        splitSessionId === activeTerminalId)
+    ) {
+      setSplitSessionId(null)
+    }
+  }, [activeTerminalId, splitSessionId, terminalSessions])
+
+  const splitSession = useMemo(() => {
+    if (!splitSessionId) return null
+    return (
+      terminalSessions.find((session) => session.id === splitSessionId) ?? null
+    )
+  }, [splitSessionId, terminalSessions])
+
+  const handleOpenSplit = useCallback(() => {
+    if (!activeTerminalId) return
+    const nextSession = terminalSessions.find(
+      (session) => session.id !== activeTerminalId
+    )
+    if (nextSession) {
+      setSplitSessionId(nextSession.id)
+    }
+  }, [activeTerminalId, terminalSessions])
 
   // Determine if the currently active tab is hidden inside the dropdown
   const isActiveTabHidden =
@@ -650,6 +685,28 @@ export function TerminalView({
         </div>
 
         <div className="ml-auto flex items-center gap-2 p-1 flex-shrink-0">
+          {splitSession ? (
+            <Button
+              onClick={() => setSplitSessionId(null)}
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              title="Close Split"
+            >
+              <PanelRightClose className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button
+              onClick={handleOpenSplit}
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              title="Split Terminal"
+              disabled={terminalSessions.length < 2}
+            >
+              <Columns2 className="h-4 w-4" />
+            </Button>
+          )}
           {/* New Terminal Button */}
           <Button
             ref={newTabButtonRef}
@@ -719,23 +776,52 @@ export function TerminalView({
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="flex-grow relative">
+      <div
+        className={cn(
+          'flex-grow min-h-0',
+          splitSession ? 'grid grid-cols-2 gap-2 p-2' : 'relative'
+        )}
+      >
         {terminalSessions.map((session) => (
           // 添加 forceMount 属性！
           // 这会强制 shadcn/ui 始终渲染所有的 Tab 内容，
           // 只是用 CSS 隐藏非激活的，而不是销毁它们。
-          <TabsContent
+          <div
             key={session.id}
-            value={session.id}
-            forceMount
+            style={
+              splitSession
+                ? {
+                    order:
+                      session.id === activeTerminalId
+                        ? 1
+                        : session.id === splitSession.id
+                          ? 2
+                          : 3,
+                  }
+                : undefined
+            }
             // 使用 z-index 确保只有激活的 Tab 在最上层接收事件
-            className={`absolute inset-0 h-full w-full ${activeTerminalId === session.id ? 'z-10' : 'z-0'}`}
+            className={cn(
+              splitSession
+                ? session.id === activeTerminalId ||
+                  session.id === splitSession.id
+                  ? 'relative m-0 h-full w-full overflow-hidden rounded-md border'
+                  : 'absolute inset-0 m-0 h-full w-full opacity-0 pointer-events-none'
+                : 'absolute inset-0 m-0 h-full w-full',
+              activeTerminalId === session.id || session.id === splitSession?.id
+                ? 'z-10'
+                : 'z-0'
+            )}
           >
             <IntegratedTerminal
               websocketUrl={session.url}
               id={session.id}
               displayName={session.displayName}
-              isVisible={isActive && activeTerminalId === session.id}
+              isVisible={
+                isActive &&
+                (activeTerminalId === session.id ||
+                  splitSession?.id === session.id)
+              }
               sessionType={session.alias === 'local' ? 'local' : 'remote'}
               onReconnect={() => onReconnectTerminal(session.id)}
               onStatusChange={onStatusChange}
@@ -750,7 +836,7 @@ export function TerminalView({
               cursorStyle={terminalCursorStyle}
               cursorBlink={terminalCursorBlink}
             />
-          </TabsContent>
+          </div>
         ))}
       </div>
     </Tabs>
