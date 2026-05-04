@@ -61,6 +61,8 @@ export function Startup(arg1:context.Context):Promise<void>;
 
 export function StopForward(arg1:string):Promise<void>;
 
+export function StopTunnelProfile(arg1:string):Promise<Array<sshgate.TunnelProfileStopResult>>;
+
 export function TrustHostKeyForTunnel(arg1:string):Promise<void>;
 
 export function UpdateHostsOrder(arg1:Array<string>):Promise<void>;

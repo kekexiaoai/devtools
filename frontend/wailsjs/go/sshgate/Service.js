@@ -114,6 +114,10 @@ export function StopForward(arg1) {
   return window['go']['sshgate']['Service']['StopForward'](arg1);
 }
 
+export function StopTunnelProfile(arg1) {
+  return window['go']['sshgate']['Service']['StopTunnelProfile'](arg1);
+}
+
 export function TrustHostKeyForTunnel(arg1) {
   return window['go']['sshgate']['Service']['TrustHostKeyForTunnel'](arg1);
 }

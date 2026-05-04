@@ -271,6 +271,30 @@ export namespace sshgate {
 	        this.missing = source["missing"];
 	    }
 	}
+	export class TunnelProfileStopResult {
+	    tunnelId: string;
+	    tunnelName: string;
+	    runtimeId?: string;
+	    status: string;
+	    error?: string;
+	    notRunning: boolean;
+	    missing: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TunnelProfileStopResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tunnelId = source["tunnelId"];
+	        this.tunnelName = source["tunnelName"];
+	        this.runtimeId = source["runtimeId"];
+	        this.status = source["status"];
+	        this.error = source["error"];
+	        this.notRunning = source["notRunning"];
+	        this.missing = source["missing"];
+	    }
+	}
 
 }
 

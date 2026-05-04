@@ -77,3 +77,25 @@ func TestDeleteTunnelConfigRemovesTunnelFromProfiles(t *testing.T) {
 		t.Fatalf("expected deleted tunnel ID to be removed, got %v", profiles[0].TunnelIDs)
 	}
 }
+
+func TestStopTunnelProfileReportsMissingAndNotRunningTunnels(t *testing.T) {
+	service := newProfileTestService(t)
+	service.profilesConfig.Profiles = []TunnelProfile{
+		{ID: "profile-1", Name: "Backend", TunnelIDs: []string{"tunnel-1", "missing"}},
+	}
+
+	results, err := service.StopTunnelProfile("profile-1")
+	if err != nil {
+		t.Fatalf("StopTunnelProfile returned error: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("expected two stop results, got %d", len(results))
+	}
+	if results[0].Status != "not_running" || !results[0].NotRunning {
+		t.Fatalf("expected first tunnel to be not_running, got %#v", results[0])
+	}
+	if results[1].Status != "missing" || !results[1].Missing {
+		t.Fatalf("expected second tunnel to be missing, got %#v", results[1])
+	}
+}

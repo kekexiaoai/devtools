@@ -24,6 +24,7 @@ import {
   RunTunnelPreflight,
   SaveTunnelProfile,
   StartTunnelFromConfig,
+  StopTunnelProfile,
   StopForward,
   UpdateTunnelsOrder,
 } from '@wailsjs/go/sshgate/Service'
@@ -63,6 +64,7 @@ import {
   PlusCircle,
   Server,
   Settings,
+  StopCircle,
   ActivitySquare,
   TerminalSquare,
   TrainFrontTunnel,
@@ -146,6 +148,7 @@ function AppContent() {
   tunnelProfilesRef.current = tunnelProfiles
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false)
   const [startingProfileIds, setStartingProfileIds] = useState<string[]>([])
+  const [stoppingProfileIds, setStoppingProfileIds] = useState<string[]>([])
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
 
   const [activeTunnels, setActiveTunnels] = useState<
@@ -925,6 +928,60 @@ function AppContent() {
     [confirmTunnelsPortConflicts, startTunnel]
   )
 
+  const handleStopTunnelProfile = useCallback(
+    (profileId: string) => {
+      void (async () => {
+        const profile = tunnelProfilesRef.current.find(
+          (p) => p.id === profileId
+        )
+        if (!profile) {
+          toast.error('Could not find tunnel profile.')
+          return
+        }
+
+        const runningCount = activeTunnelsRef.current.filter(
+          (tunnel) =>
+            profile.tunnelIds.includes(tunnel.configId) &&
+            tunnel.status !== 'stopping'
+        ).length
+        if (runningCount === 0) {
+          toast.info(`No running tunnels in "${profile.name}".`)
+          return
+        }
+
+        setStoppingProfileIds((prev) =>
+          prev.includes(profileId) ? prev : [...prev, profileId]
+        )
+        try {
+          const results = await StopTunnelProfile(profileId)
+          const stoppedCount = results.filter(
+            (result) => result.status === 'stopped'
+          ).length
+          const failedResults = results.filter(
+            (result) => result.status === 'failed'
+          )
+          if (failedResults.length > 0) {
+            toast.error(
+              `Stopped ${stoppedCount} tunnel(s) in "${profile.name}", ${failedResults.length} failed.`
+            )
+          } else {
+            toast.success(
+              `Stopped ${stoppedCount} tunnel(s) in "${profile.name}".`
+            )
+          }
+          void fetchActiveTunnels()
+        } catch (error) {
+          toast.error(
+            `Failed to stop profile "${profile.name}": ${String(error)}`
+          )
+        } finally {
+          setStoppingProfileIds((prev) => prev.filter((id) => id !== profileId))
+        }
+      })()
+    },
+    [fetchActiveTunnels]
+  )
+
   useEffect(() => {
     const savedTunnelIds = new Set(savedTunnels.map((tunnel) => tunnel.id))
     const nextStatusMap = Object.fromEntries(
@@ -1315,21 +1372,36 @@ function AppContent() {
     }))
 
     const savedTunnelIds = new Set(savedTunnels.map((tunnel) => tunnel.id))
-    const profileCommands = tunnelProfiles.map<CommandPaletteItem>(
+    const profileCommands = tunnelProfiles.flatMap<CommandPaletteItem>(
       (profile) => {
         const validTunnelCount = profile.tunnelIds.filter((id) =>
           savedTunnelIds.has(id)
         ).length
-        return {
-          id: `start-profile-${profile.id}`,
-          title: `Start Profile: ${profile.name}`,
-          group: 'Profiles',
-          keywords: ['workspace', 'tunnel', profile.name],
-          disabled:
-            validTunnelCount === 0 || startingProfileIds.includes(profile.id),
-          icon: <FolderKanban className="h-4 w-4" />,
-          run: () => handleStartTunnelProfile(profile.id),
-        }
+        const runningCount = profile.tunnelIds.filter((id) =>
+          activeConfigIds.has(id)
+        ).length
+        return [
+          {
+            id: `start-profile-${profile.id}`,
+            title: `Start Profile: ${profile.name}`,
+            group: 'Profiles',
+            keywords: ['workspace', 'tunnel', profile.name],
+            disabled:
+              validTunnelCount === 0 || startingProfileIds.includes(profile.id),
+            icon: <FolderKanban className="h-4 w-4" />,
+            run: () => handleStartTunnelProfile(profile.id),
+          },
+          {
+            id: `stop-profile-${profile.id}`,
+            title: `Stop Profile: ${profile.name}`,
+            group: 'Profiles',
+            keywords: ['workspace', 'tunnel', profile.name, 'stop'],
+            disabled:
+              runningCount === 0 || stoppingProfileIds.includes(profile.id),
+            icon: <StopCircle className="h-4 w-4" />,
+            run: () => handleStopTunnelProfile(profile.id),
+          },
+        ]
       }
     )
 
@@ -1345,8 +1417,10 @@ function AppContent() {
     handleOpenCreateTunnel,
     handleStartTunnel,
     handleStartTunnelProfile,
+    handleStopTunnelProfile,
     savedTunnels,
     startingProfileIds,
+    stoppingProfileIds,
     startingTunnelIds,
     tunnelProfiles,
   ])
@@ -1367,9 +1441,11 @@ function AppContent() {
           onOpenCreateTunnel={handleOpenCreateTunnel}
           onOpenProfileManager={() => setIsProfileDialogOpen(true)}
           onStartTunnelProfile={handleStartTunnelProfile}
+          onStopTunnelProfile={handleStopTunnelProfile}
           activeSyncsCount={activeSyncsCount} // Pass calculated count
           tunnelProfiles={tunnelProfiles}
           startingProfileIds={startingProfileIds}
+          stoppingProfileIds={stoppingProfileIds}
         />
       ),
       FileSyncer: (
@@ -1449,8 +1525,10 @@ function AppContent() {
     tunnelPreflightResults,
     autoRestartState,
     handleStartTunnelProfile,
+    handleStopTunnelProfile,
     tunnelProfiles,
     startingProfileIds,
+    stoppingProfileIds,
     handleOpenCreateTunnel,
     activeTool,
     isDarkMode,
@@ -1563,6 +1641,11 @@ function AppContent() {
         onOpenChange={setIsProfileDialogOpen}
         profiles={tunnelProfiles}
         savedTunnels={savedTunnels}
+        activeTunnels={activeTunnels}
+        startingProfileIds={startingProfileIds}
+        stoppingProfileIds={stoppingProfileIds}
+        onStartProfile={handleStartTunnelProfile}
+        onStopProfile={handleStopTunnelProfile}
         onSaveProfile={handleSaveTunnelProfile}
         onDeleteProfile={handleDeleteTunnelProfile}
       />

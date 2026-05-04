@@ -36,9 +36,11 @@ interface DashboardViewProps {
   onOpenCreateTunnel: () => void
   onOpenProfileManager: () => void
   onStartTunnelProfile: (profileId: string) => void
+  onStopTunnelProfile: (profileId: string) => void
   activeSyncsCount: number
   tunnelProfiles: sshgate.TunnelProfile[]
   startingProfileIds: string[]
+  stoppingProfileIds: string[]
 }
 
 export function DashboardView({
@@ -51,9 +53,11 @@ export function DashboardView({
   onOpenCreateTunnel,
   onOpenProfileManager,
   onStartTunnelProfile,
+  onStopTunnelProfile,
   activeSyncsCount,
   tunnelProfiles,
   startingProfileIds,
+  stoppingProfileIds,
 }: DashboardViewProps) {
   const systemStatus = {
     ...getTunnelHealthSummary(activeTunnels),
@@ -177,6 +181,12 @@ export function DashboardView({
                       savedTunnelIds.has(id)
                     ).length
                     const isStarting = startingProfileIds.includes(profile.id)
+                    const isStopping = stoppingProfileIds.includes(profile.id)
+                    const runningCount = activeTunnels.filter(
+                      (tunnel) =>
+                        profile.tunnelIds.includes(tunnel.configId) &&
+                        tunnel.status === 'active'
+                    ).length
                     return (
                       <div
                         key={profile.id}
@@ -193,18 +203,33 @@ export function DashboardView({
                             </div>
                           </div>
                         </div>
-                        <Button
-                          size="sm"
-                          onClick={() => onStartTunnelProfile(profile.id)}
-                          disabled={isStarting || validTunnelCount === 0}
-                        >
-                          {isStarting ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <Play className="mr-2 h-4 w-4" />
-                          )}
-                          {isStarting ? 'Starting' : 'Start'}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onStopTunnelProfile(profile.id)}
+                            disabled={isStopping || runningCount === 0}
+                          >
+                            {isStopping ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <StopCircle className="mr-2 h-4 w-4" />
+                            )}
+                            {isStopping ? 'Stopping' : 'Stop'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => onStartTunnelProfile(profile.id)}
+                            disabled={isStarting || validTunnelCount === 0}
+                          >
+                            {isStarting ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Play className="mr-2 h-4 w-4" />
+                            )}
+                            {isStarting ? 'Starting' : 'Start'}
+                          </Button>
+                        </div>
                       </div>
                     )
                   })}

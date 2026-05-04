@@ -38,6 +38,17 @@ type TunnelProfileStartResult struct {
 	Missing        bool   `json:"missing"`
 }
 
+// TunnelProfileStopResult records the stop outcome for one saved tunnel.
+type TunnelProfileStopResult struct {
+	TunnelID   string `json:"tunnelId"`
+	TunnelName string `json:"tunnelName"`
+	RuntimeID  string `json:"runtimeId,omitempty"`
+	Status     string `json:"status"`
+	Error      string `json:"error,omitempty"`
+	NotRunning bool   `json:"notRunning"`
+	Missing    bool   `json:"missing"`
+}
+
 func (s *Service) profilesPath() (string, error) {
 	if s.profilesConfigPath != "" {
 		return s.profilesConfigPath, nil
@@ -218,6 +229,47 @@ func (s *Service) StartTunnelProfile(profileID string, password string) ([]Tunne
 	return results, nil
 }
 
+// StopTunnelProfile stops or clears all runtime tunnels referenced by the profile.
+func (s *Service) StopTunnelProfile(profileID string) ([]TunnelProfileStopResult, error) {
+	profile, err := s.findTunnelProfile(profileID)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]TunnelProfileStopResult, 0, len(profile.TunnelIDs))
+	for _, tunnelID := range profile.TunnelIDs {
+		tunnelName, exists := s.savedTunnelName(tunnelID)
+		result := TunnelProfileStopResult{
+			TunnelID:   tunnelID,
+			TunnelName: tunnelName,
+		}
+		if !exists {
+			result.Status = "missing"
+			result.Missing = true
+			results = append(results, result)
+			continue
+		}
+
+		runtimeID, ok := s.runtimeIDForConfig(tunnelID)
+		if !ok {
+			result.Status = "not_running"
+			result.NotRunning = true
+			results = append(results, result)
+			continue
+		}
+
+		result.RuntimeID = runtimeID
+		if stopErr := s.StopForward(runtimeID); stopErr != nil {
+			result.Status = "failed"
+			result.Error = stopErr.Error()
+		} else {
+			result.Status = "stopped"
+		}
+		results = append(results, result)
+	}
+	return results, nil
+}
+
 func (s *Service) findTunnelProfile(profileID string) (TunnelProfile, error) {
 	s.profileMu.RLock()
 	defer s.profileMu.RUnlock()
@@ -269,6 +321,15 @@ func (s *Service) savedTunnelName(id string) (string, bool) {
 func (s *Service) activeRuntimeIDForConfig(configID string) (string, bool) {
 	for _, tunnel := range s.GetActiveTunnels() {
 		if tunnel.ConfigID == configID && tunnel.Status == "active" {
+			return tunnel.ID, true
+		}
+	}
+	return "", false
+}
+
+func (s *Service) runtimeIDForConfig(configID string) (string, bool) {
+	for _, tunnel := range s.GetActiveTunnels() {
+		if tunnel.ConfigID == configID {
 			return tunnel.ID, true
 		}
 	}

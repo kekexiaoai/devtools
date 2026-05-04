@@ -13,13 +13,18 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { formatTunnelDescription } from '@/lib/tunnel-utils'
-import { Loader2, Plus, Trash2 } from 'lucide-react'
+import { Loader2, Play, Plus, StopCircle, Trash2 } from 'lucide-react'
 
 interface TunnelProfileDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   profiles: sshgate.TunnelProfile[]
   savedTunnels: sshtunnel.SavedTunnelConfig[]
+  activeTunnels: sshtunnel.ActiveTunnelInfo[]
+  startingProfileIds: string[]
+  stoppingProfileIds: string[]
+  onStartProfile: (id: string) => void
+  onStopProfile: (id: string) => void
   onSaveProfile: (profile: sshgate.TunnelProfile) => Promise<void>
   onDeleteProfile: (id: string) => Promise<void>
 }
@@ -31,6 +36,11 @@ export function TunnelProfileDialog({
   onOpenChange,
   profiles,
   savedTunnels,
+  activeTunnels,
+  startingProfileIds,
+  stoppingProfileIds,
+  onStartProfile,
+  onStopProfile,
   onSaveProfile,
   onDeleteProfile,
 }: TunnelProfileDialogProps) {
@@ -43,6 +53,14 @@ export function TunnelProfileDialog({
   const selectedProfile = useMemo(() => {
     return profiles.find((profile) => profile.id === selectedProfileId)
   }, [profiles, selectedProfileId])
+
+  const activeConfigIds = useMemo(() => {
+    return new Set(
+      activeTunnels
+        .filter((tunnel) => tunnel.status === 'active')
+        .map((tunnel) => tunnel.configId)
+    )
+  }, [activeTunnels])
 
   useEffect(() => {
     if (!open) return
@@ -108,6 +126,17 @@ export function TunnelProfileDialog({
 
   const isBusy = isSaving || isDeleting
   const canSave = name.trim().length > 0 && !isBusy
+  const selectedRunningCount =
+    selectedProfile?.tunnelIds.filter((id) => activeConfigIds.has(id)).length ??
+    0
+  const selectedValidCount =
+    selectedProfile?.tunnelIds.filter((id) =>
+      savedTunnels.some((tunnel) => tunnel.id === id)
+    ).length ?? 0
+  const isStartingSelectedProfile =
+    !!selectedProfile && startingProfileIds.includes(selectedProfile.id)
+  const isStoppingSelectedProfile =
+    !!selectedProfile && stoppingProfileIds.includes(selectedProfile.id)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -204,6 +233,44 @@ export function TunnelProfileDialog({
         </div>
 
         <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => selectedProfile && onStopProfile(selectedProfile.id)}
+            disabled={
+              !selectedProfile ||
+              isBusy ||
+              isStoppingSelectedProfile ||
+              selectedRunningCount === 0
+            }
+          >
+            {isStoppingSelectedProfile ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <StopCircle className="mr-2 h-4 w-4" />
+            )}
+            Stop
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              selectedProfile && onStartProfile(selectedProfile.id)
+            }
+            disabled={
+              !selectedProfile ||
+              isBusy ||
+              isStartingSelectedProfile ||
+              selectedValidCount === 0
+            }
+          >
+            {isStartingSelectedProfile ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="mr-2 h-4 w-4" />
+            )}
+            Start
+          </Button>
           <Button
             type="button"
             variant="destructive"
