@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -691,7 +692,7 @@ function TimestampToolWorkspace({
           </Button>
         </div>
 
-        <ToolTextPanel
+        <TimestampInputField
           label="Timestamp Input"
           value={state.input}
           onChange={onInputChange}
@@ -710,6 +711,36 @@ function TimestampToolWorkspace({
           ))}
         </div>
       </div>
+    </div>
+  )
+}
+
+function TimestampInputField({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+}) {
+  return (
+    <div className="grid gap-1.5">
+      <label
+        htmlFor="timestamp-input"
+        className="text-sm font-semibold text-foreground"
+      >
+        {label}
+      </label>
+      <Input
+        id="timestamp-input"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="font-mono text-sm"
+      />
     </div>
   )
 }

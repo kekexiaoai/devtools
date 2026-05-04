@@ -62,5 +62,6 @@ describe('JsonToolsView text tools', () => {
     expect(screen.getByText('SQL UTC')).toBeTruthy()
     expect(screen.getByText('UTC')).toBeTruthy()
     expect(screen.getByText('Relative')).toBeTruthy()
+    expect(screen.getByLabelText('Timestamp Input').tagName).toBe('INPUT')
   })
 })
