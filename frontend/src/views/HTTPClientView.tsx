@@ -92,99 +92,109 @@ export function HTTPClientView() {
         </Button>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(420px,0.85fr)_minmax(520px,1.15fr)]">
-        <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
-          <Card>
-            <CardHeader>
-              <CardTitle>Request</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              <div className="grid gap-2 md:grid-cols-[9rem_1fr_6rem]">
-                <select
-                  value={method}
-                  onChange={(event) =>
-                    setMethod(event.target.value as typeof method)
-                  }
-                  className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  {httpMethods.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-                <Input
-                  value={url}
-                  onChange={(event) => setUrl(event.target.value)}
-                  placeholder="https://api.example.com/resource"
-                />
-                <Input
-                  value={timeoutSeconds}
-                  onChange={(event) => setTimeoutSeconds(event.target.value)}
-                  inputMode="numeric"
-                  placeholder="30"
-                  title="Timeout seconds"
-                />
-              </div>
-              <Textarea
-                value={headersText}
-                onChange={(event) => setHeadersText(event.target.value)}
-                className="min-h-28 font-mono text-sm"
-                placeholder="Header-Name: value"
-              />
-              <Textarea
-                value={body}
-                onChange={(event) => setBody(event.target.value)}
-                className="min-h-48 font-mono text-sm"
-                placeholder="Request body..."
-              />
-            </CardContent>
-          </Card>
-
-          <Card className="min-h-0 overflow-hidden">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <History className="h-4 w-4" />
-                History
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="min-h-0 overflow-auto">
-              {history.length ? (
-                <div className="space-y-2">
-                  {history.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => {
-                        setMethod(item.method as typeof method)
-                        setUrl(item.url)
-                      }}
-                      className="grid w-full gap-1 rounded-md border p-2 text-left text-sm hover:bg-muted"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium">
-                          {item.method} {item.statusCode}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {item.durationMs} ms
-                        </span>
-                      </div>
-                      <span className="truncate font-mono text-xs text-muted-foreground">
-                        {item.url}
+      <div
+        data-testid="http-client-workspace"
+        className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[18rem_minmax(440px,0.9fr)_minmax(520px,1.1fr)]"
+      >
+        <Card
+          data-testid="http-history-panel"
+          className="min-h-0 overflow-hidden"
+        >
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <History className="h-4 w-4" />
+              History
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="h-full min-h-0 overflow-auto pb-6">
+            {history.length ? (
+              <div className="space-y-2">
+                {history.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setMethod(item.method as typeof method)
+                      setUrl(item.url)
+                    }}
+                    className="grid w-full gap-1 rounded-md border p-2 text-left text-sm hover:bg-muted"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium">
+                        {item.method} {item.statusCode}
                       </span>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">
-                  No requests sent yet.
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                      <span className="text-xs text-muted-foreground">
+                        {item.durationMs} ms
+                      </span>
+                    </div>
+                    <span className="truncate font-mono text-xs text-muted-foreground">
+                      {item.url}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">
+                No requests sent yet.
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-        <Card className="min-h-0 overflow-hidden">
-          <CardHeader>
+        <Card
+          data-testid="http-request-panel"
+          className="min-h-0 overflow-hidden"
+        >
+          <CardHeader className="pb-3">
+            <CardTitle>Request</CardTitle>
+          </CardHeader>
+          <CardContent className="grid h-full min-h-0 grid-rows-[auto_minmax(110px,0.34fr)_minmax(150px,0.66fr)] gap-3 pb-6">
+            <div className="grid gap-2 md:grid-cols-[8rem_1fr_5rem]">
+              <select
+                value={method}
+                onChange={(event) =>
+                  setMethod(event.target.value as typeof method)
+                }
+                className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                {httpMethods.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+              <Input
+                value={url}
+                onChange={(event) => setUrl(event.target.value)}
+                placeholder="https://api.example.com/resource"
+              />
+              <Input
+                value={timeoutSeconds}
+                onChange={(event) => setTimeoutSeconds(event.target.value)}
+                inputMode="numeric"
+                placeholder="30"
+                title="Timeout seconds"
+              />
+            </div>
+            <Textarea
+              value={headersText}
+              onChange={(event) => setHeadersText(event.target.value)}
+              className="h-full min-h-0 resize-none font-mono text-sm"
+              placeholder="Header-Name: value"
+            />
+            <Textarea
+              value={body}
+              onChange={(event) => setBody(event.target.value)}
+              className="h-full min-h-0 resize-none font-mono text-sm"
+              placeholder="Request body..."
+            />
+          </CardContent>
+        </Card>
+
+        <Card
+          data-testid="http-response-panel"
+          className="min-h-0 overflow-hidden"
+        >
+          <CardHeader className="pb-3">
             <CardTitle className="flex items-center justify-between gap-3">
               <span>Response</span>
               {response && (
@@ -199,7 +209,7 @@ export function HTTPClientView() {
               )}
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-3">
+          <CardContent className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(220px,1fr)] gap-3 pb-6">
             {error && (
               <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
                 {error}
@@ -219,13 +229,14 @@ export function HTTPClientView() {
                 <Textarea
                   readOnly
                   value={responseHeadersText}
-                  className="min-h-28 resize-none font-mono text-xs"
+                  className="h-28 resize-none font-mono text-xs"
                   placeholder="Response headers"
                 />
                 <Textarea
                   readOnly
                   value={response.body}
-                  className="min-h-0 resize-none font-mono text-sm"
+                  data-testid="http-response-body"
+                  className="h-full min-h-0 resize-none font-mono text-sm"
                   placeholder="Response body"
                 />
               </>
