@@ -37,6 +37,8 @@ type App struct {
 	mu           sync.Mutex // 新增：保护 backendReady
 	isDebug      bool
 	isMacOS      bool
+	configDir    string
+	logFilePath  string
 }
 
 // NewApp creates a new App application struct
@@ -89,21 +91,22 @@ func (a *App) initLogger() string {
 		log.Fatalf("无法获取用户配置目录: %v", err)
 	}
 	logDir := filepath.Join(userConfigDir, "DevTools")
+	a.configDir = logDir
+	a.logFilePath = filepath.Join(logDir, "app.log")
 
 	// --- 日志文件初始化 ---
 	if err := os.MkdirAll(logDir, 0o750); err != nil {
 		// 如果创建目录失败，也别让程序崩溃，只是打印出来
 		log.Printf("警告: 创建日志目录失败: %v", err)
 	} else {
-		logFilePath := filepath.Join(logDir, "app.log")
 		// O_CREATE: 如果文件不存在则创建
 		// O_WRONLY: 以只写模式打开
 		// O_APPEND: 在文件末尾追加内容
-		logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o660)
+		logFile, err := os.OpenFile(a.logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o660)
 		if err != nil {
 			log.Printf("警告: 打开日志文件失败: %v", err)
 		} else {
-			fmt.Printf("运行模式: debug=%t, 日志文件路径: %s\n", a.isDebug, logFilePath)
+			fmt.Printf("运行模式: debug=%t, 日志文件路径: %s\n", a.isDebug, a.logFilePath)
 			// 将日志输出重定向到文件
 			// 在开发模式下，我们希望日志同时输出到终端和文件
 			// 在生产模式下，只输出到文件
