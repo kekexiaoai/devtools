@@ -20,8 +20,12 @@ import { useDialog } from '@/hooks/useDialog'
 import {
   decodeBase64Text,
   decodeUrlText,
+  decodeJwt,
   encodeBase64Text,
   encodeUrlText,
+  convertUnixTimestamp,
+  generateUuidV4,
+  hashText,
 } from '@/lib/text-tools'
 
 type TextToolAction =
@@ -29,6 +33,13 @@ type TextToolAction =
   | 'base64-decode'
   | 'url-encode'
   | 'url-decode'
+  | 'hash-md5'
+  | 'hash-sha1'
+  | 'hash-sha256'
+  | 'hash-sha512'
+  | 'jwt-decode'
+  | 'timestamp-convert'
+  | 'uuid-generate'
 
 export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
   const [input, setInput] = useState('')
@@ -115,9 +126,9 @@ export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
     setValidation({ isValid: null, message: '' })
   }
 
-  const runTextTool = (action: TextToolAction) => {
+  const runTextTool = async (action: TextToolAction) => {
     try {
-      const nextOutput = transformText(action, textInput)
+      const nextOutput = await transformText(action, textInput)
       setTextOutput(nextOutput)
       setTextStatus({ isValid: true, message: getTextToolLabel(action) })
     } catch (error) {
@@ -252,20 +263,68 @@ export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
       <TabsContent value="text" className="min-h-0">
         <div className="flex h-full flex-col space-y-4">
           <div className="flex-shrink-0 flex flex-wrap items-center gap-2">
-            <Button onClick={() => runTextTool('base64-encode')}>
+            <Button onClick={() => void runTextTool('base64-encode')}>
               <LockKeyhole className="mr-2 h-4 w-4" /> Base64 Encode
             </Button>
             <Button
-              onClick={() => runTextTool('base64-decode')}
+              onClick={() => void runTextTool('base64-decode')}
               variant="outline"
             >
               <LockKeyhole className="mr-2 h-4 w-4" /> Base64 Decode
             </Button>
-            <Button onClick={() => runTextTool('url-encode')} variant="outline">
+            <Button
+              onClick={() => void runTextTool('url-encode')}
+              variant="outline"
+            >
               <Link className="mr-2 h-4 w-4" /> URL Encode
             </Button>
-            <Button onClick={() => runTextTool('url-decode')} variant="outline">
+            <Button
+              onClick={() => void runTextTool('url-decode')}
+              variant="outline"
+            >
               <Link className="mr-2 h-4 w-4" /> URL Decode
+            </Button>
+            <Button
+              onClick={() => void runTextTool('hash-md5')}
+              variant="outline"
+            >
+              MD5
+            </Button>
+            <Button
+              onClick={() => void runTextTool('hash-sha256')}
+              variant="outline"
+            >
+              SHA-256
+            </Button>
+            <Button
+              onClick={() => void runTextTool('hash-sha1')}
+              variant="outline"
+            >
+              SHA-1
+            </Button>
+            <Button
+              onClick={() => void runTextTool('hash-sha512')}
+              variant="outline"
+            >
+              SHA-512
+            </Button>
+            <Button
+              onClick={() => void runTextTool('jwt-decode')}
+              variant="outline"
+            >
+              JWT Decode
+            </Button>
+            <Button
+              onClick={() => void runTextTool('timestamp-convert')}
+              variant="outline"
+            >
+              Timestamp
+            </Button>
+            <Button
+              onClick={() => void runTextTool('uuid-generate')}
+              variant="outline"
+            >
+              UUID
             </Button>
             <div className="flex-grow" />
             <Button
@@ -363,7 +422,10 @@ function ToolTextPanel({
   )
 }
 
-function transformText(action: TextToolAction, value: string): string {
+async function transformText(
+  action: TextToolAction,
+  value: string
+): Promise<string> {
   switch (action) {
     case 'base64-encode':
       return encodeBase64Text(value)
@@ -373,6 +435,22 @@ function transformText(action: TextToolAction, value: string): string {
       return encodeUrlText(value)
     case 'url-decode':
       return decodeUrlText(value)
+    case 'hash-md5':
+      return hashText(value, 'MD5')
+    case 'hash-sha1':
+      return hashText(value, 'SHA-1')
+    case 'hash-sha256':
+      return hashText(value, 'SHA-256')
+    case 'hash-sha512':
+      return hashText(value, 'SHA-512')
+    case 'jwt-decode':
+      return JSON.stringify(decodeJwt(value), null, 2)
+    case 'timestamp-convert':
+      return JSON.stringify(convertUnixTimestamp(value), null, 2)
+    case 'uuid-generate': {
+      const count = Number(value.trim() || '1')
+      return generateUuidV4(Number.isFinite(count) ? count : 1).join('\n')
+    }
   }
 }
 
@@ -386,5 +464,19 @@ function getTextToolLabel(action: TextToolAction): string {
       return 'URL encoded.'
     case 'url-decode':
       return 'URL decoded.'
+    case 'hash-md5':
+      return 'MD5 hash generated.'
+    case 'hash-sha1':
+      return 'SHA-1 hash generated.'
+    case 'hash-sha256':
+      return 'SHA-256 hash generated.'
+    case 'hash-sha512':
+      return 'SHA-512 hash generated.'
+    case 'jwt-decode':
+      return 'JWT decoded.'
+    case 'timestamp-convert':
+      return 'Timestamp converted.'
+    case 'uuid-generate':
+      return 'UUID generated.'
   }
 }
