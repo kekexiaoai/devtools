@@ -53,11 +53,11 @@ const (
 
 // SavedTunnelConfig represents a persistently stored tunnel configuration.
 type SavedTunnelConfig struct {
-	ID         string `json:"id"`         // Unique ID, e.g., UUID
-	Name       string `json:"name"`       // User-defined name, e.g., "Access Corp DB"
-	TunnelType string `json:"tunnelType"` // "local" or "dynamic"
-	LocalPort  int    `json:"localPort"`
-	GatewayPorts bool `json:"gatewayPorts"`
+	ID           string `json:"id"`         // Unique ID, e.g., UUID
+	Name         string `json:"name"`       // User-defined name, e.g., "Access Corp DB"
+	TunnelType   string `json:"tunnelType"` // "local" or "dynamic"
+	LocalPort    int    `json:"localPort"`
+	GatewayPorts bool   `json:"gatewayPorts"`
 
 	// --- Fields for Local Forwarding only ---
 	RemoteHost string `json:"remoteHost,omitempty"`
@@ -85,29 +85,39 @@ type ManualHostInfo struct {
 
 // Tunnel 代表一个活动的端口转发隧道
 type Tunnel struct {
-	ID         string
-	ConfigID   string // New field to link back to the saved config
-	Alias      string
-	Type       string // local, remote, dynamic
-	LocalAddr  string
-	RemoteAddr string
-	Status     TunnelStatus // New field to track the tunnel's state
-	StatusMsg  string       // New field for state
-	sshClient  *ssh.Client
-	listener   net.Listener
-	cancelFunc context.CancelFunc // 用于优雅地关闭隧道
+	ID                   string
+	ConfigID             string // New field to link back to the saved config
+	Alias                string
+	Type                 string // local, remote, dynamic
+	LocalAddr            string
+	RemoteAddr           string
+	Status               TunnelStatus // New field to track the tunnel's state
+	StatusMsg            string       // New field for state
+	StartedAt            time.Time
+	LastStateChangeAt    time.Time
+	LastHealthCheckAt    time.Time
+	LastHealthCheckError string
+	HealthCheckCount     int
+	sshClient            *ssh.Client
+	listener             net.Listener
+	cancelFunc           context.CancelFunc // 用于优雅地关闭隧道
 }
 
 // ActiveTunnelInfo 是一个用于向前端展示的、简化的隧道信息结构
 type ActiveTunnelInfo struct {
-	ID         string       `json:"id"`
-	ConfigID   string       `json:"configId"` // New field for frontend
-	Alias      string       `json:"alias"`
-	Type       string       `json:"type"`
-	LocalAddr  string       `json:"localAddr"`
-	RemoteAddr string       `json:"remoteAddr"`
-	Status     TunnelStatus `json:"status"`
-	StatusMsg  string       `json:"statusMsg"`
+	ID                   string       `json:"id"`
+	ConfigID             string       `json:"configId"` // New field for frontend
+	Alias                string       `json:"alias"`
+	Type                 string       `json:"type"`
+	LocalAddr            string       `json:"localAddr"`
+	RemoteAddr           string       `json:"remoteAddr"`
+	Status               TunnelStatus `json:"status"`
+	StatusMsg            string       `json:"statusMsg"`
+	StartedAt            string       `json:"startedAt"`
+	LastStateChangeAt    string       `json:"lastStateChangeAt"`
+	LastHealthCheckAt    string       `json:"lastHealthCheckAt"`
+	LastHealthCheckError string       `json:"lastHealthCheckError"`
+	HealthCheckCount     int          `json:"healthCheckCount"`
 }
 
 // Manager 负责管理所有活动的隧道
@@ -188,19 +198,22 @@ func (m *Manager) CreateTunnelFromConfig(configID, alias string, localPort int, 
 
 	// 3. Create and register tunnel
 	tunnelID := uuid.NewString()
+	now := time.Now().UTC()
 	ctx, cancel := context.WithCancel(m.appCtx)
 	tunnel := &Tunnel{
-		ID:         tunnelID,
-		ConfigID:   configID, // Store the config ID
-		Alias:      alias,
-		Type:       tunnelType,
-		LocalAddr:  localAddr,
-		RemoteAddr: remoteAddr,
-		sshClient:  sshClient,
-		listener:   listener,
-		cancelFunc: cancel,
-		Status:     StatusActive, // Tunnels start as active.
-		StatusMsg:  "Connection established.",
+		ID:                tunnelID,
+		ConfigID:          configID, // Store the config ID
+		Alias:             alias,
+		Type:              tunnelType,
+		LocalAddr:         localAddr,
+		RemoteAddr:        remoteAddr,
+		StartedAt:         now,
+		LastStateChangeAt: now,
+		sshClient:         sshClient,
+		listener:          listener,
+		cancelFunc:        cancel,
+		Status:            StatusActive, // Tunnels start as active.
+		StatusMsg:         "Connection established.",
 	}
 
 	m.mu.Lock()
@@ -245,6 +258,7 @@ func (m *Manager) monitorSSHConnection(tunnel *Tunnel) {
 	// This was an unexpected disconnection. Update the status.
 	currentTunnel.Status = StatusDisconnected
 	currentTunnel.StatusMsg = fmt.Sprintf("Connection lost: %v", waitErr)
+	currentTunnel.LastStateChangeAt = time.Now().UTC()
 	m.mu.Unlock()
 
 	// Close the listener to unblock the runTunnel goroutine, which will then call cleanup.
@@ -487,6 +501,7 @@ func (m *Manager) StopForward(tunnelID string) error {
 		log.Printf("User requested stop for active tunnel %s. Changing status to 'stopping'.", tunnelID)
 		tunnel.Status = StatusStopping
 		tunnel.StatusMsg = "User initiated stop."
+		tunnel.LastStateChangeAt = time.Now().UTC()
 		// Calling cancelFunc triggers the cleanup cascade.
 		tunnel.cancelFunc()
 	case StatusDisconnected:
@@ -566,14 +581,19 @@ func (m *Manager) GetActiveTunnels() []ActiveTunnelInfo {
 	info := make([]ActiveTunnelInfo, 0, len(m.activeTunnels))
 	for _, tunnel := range m.activeTunnels {
 		info = append(info, ActiveTunnelInfo{
-			ID:         tunnel.ID,
-			ConfigID:   tunnel.ConfigID,
-			Alias:      tunnel.Alias,
-			Type:       tunnel.Type,
-			LocalAddr:  tunnel.LocalAddr,
-			RemoteAddr: tunnel.RemoteAddr,
-			Status:     tunnel.Status,
-			StatusMsg:  tunnel.StatusMsg,
+			ID:                   tunnel.ID,
+			ConfigID:             tunnel.ConfigID,
+			Alias:                tunnel.Alias,
+			Type:                 tunnel.Type,
+			LocalAddr:            tunnel.LocalAddr,
+			RemoteAddr:           tunnel.RemoteAddr,
+			Status:               tunnel.Status,
+			StatusMsg:            tunnel.StatusMsg,
+			StartedAt:            formatHealthTime(tunnel.StartedAt),
+			LastStateChangeAt:    formatHealthTime(tunnel.LastStateChangeAt),
+			LastHealthCheckAt:    formatHealthTime(tunnel.LastHealthCheckAt),
+			LastHealthCheckError: tunnel.LastHealthCheckError,
+			HealthCheckCount:     tunnel.HealthCheckCount,
 		})
 	}
 	return info

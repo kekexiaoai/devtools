@@ -516,6 +516,11 @@ func (a *Service) GetActiveTunnels() []sshtunnel.ActiveTunnelInfo {
 	return a.tunnelManager.GetActiveTunnels()
 }
 
+// CheckTunnelHealth runs a manual health check for one runtime tunnel.
+func (a *Service) CheckTunnelHealth(runtimeID string) (*sshtunnel.TunnelHealthCheckResult, error) {
+	return a.tunnelManager.CheckTunnelHealth(runtimeID)
+}
+
 // SavePassword 将密码安全地存储到系统钥匙串中
 func (a *Service) SavePassword(key string, password string) error {
 	return a.sshManager.SavePassword(key, password)
