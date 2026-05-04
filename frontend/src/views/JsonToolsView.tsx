@@ -70,6 +70,7 @@ type TextToolConfig = {
   inputPlaceholder: string
   outputPlaceholder: string
   requiresInput: boolean
+  layout: 'split' | 'stacked' | 'hash' | 'uuid'
 }
 
 const textToolConfigs: TextToolConfig[] = [
@@ -79,6 +80,7 @@ const textToolConfigs: TextToolConfig[] = [
     inputPlaceholder: 'Text to encode as Base64...',
     outputPlaceholder: 'Base64 output will be shown here...',
     requiresInput: true,
+    layout: 'stacked',
   },
   {
     action: 'base64-decode',
@@ -86,6 +88,7 @@ const textToolConfigs: TextToolConfig[] = [
     inputPlaceholder: 'Base64 text to decode...',
     outputPlaceholder: 'Decoded text will be shown here...',
     requiresInput: true,
+    layout: 'stacked',
   },
   {
     action: 'url-encode',
@@ -93,6 +96,7 @@ const textToolConfigs: TextToolConfig[] = [
     inputPlaceholder: 'Text to URL encode...',
     outputPlaceholder: 'URL encoded output will be shown here...',
     requiresInput: true,
+    layout: 'stacked',
   },
   {
     action: 'url-decode',
@@ -100,6 +104,7 @@ const textToolConfigs: TextToolConfig[] = [
     inputPlaceholder: 'URL encoded text to decode...',
     outputPlaceholder: 'URL decoded output will be shown here...',
     requiresInput: true,
+    layout: 'stacked',
   },
   {
     action: 'hash-md5',
@@ -107,6 +112,7 @@ const textToolConfigs: TextToolConfig[] = [
     inputPlaceholder: 'Text to hash with MD5...',
     outputPlaceholder: 'MD5 hash will be shown here...',
     requiresInput: true,
+    layout: 'hash',
   },
   {
     action: 'hash-sha256',
@@ -114,6 +120,7 @@ const textToolConfigs: TextToolConfig[] = [
     inputPlaceholder: 'Text to hash with SHA-256...',
     outputPlaceholder: 'SHA-256 hash will be shown here...',
     requiresInput: true,
+    layout: 'hash',
   },
   {
     action: 'hash-sha1',
@@ -121,6 +128,7 @@ const textToolConfigs: TextToolConfig[] = [
     inputPlaceholder: 'Text to hash with SHA-1...',
     outputPlaceholder: 'SHA-1 hash will be shown here...',
     requiresInput: true,
+    layout: 'hash',
   },
   {
     action: 'hash-sha512',
@@ -128,6 +136,7 @@ const textToolConfigs: TextToolConfig[] = [
     inputPlaceholder: 'Text to hash with SHA-512...',
     outputPlaceholder: 'SHA-512 hash will be shown here...',
     requiresInput: true,
+    layout: 'hash',
   },
   {
     action: 'jwt-decode',
@@ -135,6 +144,7 @@ const textToolConfigs: TextToolConfig[] = [
     inputPlaceholder: 'JWT token to decode...',
     outputPlaceholder: 'Decoded JWT JSON will be shown here...',
     requiresInput: true,
+    layout: 'stacked',
   },
   {
     action: 'timestamp-convert',
@@ -142,6 +152,7 @@ const textToolConfigs: TextToolConfig[] = [
     inputPlaceholder: 'Unix timestamp in seconds or milliseconds...',
     outputPlaceholder: 'Timestamp conversion will be shown here...',
     requiresInput: true,
+    layout: 'split',
   },
   {
     action: 'uuid-generate',
@@ -149,6 +160,7 @@ const textToolConfigs: TextToolConfig[] = [
     inputPlaceholder: 'UUID count, 1-100. Leave empty for 1...',
     outputPlaceholder: 'Generated UUIDs will be shown here...',
     requiresInput: false,
+    layout: 'uuid',
   },
 ]
 
@@ -621,8 +633,84 @@ function TextToolWorkspace({
     )
   }
 
+  if (config.layout === 'stacked') {
+    return (
+      <div
+        data-testid="text-tool-workspace"
+        data-layout="stacked"
+        className="grid h-full min-h-0 grid-rows-2 gap-3 overflow-hidden"
+      >
+        <ToolTextPanel
+          label={`${config.label} Input`}
+          value={state.input}
+          onChange={onInputChange}
+          placeholder={config.inputPlaceholder}
+        />
+        <ToolTextPanel
+          label={`${config.label} Output`}
+          value={state.output}
+          onChange={onOutputChange}
+          placeholder={config.outputPlaceholder}
+          readOnly
+        />
+      </div>
+    )
+  }
+
+  if (config.layout === 'hash') {
+    return (
+      <div
+        data-testid="text-tool-workspace"
+        data-layout="hash"
+        className="grid h-full min-h-0 grid-rows-[minmax(140px,0.45fr)_auto] gap-3 overflow-hidden"
+      >
+        <ToolTextPanel
+          label={`${config.label} Input`}
+          value={state.input}
+          onChange={onInputChange}
+          placeholder={config.inputPlaceholder}
+        />
+        <CompactOutputField
+          label={`${config.label} Hash`}
+          value={state.output}
+          placeholder={config.outputPlaceholder}
+        />
+      </div>
+    )
+  }
+
+  if (config.layout === 'uuid') {
+    return (
+      <div
+        data-testid="text-tool-workspace"
+        data-layout="uuid"
+        className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden"
+      >
+        <NumberInputField
+          label="UUID Count"
+          max={100}
+          min={1}
+          onChange={onInputChange}
+          placeholder="1"
+          value={state.input}
+        />
+        <ToolTextPanel
+          label="Generated UUIDs"
+          value={state.output}
+          onChange={onOutputChange}
+          placeholder={config.outputPlaceholder}
+          readOnly
+        />
+      </div>
+    )
+  }
+
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2">
+    <div
+      data-testid="text-tool-workspace"
+      data-layout="split"
+      className="grid h-full min-h-0 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2"
+    >
       <ToolTextPanel
         label={`${config.label} Input`}
         value={state.input}
@@ -636,6 +724,66 @@ function TextToolWorkspace({
         placeholder={config.outputPlaceholder}
         readOnly
       />
+    </div>
+  )
+}
+
+function NumberInputField({
+  label,
+  max,
+  min,
+  onChange,
+  placeholder,
+  value,
+}: {
+  label: string
+  max: number
+  min: number
+  onChange: (value: string) => void
+  placeholder: string
+  value: string
+}) {
+  const inputId = `${label.toLowerCase().replaceAll(' ', '-')}-input`
+
+  return (
+    <div className="grid max-w-xs gap-1.5">
+      <label
+        htmlFor={inputId}
+        className="text-sm font-semibold text-foreground"
+      >
+        {label}
+      </label>
+      <Input
+        id={inputId}
+        inputMode="numeric"
+        max={max}
+        min={min}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        type="number"
+        value={value}
+      />
+    </div>
+  )
+}
+
+function CompactOutputField({
+  label,
+  placeholder,
+  value,
+}: {
+  label: string
+  placeholder: string
+  value: string
+}) {
+  return (
+    <div className="grid gap-1.5">
+      <label className="text-sm font-semibold text-foreground">{label}</label>
+      <div className="min-h-11 overflow-x-auto rounded-md border border-border bg-muted/30 px-3 py-2 font-mono text-sm">
+        {value || (
+          <span className="font-sans text-muted-foreground">{placeholder}</span>
+        )}
+      </div>
     </div>
   )
 }

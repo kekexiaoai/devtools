@@ -49,6 +49,40 @@ describe('JsonToolsView text tools', () => {
     ).toBeTruthy()
   })
 
+  it('uses a stacked layout for encode and decode tools', () => {
+    renderJsonToolsView()
+
+    fireEvent.click(screen.getByRole('tab', { name: /Base64 Encode/i }))
+
+    expect(
+      screen.getByTestId('text-tool-workspace').getAttribute('data-layout')
+    ).toBe('stacked')
+  })
+
+  it('uses a compact hash result layout', () => {
+    renderJsonToolsView()
+
+    fireEvent.click(screen.getByRole('tab', { name: /^SHA-256$/i }))
+
+    expect(
+      screen.getByTestId('text-tool-workspace').getAttribute('data-layout')
+    ).toBe('hash')
+    expect(screen.getByText('SHA-256 Hash')).toBeTruthy()
+  })
+
+  it('uses a number input for UUID count', () => {
+    renderJsonToolsView()
+
+    fireEvent.click(screen.getByRole('tab', { name: /UUID/i }))
+
+    expect(
+      screen.getByTestId('text-tool-workspace').getAttribute('data-layout')
+    ).toBe('uuid')
+    expect(screen.getByLabelText('UUID Count')).toMatchObject({
+      type: 'number',
+    })
+  })
+
   it('shows a dedicated timestamp converter workspace', () => {
     renderJsonToolsView()
 
