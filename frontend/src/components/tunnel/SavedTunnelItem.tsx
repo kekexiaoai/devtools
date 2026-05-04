@@ -45,6 +45,7 @@ import {
   formatTunnelPortConflict,
   type TunnelPortConflict,
 } from '@/lib/tunnel-port-conflicts'
+import { diagnoseTunnelStartFailure } from '@/lib/tunnel-start-diagnostics'
 
 interface SavedTunnelItemProps {
   tunnel: sshtunnel.SavedTunnelConfig
@@ -189,6 +190,14 @@ export function SavedTunnelItem({
   const isBusy = isStarting || isStopping
   const hasLastError = !!lastError && !isRunning && !isStarting
   const hasPortConflicts = portConflicts.length > 0
+  const startFailureDiagnosis = useMemo(() => {
+    if (!lastError || !hasLastError) return null
+    return diagnoseTunnelStartFailure({
+      tunnel,
+      error: lastError,
+      portConflicts,
+    })
+  }, [hasLastError, lastError, portConflicts, tunnel])
   const canOpenInTerminal =
     tunnel.hostSource === 'ssh_config' && !!tunnel.hostAlias
   const autoRestartLabel = useMemo(() => {
@@ -273,7 +282,25 @@ export function SavedTunnelItem({
           {hasLastError && (
             <div className="mt-2 text-xs text-destructive flex items-start gap-2 p-2 bg-destructive/10 rounded-md">
               <AlertTriangle className="h-4 w-4 mt-px shrink-0" />
-              <p className="break-all leading-relaxed">{lastError.message}</p>
+              {startFailureDiagnosis ? (
+                <div className="space-y-2 leading-relaxed">
+                  <div>
+                    <p className="font-medium">
+                      {startFailureDiagnosis.reason}
+                    </p>
+                    <p className="break-all whitespace-pre-wrap">
+                      {startFailureDiagnosis.details}
+                    </p>
+                  </div>
+                  <ul className="list-disc space-y-1 pl-4">
+                    {startFailureDiagnosis.suggestions.map((suggestion) => (
+                      <li key={suggestion}>{suggestion}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="break-all leading-relaxed">{lastError.message}</p>
+              )}
             </div>
           )}
           {hasPortConflicts && (
