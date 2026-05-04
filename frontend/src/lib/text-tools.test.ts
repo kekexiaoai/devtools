@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  convertTimestampInput,
   convertUnixTimestamp,
   decodeBase64Text,
   decodeUrlText,
@@ -65,6 +66,46 @@ describe('text tools', () => {
       '2030-01-01T00:00:00.000Z'
     )
     expect(convertUnixTimestamp('1893456000000').seconds).toBe(1893456000)
+  })
+
+  it('formats timestamp details from ISO 8601 input', () => {
+    const result = convertTimestampInput(
+      '2030-01-01T00:00:00.000Z',
+      'iso-8601',
+      new Date('2030-01-02T00:00:00.000Z')
+    )
+
+    expect(result).toMatchObject({
+      seconds: 1893456000,
+      milliseconds: 1893456000000,
+      microseconds: '1893456000000000',
+      nanoseconds: '1893456000000000000',
+      isoUtc: '2030-01-01T00:00:00.000Z',
+      utcDateTime: '2030-01-01 00:00:00 UTC',
+      rfc2822: 'Tue, 01 Jan 2030 00:00:00 GMT',
+      sqlUtc: '2030-01-01 00:00:00',
+      dateUtc: '2030-01-01',
+      timeUtc: '00:00:00',
+      relative: '1 day ago',
+      dayOfYearUtc: 1,
+      isoWeek: 1,
+      isLeapYear: false,
+      weekdayUtc: 'Tuesday',
+      yearUtc: 2030,
+      monthUtc: 1,
+      quarterUtc: 1,
+    })
+  })
+
+  it('parses local timestamp input without reusing epoch syntax', () => {
+    const result = convertTimestampInput(
+      '2030-01-01 08:30:15',
+      'local-datetime',
+      new Date('2030-01-01T00:00:00.000Z')
+    )
+
+    expect(result.localDateTime).toBe('2030-01-01 08:30:15')
+    expect(result.sqlLocal).toBe('2030-01-01 08:30:15')
   })
 
   it('generates UUID v4 values', () => {

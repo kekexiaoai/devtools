@@ -14,18 +14,27 @@ import {
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useDialog } from '@/hooks/useDialog'
 import {
+  convertTimestampInput,
   decodeBase64Text,
   decodeUrlText,
   decodeJwt,
   encodeBase64Text,
   encodeUrlText,
-  convertUnixTimestamp,
   generateUuidV4,
   hashText,
+  type TimestampDetails,
+  type TimestampInputFormat,
 } from '@/lib/text-tools'
 
 type TextToolAction =
@@ -161,6 +170,8 @@ export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
   }>({ isValid: null, message: '' })
 
   const [activeTool, setActiveTool] = useState<ToolAction>('json')
+  const [timestampFormat, setTimestampFormat] =
+    useState<TimestampInputFormat>('unix-seconds')
   const [textToolStates, setTextToolStates] = useState<
     Record<TextToolAction, TextToolState>
   >(createInitialTextToolStates)
@@ -270,7 +281,14 @@ export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
     }
 
     try {
-      const nextOutput = await transformText(config.action, state.input)
+      const nextOutput =
+        config.action === 'timestamp-convert'
+          ? JSON.stringify(
+              convertTimestampInput(state.input, timestampFormat),
+              null,
+              2
+            )
+          : await transformText(config.action, state.input)
       updateTextToolState(config.action, (prev) => ({
         ...prev,
         output: nextOutput,
@@ -317,6 +335,33 @@ export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
       input: '',
       output: '',
       status: null,
+    }))
+  }
+
+  const handleTimestampFormatChange = (format: TimestampInputFormat) => {
+    setTimestampFormat(format)
+    updateTextToolState('timestamp-convert', () => ({
+      input: '',
+      output: '',
+      status: null,
+    }))
+  }
+
+  const setTimestampToNow = () => {
+    const inputValue = formatTimestampNowValue(new Date(), timestampFormat)
+
+    updateTextToolState('timestamp-convert', (prev) => ({
+      ...prev,
+      input: inputValue,
+      output: JSON.stringify(
+        convertTimestampInput(inputValue, timestampFormat),
+        null,
+        2
+      ),
+      status: {
+        tone: 'success',
+        message: getTextToolLabel('timestamp-convert'),
+      },
     }))
   }
 
@@ -452,7 +497,10 @@ export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
             currentTextToolState && (
               <TextToolWorkspace
                 config={currentTextTool}
+                onNow={setTimestampToNow}
                 state={currentTextToolState}
+                timestampFormat={timestampFormat}
+                onTimestampFormatChange={handleTimestampFormatChange}
                 onInputChange={(value) =>
                   updateTextToolState(currentTextTool.action, (prev) => ({
                     ...prev,
@@ -545,15 +593,33 @@ function JsonToolWorkspace({
 
 function TextToolWorkspace({
   config,
+  onNow,
   onInputChange,
   onOutputChange,
+  onTimestampFormatChange,
   state,
+  timestampFormat,
 }: {
   config: TextToolConfig
+  onNow: () => void
   onInputChange: (value: string) => void
   onOutputChange: (value: string) => void
+  onTimestampFormatChange: (format: TimestampInputFormat) => void
   state: TextToolState
+  timestampFormat: TimestampInputFormat
 }) {
+  if (config.action === 'timestamp-convert') {
+    return (
+      <TimestampToolWorkspace
+        format={timestampFormat}
+        onFormatChange={onTimestampFormatChange}
+        onInputChange={onInputChange}
+        onNow={onNow}
+        state={state}
+      />
+    )
+  }
+
   return (
     <div className="grid h-full min-h-0 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2">
       <ToolTextPanel
@@ -571,6 +637,183 @@ function TextToolWorkspace({
       />
     </div>
   )
+}
+
+function TimestampToolWorkspace({
+  format,
+  onFormatChange,
+  onInputChange,
+  onNow,
+  state,
+}: {
+  format: TimestampInputFormat
+  onFormatChange: (format: TimestampInputFormat) => void
+  onInputChange: (value: string) => void
+  onNow: () => void
+  state: TextToolState
+}) {
+  const details = parseTimestampDetails(state.output)
+  const rows = getTimestampRows(details)
+
+  return (
+    <div className="grid h-full min-h-0 grid-cols-1 gap-3 overflow-hidden xl:grid-cols-[minmax(280px,0.7fr)_minmax(420px,1.3fr)]">
+      <div className="flex min-h-0 flex-col gap-3">
+        <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+          <div className="grid gap-2">
+            <label className="text-sm font-semibold text-foreground">
+              Input Format
+            </label>
+            <Select
+              value={format}
+              onValueChange={(value) =>
+                onFormatChange(value as TimestampInputFormat)
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unix-seconds">Unix time seconds</SelectItem>
+                <SelectItem value="unix-milliseconds">
+                  Unix time milliseconds
+                </SelectItem>
+                <SelectItem value="iso-8601">ISO 8601</SelectItem>
+                <SelectItem value="local-datetime">Local date time</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            onClick={onNow}
+            variant="outline"
+            className="self-end justify-start"
+          >
+            Now
+          </Button>
+        </div>
+
+        <ToolTextPanel
+          label="Timestamp Input"
+          value={state.input}
+          onChange={onInputChange}
+          placeholder={getTimestampPlaceholder(format)}
+        />
+      </div>
+
+      <div className="min-h-0 overflow-auto rounded-md border border-border bg-muted/30 p-3">
+        <div className="grid gap-3 md:grid-cols-2">
+          {rows.map((row) => (
+            <TimestampResultField
+              key={row.label}
+              label={row.label}
+              value={row.value}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TimestampResultField({
+  label,
+  value,
+}: {
+  label: string
+  value: string
+}) {
+  return (
+    <div className="grid gap-1">
+      <label className="text-xs font-medium text-muted-foreground">
+        {label}
+      </label>
+      <div className="min-h-9 rounded-md border border-border bg-background px-3 py-2 font-mono text-sm">
+        {value || '--'}
+      </div>
+    </div>
+  )
+}
+
+function parseTimestampDetails(value: string): TimestampDetails | null {
+  if (!value) return null
+
+  try {
+    return JSON.parse(value) as TimestampDetails
+  } catch {
+    return null
+  }
+}
+
+function getTimestampRows(details: TimestampDetails | null): Array<{
+  label: string
+  value: string
+}> {
+  return [
+    ['Unix Seconds', details?.seconds],
+    ['Unix Milliseconds', details?.milliseconds],
+    ['Unix Microseconds', details?.microseconds],
+    ['Unix Nanoseconds', details?.nanoseconds],
+    ['UTC', details?.utcDateTime],
+    ['ISO 8601', details?.isoUtc],
+    ['RFC 2822', details?.rfc2822],
+    ['SQL UTC', details?.sqlUtc],
+    ['SQL Local', details?.sqlLocal],
+    ['Local', details?.localDateTime],
+    ['UTC Date', details?.dateUtc],
+    ['Local Date', details?.dateLocal],
+    ['UTC Time', details?.timeUtc],
+    ['Relative', details?.relative],
+    ['Day of Year UTC', details?.dayOfYearUtc],
+    ['ISO Week', details?.isoWeek],
+    ['Weekday UTC', details?.weekdayUtc],
+    ['Leap Year', details ? (details.isLeapYear ? 'Yes' : 'No') : undefined],
+    ['UTC Year', details?.yearUtc],
+    ['UTC Month', details?.monthUtc],
+    ['UTC Quarter', details?.quarterUtc],
+    ['Timezone Offset', details?.timezoneOffset],
+    ['Timezone Name', details?.timezoneName],
+  ].map(([label, value]) => ({
+    label: String(label),
+    value: value === undefined ? '' : String(value),
+  }))
+}
+
+function getTimestampPlaceholder(format: TimestampInputFormat): string {
+  switch (format) {
+    case 'unix-seconds':
+      return '1893456000'
+    case 'unix-milliseconds':
+      return '1893456000000'
+    case 'iso-8601':
+      return '2030-01-01T00:00:00.000Z'
+    case 'local-datetime':
+      return '2030-01-01 08:00:00'
+  }
+}
+
+function formatTimestampNowValue(
+  date: Date,
+  format: TimestampInputFormat
+): string {
+  switch (format) {
+    case 'unix-seconds':
+      return String(Math.floor(date.getTime() / 1000))
+    case 'unix-milliseconds':
+      return String(date.getTime())
+    case 'iso-8601':
+      return date.toISOString()
+    case 'local-datetime':
+      return formatLocalDateTimeInput(date)
+  }
+}
+
+function formatLocalDateTimeInput(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  const minute = String(date.getMinutes()).padStart(2, '0')
+  const second = String(date.getSeconds()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}`
 }
 
 function StatusMessage({
@@ -658,7 +901,11 @@ async function transformText(
     case 'jwt-decode':
       return JSON.stringify(decodeJwt(value), null, 2)
     case 'timestamp-convert':
-      return JSON.stringify(convertUnixTimestamp(value), null, 2)
+      return JSON.stringify(
+        convertTimestampInput(value, 'unix-seconds'),
+        null,
+        2
+      )
     case 'uuid-generate': {
       const count = Number(value.trim() || '1')
       return generateUuidV4(Number.isFinite(count) ? count : 1).join('\n')

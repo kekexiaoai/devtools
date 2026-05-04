@@ -48,4 +48,19 @@ describe('JsonToolsView text tools', () => {
       screen.getByText('Enter input before running this tool.')
     ).toBeTruthy()
   })
+
+  it('shows a dedicated timestamp converter workspace', () => {
+    renderJsonToolsView()
+
+    fireEvent.click(screen.getByRole('tab', { name: /Timestamp/i }))
+
+    expect(screen.getByText('Input Format')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Now/i })).toBeTruthy()
+    expect(screen.getByText('Unix Seconds')).toBeTruthy()
+    expect(screen.getByText('Unix Microseconds')).toBeTruthy()
+    expect(screen.getByText('RFC 2822')).toBeTruthy()
+    expect(screen.getByText('SQL UTC')).toBeTruthy()
+    expect(screen.getByText('UTC')).toBeTruthy()
+    expect(screen.getByText('Relative')).toBeTruthy()
+  })
 })

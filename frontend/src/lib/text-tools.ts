@@ -91,6 +91,36 @@ export interface TimestampConversion {
   local: string
 }
 
+export type TimestampInputFormat =
+  | 'unix-seconds'
+  | 'unix-milliseconds'
+  | 'iso-8601'
+  | 'local-datetime'
+
+export interface TimestampDetails extends TimestampConversion {
+  microseconds: string
+  nanoseconds: string
+  isoUtc: string
+  utcDateTime: string
+  localDateTime: string
+  rfc2822: string
+  sqlUtc: string
+  sqlLocal: string
+  dateUtc: string
+  dateLocal: string
+  timeUtc: string
+  relative: string
+  dayOfYearUtc: number
+  isoWeek: number
+  isLeapYear: boolean
+  weekdayUtc: string
+  timezoneOffset: string
+  timezoneName: string
+  yearUtc: number
+  monthUtc: number
+  quarterUtc: number
+}
+
 export function convertUnixTimestamp(value: string): TimestampConversion {
   const trimmed = value.trim()
   if (!/^\d+$/.test(trimmed)) {
@@ -112,9 +142,211 @@ export function convertUnixTimestamp(value: string): TimestampConversion {
   }
 }
 
+export function convertTimestampInput(
+  value: string,
+  format: TimestampInputFormat,
+  now = new Date()
+): TimestampDetails {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    throw new Error('Invalid timestamp input.')
+  }
+
+  const date = parseTimestampInput(trimmed, format)
+  if (Number.isNaN(date.getTime())) {
+    throw new Error('Invalid timestamp input.')
+  }
+
+  const milliseconds = date.getTime()
+  const seconds = Math.floor(milliseconds / 1000)
+
+  return {
+    seconds,
+    milliseconds,
+    microseconds: (BigInt(milliseconds) * 1000n).toString(),
+    nanoseconds: (BigInt(milliseconds) * 1000000n).toString(),
+    utc: date.toISOString(),
+    local: date.toLocaleString(),
+    isoUtc: date.toISOString(),
+    utcDateTime: formatUtcDateTime(date),
+    localDateTime: formatLocalDateTime(date),
+    rfc2822: date.toUTCString(),
+    sqlUtc: formatUtcDateTime(date).replace(' UTC', ''),
+    sqlLocal: formatLocalDateTime(date),
+    dateUtc: formatDateUtc(date),
+    dateLocal: formatDateLocal(date),
+    timeUtc: formatTimeUtc(date),
+    relative: formatRelativeTime(date, now),
+    dayOfYearUtc: getDayOfYearUtc(date),
+    isoWeek: getIsoWeek(date),
+    isLeapYear: isLeapYear(date.getUTCFullYear()),
+    weekdayUtc: formatWeekdayUtc(date),
+    timezoneOffset: formatTimezoneOffset(date),
+    timezoneName: getTimezoneName(),
+    yearUtc: date.getUTCFullYear(),
+    monthUtc: date.getUTCMonth() + 1,
+    quarterUtc: Math.floor(date.getUTCMonth() / 3) + 1,
+  }
+}
+
 export function generateUuidV4(count: number): string[] {
   const safeCount = Math.min(Math.max(Math.floor(count), 1), 100)
   return Array.from({ length: safeCount }, () => crypto.randomUUID())
+}
+
+function parseTimestampInput(
+  value: string,
+  format: TimestampInputFormat
+): Date {
+  switch (format) {
+    case 'unix-seconds':
+      return parseEpochNumber(value, 1000)
+    case 'unix-milliseconds':
+      return parseEpochNumber(value, 1)
+    case 'iso-8601':
+      return new Date(value)
+    case 'local-datetime':
+      return parseLocalDateTime(value)
+  }
+}
+
+function parseEpochNumber(value: string, multiplier: number): Date {
+  if (!/^-?\d+(?:\.\d+)?$/.test(value)) {
+    return new Date(Number.NaN)
+  }
+
+  const raw = Number(value)
+  return Number.isFinite(raw)
+    ? new Date(raw * multiplier)
+    : new Date(Number.NaN)
+}
+
+function parseLocalDateTime(value: string): Date {
+  const match = value.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?)?$/
+  )
+  if (!match) {
+    return new Date(Number.NaN)
+  }
+
+  const [, year, month, day, hour = '0', minute = '0', second = '0'] = match
+  return new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second)
+  )
+}
+
+function formatUtcDateTime(date: Date): string {
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(
+    date.getUTCDate()
+  )} ${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())}:${pad2(
+    date.getUTCSeconds()
+  )} UTC`
+}
+
+function formatLocalDateTime(date: Date): string {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(
+    date.getDate()
+  )} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(
+    date.getSeconds()
+  )}`
+}
+
+function formatDateUtc(date: Date): string {
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(
+    date.getUTCDate()
+  )}`
+}
+
+function formatDateLocal(date: Date): string {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(
+    date.getDate()
+  )}`
+}
+
+function formatTimeUtc(date: Date): string {
+  return `${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())}:${pad2(
+    date.getUTCSeconds()
+  )}`
+}
+
+function formatWeekdayUtc(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'UTC',
+    weekday: 'long',
+  }).format(date)
+}
+
+function formatRelativeTime(date: Date, now: Date): string {
+  const diffMs = date.getTime() - now.getTime()
+  const absMs = Math.abs(diffMs)
+  if (absMs < 500) {
+    return 'now'
+  }
+
+  const units = [
+    ['year', 365 * 24 * 60 * 60 * 1000],
+    ['month', 30 * 24 * 60 * 60 * 1000],
+    ['day', 24 * 60 * 60 * 1000],
+    ['hour', 60 * 60 * 1000],
+    ['minute', 60 * 1000],
+    ['second', 1000],
+  ] as const
+
+  for (const [unit, size] of units) {
+    if (absMs >= size || unit === 'second') {
+      const amount = Math.max(1, Math.round(absMs / size))
+      const label = amount === 1 ? unit : `${unit}s`
+      return diffMs < 0 ? `${amount} ${label} ago` : `in ${amount} ${label}`
+    }
+  }
+
+  return 'now'
+}
+
+function getDayOfYearUtc(date: Date): number {
+  const start = Date.UTC(date.getUTCFullYear(), 0, 1)
+  const current = Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate()
+  )
+  return Math.floor((current - start) / 86400000) + 1
+}
+
+function getIsoWeek(date: Date): number {
+  const utcDate = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+  )
+  const day = utcDate.getUTCDay() || 7
+  utcDate.setUTCDate(utcDate.getUTCDate() + 4 - day)
+  const yearStart = new Date(Date.UTC(utcDate.getUTCFullYear(), 0, 1))
+  return Math.ceil(
+    ((utcDate.getTime() - yearStart.getTime()) / 86400000 + 1) / 7
+  )
+}
+
+function isLeapYear(year: number): boolean {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
+}
+
+function formatTimezoneOffset(date: Date): string {
+  const offsetMinutes = -date.getTimezoneOffset()
+  const sign = offsetMinutes >= 0 ? '+' : '-'
+  const abs = Math.abs(offsetMinutes)
+  return `UTC${sign}${pad2(Math.floor(abs / 60))}:${pad2(abs % 60)}`
+}
+
+function getTimezoneName(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local'
+}
+
+function pad2(value: number): string {
+  return String(value).padStart(2, '0')
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
