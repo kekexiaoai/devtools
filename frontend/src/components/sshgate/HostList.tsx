@@ -16,13 +16,14 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical } from 'lucide-react'
+import { FileInput, GripVertical, Plus } from 'lucide-react'
 
 interface HostListProps {
   hosts: types.SSHHost[]
   selectedAlias: string | null
   onSelect: (alias: string) => void
   onNew: () => void
+  onImport: () => void
   onHover: (alias: string) => void
   onOrderChange: (orderedIds: string[]) => void
 }
@@ -79,8 +80,15 @@ function SortableHostItem({
 }
 
 export function HostList(props: HostListProps) {
-  const { hosts, selectedAlias, onSelect, onNew, onHover, onOrderChange } =
-    props
+  const {
+    hosts,
+    selectedAlias,
+    onSelect,
+    onNew,
+    onImport,
+    onHover,
+    onOrderChange,
+  } = props
   const sensors = useSensors(
     useSensor(PointerSensor, {
       // Require the mouse to move by 8 pixels before starting a drag
@@ -104,9 +112,16 @@ export function HostList(props: HostListProps) {
 
   return (
     <div className="p-2 h-full flex flex-col">
-      <Button onClick={onNew} className="w-full mb-4">
-        + Add Host
-      </Button>
+      <div className="mb-4 grid grid-cols-2 gap-2">
+        <Button onClick={onNew}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add
+        </Button>
+        <Button onClick={onImport} variant="outline">
+          <FileInput className="mr-2 h-4 w-4" />
+          Import
+        </Button>
+      </div>
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}

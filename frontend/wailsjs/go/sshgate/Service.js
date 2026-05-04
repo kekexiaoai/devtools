@@ -38,6 +38,10 @@ export function DeleteTunnelProfile(arg1) {
   return window['go']['sshgate']['Service']['DeleteTunnelProfile'](arg1);
 }
 
+export function DiagnoseSSHHost(arg1, arg2) {
+  return window['go']['sshgate']['Service']['DiagnoseSSHHost'](arg1, arg2);
+}
+
 export function DuplicateTunnelConfig(arg1) {
   return window['go']['sshgate']['Service']['DuplicateTunnelConfig'](arg1);
 }
@@ -64,6 +68,14 @@ export function GetTunnelDetail(arg1) {
 
 export function GetTunnelProfiles() {
   return window['go']['sshgate']['Service']['GetTunnelProfiles']();
+}
+
+export function ImportSSHConfigHosts(arg1, arg2) {
+  return window['go']['sshgate']['Service']['ImportSSHConfigHosts'](arg1, arg2);
+}
+
+export function PreviewSSHConfigImport(arg1) {
+  return window['go']['sshgate']['Service']['PreviewSSHConfigImport'](arg1);
 }
 
 export function ReloadSSHHosts() {

@@ -1,13 +1,17 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import type { types, sshtunnel } from '@wailsjs/go/models'
 import {
+  DiagnoseSSHHost,
   GetSSHHosts,
   DeleteSSHHost,
   GetSSHConfigFileContent,
+  ImportSSHConfigHosts,
+  PreviewSSHConfigImport,
   SaveSSHConfigFileContent,
   GetActiveTunnels,
   UpdateHostsOrder,
 } from '@wailsjs/go/sshgate/Service'
+import { SelectFile } from '@wailsjs/go/backend/App'
 import { useDialog } from '@/hooks/useDialog'
 
 // --- UI 组件导入 ---
@@ -277,6 +281,64 @@ const HostsView = React.memo(function HostsView({
     setIsFormOpen(true)
   }
 
+  const handleImportConfig = async () => {
+    try {
+      const path = await SelectFile('Import SSH Config')
+      if (!path) return
+
+      const previewHosts = await PreviewSSHConfigImport(path)
+      const existingAliases = new Set(hosts.map((host) => host.alias))
+      const newHosts = previewHosts.filter(
+        (host) => !existingAliases.has(host.alias)
+      )
+      const skippedCount = previewHosts.length - newHosts.length
+
+      if (newHosts.length === 0) {
+        toast.info(
+          skippedCount > 0
+            ? 'All importable hosts already exist.'
+            : 'No importable hosts found in that file.'
+        )
+        return
+      }
+
+      const choice = await showDialog({
+        type: 'confirm',
+        title: 'Import SSH Hosts',
+        message:
+          `Found ${newHosts.length} new host(s) in:\n${path}` +
+          (skippedCount > 0
+            ? `\n\n${skippedCount} existing host(s) will be skipped.`
+            : ''),
+        buttons: [
+          { text: 'Cancel', variant: 'outline', value: 'cancel' },
+          { text: 'Import', variant: 'default', value: 'import' },
+        ],
+      })
+      if (choice.buttonValue !== 'import') return
+
+      const results = await ImportSSHConfigHosts(newHosts, false)
+      const importedCount = results.filter(
+        (result) => result.status === 'imported'
+      ).length
+      const failedCount = results.filter(
+        (result) => result.status === 'failed'
+      ).length
+      if (failedCount > 0) {
+        toast.error(`Imported ${importedCount} host(s), ${failedCount} failed.`)
+      } else {
+        toast.success(`Imported ${importedCount} SSH host(s).`)
+      }
+      onDataChange()
+    } catch (error) {
+      await showDialog({
+        type: 'error',
+        title: 'Import Failed',
+        message: String(error),
+      })
+    }
+  }
+
   const handleDelete = async (alias: string) => {
     const choice = await showDialog({
       type: 'confirm',
@@ -333,6 +395,7 @@ const HostsView = React.memo(function HostsView({
           selectedAlias={selectedAlias}
           onSelect={handleSelectHost}
           onNew={handleOpenNew}
+          onImport={() => void handleImportConfig()}
           onHover={handleHoverHost}
           onOrderChange={onOrderChange}
         />
@@ -354,6 +417,7 @@ const HostsView = React.memo(function HostsView({
             onConnectInternal={() =>
               void handleConnect(hostToDisplay.alias, 'internal', undefined)
             }
+            onDiagnose={(alias) => DiagnoseSSHHost(alias, '')}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-muted-foreground">

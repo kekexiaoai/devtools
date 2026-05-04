@@ -23,6 +23,8 @@ export function DeleteTunnelConfig(arg1:string):Promise<void>;
 
 export function DeleteTunnelProfile(arg1:string):Promise<void>;
 
+export function DiagnoseSSHHost(arg1:string,arg2:string):Promise<sshgate.SSHHostDiagnosticResult>;
+
 export function DuplicateTunnelConfig(arg1:string):Promise<sshtunnel.SavedTunnelConfig>;
 
 export function GetActiveTunnels():Promise<Array<sshtunnel.ActiveTunnelInfo>>;
@@ -36,6 +38,10 @@ export function GetSavedTunnels():Promise<Array<sshtunnel.SavedTunnelConfig>>;
 export function GetTunnelDetail(arg1:string):Promise<sshgate.TunnelDetail>;
 
 export function GetTunnelProfiles():Promise<Array<sshgate.TunnelProfile>>;
+
+export function ImportSSHConfigHosts(arg1:Array<types.SSHHost>,arg2:boolean):Promise<Array<sshgate.SSHHostImportResult>>;
+
+export function PreviewSSHConfigImport(arg1:string):Promise<Array<types.SSHHost>>;
 
 export function ReloadSSHHosts():Promise<void>;
 

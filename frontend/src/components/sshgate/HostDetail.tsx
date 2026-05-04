@@ -1,4 +1,4 @@
-import type { types, sshtunnel } from '@wailsjs/go/models'
+import type { types, sshtunnel, sshgate } from '@wailsjs/go/models'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -14,10 +14,13 @@ import {
   Pencil,
   Trash2,
   TrainFrontTunnel,
+  Activity,
+  Loader2,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import React, { useState, useEffect, useMemo } from 'react'
 import { TunnelDial } from './TunnelDialog'
+import { toast } from 'sonner'
 
 interface HostDetailProps {
   host: types.SSHHost
@@ -25,6 +28,7 @@ interface HostDetailProps {
   onDelete: (alias: string) => void
   onConnectExternal: (alias: string) => void
   onConnectInternal: (alias: string) => void
+  onDiagnose: (alias: string) => Promise<sshgate.SSHHostDiagnosticResult>
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
   isPreview?: boolean
 }
@@ -43,6 +47,7 @@ export function HostDetail({
   onDelete,
   onConnectExternal,
   onConnectInternal,
+  onDiagnose,
   activeTunnels,
   isPreview = false,
 }: HostDetailProps) {
@@ -50,11 +55,25 @@ export function HostDetail({
   // === 连接状态管理 ===
   const [connecting, setConnecting] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
+  const [isDiagnosing, setIsDiagnosing] = useState(false)
+  const [diagnosticResult, setDiagnosticResult] =
+    useState<sshgate.SSHHostDiagnosticResult | null>(null)
 
   const tunnelCount = useMemo(() => {
     if (!activeTunnels) return 0
     return activeTunnels.filter((t) => t.alias === host.alias).length
   }, [activeTunnels, host.alias])
+
+  const handleDiagnose = async () => {
+    setIsDiagnosing(true)
+    try {
+      setDiagnosticResult(await onDiagnose(host.alias))
+    } catch (error) {
+      toast.error(`Diagnostics failed: ${String(error)}`)
+    } finally {
+      setIsDiagnosing(false)
+    }
+  }
 
   useEffect(() => {
     // 事件处理函数直接接收后端传递的 detail 对象
@@ -118,6 +137,19 @@ export function HostDetail({
               </CardDescription>
             </div>
             <div className="flex items-center space-x-1">
+              <Button
+                onClick={() => void handleDiagnose()}
+                variant="ghost"
+                size="icon"
+                title="Diagnose SSH Host"
+                disabled={isDiagnosing}
+              >
+                {isDiagnosing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Activity className="h-4 w-4" />
+                )}
+              </Button>
               <Button
                 onClick={() => onConnectInternal(host.alias)}
                 variant="ghost"
@@ -210,6 +242,32 @@ export function HostDetail({
                   addSuffix: true,
                 })}
               </p>
+            </div>
+          )}
+          {diagnosticResult && (
+            <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+              <div className="flex items-center justify-between">
+                <p className="font-medium">Connection Diagnostics</p>
+                <Badge
+                  variant={diagnosticResult.healthy ? 'default' : 'destructive'}
+                >
+                  {diagnosticResult.healthy ? 'Healthy' : 'Needs Attention'}
+                </Badge>
+              </div>
+              <div className="space-y-2">
+                {diagnosticResult.checks.map((check) => (
+                  <div
+                    key={check.name}
+                    className="grid grid-cols-[7rem_5rem_1fr] gap-2 text-xs"
+                  >
+                    <span className="font-medium">{check.name}</span>
+                    <span>{check.status}</span>
+                    <span className="text-muted-foreground">
+                      {check.message}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </CardContent>
