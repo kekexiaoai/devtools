@@ -1,9 +1,14 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Clock, Copy, History, Loader2, Send } from 'lucide-react'
+import { ChevronDown, Clock, Copy, History, Loader2, Send } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { SendHTTPRequest } from '@wailsjs/go/backend/App'
@@ -33,6 +38,7 @@ export function HTTPClientView() {
   const [history, setHistory] = useState<HTTPClientHistoryItem[]>(() =>
     loadHTTPClientHistory()
   )
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
 
   const responseHeadersText = useMemo(() => {
     return response ? formatHTTPHeaders(response.headers) : ''
@@ -92,31 +98,46 @@ export function HTTPClientView() {
         </Button>
       </div>
 
-      <div
-        data-testid="http-client-workspace"
-        className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[18rem_minmax(440px,0.9fr)_minmax(520px,1.1fr)]"
+      <Collapsible
+        open={isHistoryOpen}
+        onOpenChange={setIsHistoryOpen}
+        className="shrink-0 rounded-md border bg-muted/20"
       >
-        <Card
-          data-testid="http-history-panel"
-          className="min-h-0 overflow-hidden"
-        >
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
+        <CollapsibleTrigger asChild>
+          <button
+            data-testid="http-history-trigger"
+            className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted/50"
+          >
+            <span className="flex items-center gap-2 font-medium">
               <History className="h-4 w-4" />
               History
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="h-full min-h-0 overflow-auto pb-6">
+              <span className="text-xs text-muted-foreground">
+                {history.length} saved
+              </span>
+            </span>
+            <ChevronDown
+              className={`h-4 w-4 text-muted-foreground transition-transform ${
+                isHistoryOpen ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div
+            data-testid="http-history-panel"
+            className="max-h-44 overflow-auto border-t p-2"
+          >
             {history.length ? (
-              <div className="space-y-2">
+              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
                 {history.map((item) => (
                   <button
                     key={item.id}
                     onClick={() => {
                       setMethod(item.method as typeof method)
                       setUrl(item.url)
+                      setIsHistoryOpen(false)
                     }}
-                    className="grid w-full gap-1 rounded-md border p-2 text-left text-sm hover:bg-muted"
+                    className="grid gap-1 rounded-md border bg-background p-2 text-left text-sm hover:bg-muted"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium">
@@ -133,13 +154,18 @@ export function HTTPClientView() {
                 ))}
               </div>
             ) : (
-              <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">
+              <div className="rounded-md border bg-background p-3 text-sm text-muted-foreground">
                 No requests sent yet.
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
+      <div
+        data-testid="http-client-workspace"
+        className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(460px,0.95fr)_minmax(560px,1.05fr)]"
+      >
         <Card
           data-testid="http-request-panel"
           className="min-h-0 overflow-hidden"
