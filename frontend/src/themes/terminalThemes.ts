@@ -367,14 +367,74 @@ export const FONT_FAMILIES: Record<string, { name: string; value: string }> = {
     name: 'Default',
     value: 'Menlo, Monaco, "Courier New", monospace',
   },
+  'sf-mono': { name: 'SF Mono', value: '"SF Mono", Menlo, monospace' },
+  monaco: { name: 'Monaco', value: 'Monaco, Menlo, monospace' },
   'fira-code': { name: 'Fira Code', value: '"Fira Code", monospace' },
   'jetbrains-mono': {
     name: 'JetBrains Mono',
     value: '"JetBrains Mono", monospace',
   },
+  'cascadia-code': {
+    name: 'Cascadia Code',
+    value: '"Cascadia Code", Consolas, monospace',
+  },
+  'cascadia-mono': {
+    name: 'Cascadia Mono',
+    value: '"Cascadia Mono", Consolas, monospace',
+  },
   'source-code-pro': {
     name: 'Source Code Pro',
     value: '"Source Code Pro", monospace',
   },
+  hack: { name: 'Hack', value: 'Hack, monospace' },
+  'ibm-plex-mono': {
+    name: 'IBM Plex Mono',
+    value: '"IBM Plex Mono", monospace',
+  },
+  'ubuntu-mono': {
+    name: 'Ubuntu Mono',
+    value: '"Ubuntu Mono", monospace',
+  },
   consolas: { name: 'Consolas', value: 'Consolas, "Courier New", monospace' },
+}
+
+export const CUSTOM_FONT_FAMILY_VALUE = '__custom-font-family__'
+
+export function resolveTerminalFontFamily(fontFamily?: string | null): string {
+  const trimmed = fontFamily?.trim()
+  if (!trimmed) {
+    return FONT_FAMILIES.default.value
+  }
+
+  return FONT_FAMILIES[trimmed]?.value ?? formatCustomFontFamily(trimmed)
+}
+
+export function getTerminalFontFamilySelectValue(
+  fontFamily?: string | null
+): string {
+  const trimmed = fontFamily?.trim()
+  if (!trimmed) {
+    return 'default'
+  }
+
+  return FONT_FAMILIES[trimmed] ? trimmed : CUSTOM_FONT_FAMILY_VALUE
+}
+
+export function formatCustomFontFamily(fontFamily: string): string {
+  const trimmed = fontFamily.trim()
+  if (!trimmed) {
+    return FONT_FAMILIES.default.value
+  }
+
+  if (trimmed.includes(',') || trimmed.includes('"') || trimmed.includes("'")) {
+    return ensureMonospaceFallback(trimmed)
+  }
+
+  return `"${trimmed}", monospace`
+}
+
+function ensureMonospaceFallback(fontFamily: string): string {
+  return /\bmonospace\b/i.test(fontFamily)
+    ? fontFamily
+    : `${fontFamily}, monospace`
 }

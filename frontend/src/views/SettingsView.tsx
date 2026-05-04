@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react' // prettier-ignore
+import React, { useMemo, useState } from 'react' // prettier-ignore
 import {
   Card,
   CardContent,
@@ -18,8 +18,14 @@ import { Slider } from '@/components/ui/slider' // prettier-ignore
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { useSettingsStore, type ShortcutAction } from '@/hooks/useSettingsStore'
-import { FONT_FAMILIES, NAMED_THEMES } from '@/themes/terminalThemes'
+import {
+  CUSTOM_FONT_FAMILY_VALUE,
+  FONT_FAMILIES,
+  getTerminalFontFamilySelectValue,
+  NAMED_THEMES,
+} from '@/themes/terminalThemes'
 import { ShortcutInput } from '@/components/ShortcutInput'
+import { Input } from '@/components/ui/input'
 
 const availableThemes = [
   { name: 'System Default', value: 'System Default' },
@@ -38,6 +44,12 @@ const shortcutActions: { id: ShortcutAction; name: string }[] = [
 
 export function SettingsView({ platform }: { platform: string }) {
   const settings = useSettingsStore()
+  const [customFontFamily, setCustomFontFamily] = useState(
+    getTerminalFontFamilySelectValue(settings.terminalFontFamily) ===
+      CUSTOM_FONT_FAMILY_VALUE
+      ? settings.terminalFontFamily
+      : ''
+  )
 
   const isMac = useMemo(() => {
     return platform === 'darwin'
@@ -179,21 +191,50 @@ export function SettingsView({ platform }: { platform: string }) {
             {/* Font Family */}
             <div className="flex items-center justify-between">
               <Label htmlFor="term-font-family">Font Family</Label>
-              <Select
-                value={settings.terminalFontFamily}
-                onValueChange={settings.setTerminalFontFamily}
-              >
-                <SelectTrigger id="term-font-family" className="w-[240px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(FONT_FAMILIES).map(([key, { name }]) => (
-                    <SelectItem key={key} value={key}>
-                      {name}
+              <div className="grid w-[240px] gap-2">
+                <Select
+                  value={getTerminalFontFamilySelectValue(
+                    settings.terminalFontFamily
+                  )}
+                  onValueChange={(value) => {
+                    if (value === CUSTOM_FONT_FAMILY_VALUE) {
+                      const nextFont = customFontFamily || 'SF Mono'
+                      setCustomFontFamily(nextFont)
+                      settings.setTerminalFontFamily(nextFont)
+                      return
+                    }
+
+                    settings.setTerminalFontFamily(value)
+                  }}
+                >
+                  <SelectTrigger id="term-font-family">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(FONT_FAMILIES).map(([key, { name }]) => (
+                      <SelectItem key={key} value={key}>
+                        {name}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={CUSTOM_FONT_FAMILY_VALUE}>
+                      Custom system font...
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  </SelectContent>
+                </Select>
+                {getTerminalFontFamilySelectValue(
+                  settings.terminalFontFamily
+                ) === CUSTOM_FONT_FAMILY_VALUE && (
+                  <Input
+                    aria-label="Custom terminal font family"
+                    value={customFontFamily}
+                    onChange={(event) => {
+                      setCustomFontFamily(event.target.value)
+                      settings.setTerminalFontFamily(event.target.value)
+                    }}
+                    placeholder="SF Mono, Hack, Iosevka..."
+                  />
+                )}
+              </div>
             </div>
             {/* Theme */}
             <div className="flex items-center justify-between">

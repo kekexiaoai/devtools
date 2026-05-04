@@ -27,10 +27,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 // import { toast } from 'sonner'
 import {
-  NAMED_THEMES,
-  FONT_FAMILIES,
   atomOneLightTheme,
   gruvboxDarkDimmedTheme,
+  NAMED_THEMES,
 } from '@/themes/terminalThemes'
 import type { ITheme } from '@xterm/xterm'
 import {
@@ -111,8 +110,6 @@ export function TerminalView({
     string | null
   >(null)
   const [dontAskAgain, setDontAskAgain] = useState(false)
-
-  const terminalFontFamily = FONT_FAMILIES[terminalFontFamilyKey].value
 
   // Effect to handle all theme updates, including system theme changes
   const currentTerminalTheme = useMemo((): ITheme => {
@@ -747,7 +744,7 @@ export function TerminalView({
               // onStatusChange={(status) => onStatusChange(session.id, status)}
               theme={currentTerminalTheme}
               fontSize={terminalFontSize}
-              fontFamily={terminalFontFamily}
+              fontFamily={terminalFontFamilyKey}
               copyOnSelect={terminalCopyOnSelect}
               scrollback={terminalScrollback}
               cursorStyle={terminalCursorStyle}

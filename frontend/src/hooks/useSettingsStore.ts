@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
-import { FONT_FAMILIES, NAMED_THEMES } from '@/themes/terminalThemes'
+import { NAMED_THEMES } from '@/themes/terminalThemes'
 
 type ThemeName = 'System Default' | keyof typeof NAMED_THEMES
 
@@ -22,7 +22,7 @@ interface SettingsState {
   // Terminal
   terminalThemeName: ThemeName
   terminalFontSize: number
-  terminalFontFamily: keyof typeof FONT_FAMILIES
+  terminalFontFamily: string
   terminalCopyOnSelect: boolean
   terminalScrollback: number
   terminalCursorStyle: 'block' | 'underline' | 'bar'
@@ -55,7 +55,7 @@ interface SettingsActions {
   setSidebarCollapsed: (collapsed: boolean) => void
   setTerminalThemeName: (themeName: ThemeName) => void
   setTerminalFontSize: (size: number) => void
-  setTerminalFontFamily: (font: keyof typeof FONT_FAMILIES) => void
+  setTerminalFontFamily: (font: string) => void
   setTerminalCopyOnSelect: (enabled: boolean) => void
   setTerminalScrollback: (lines: number) => void
   setTerminalCursorStyle: (style: SettingsState['terminalCursorStyle']) => void

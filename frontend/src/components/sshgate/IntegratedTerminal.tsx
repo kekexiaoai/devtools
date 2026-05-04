@@ -54,7 +54,12 @@ import { Terminal, type ITheme } from '@xterm/xterm'
 
 // --- 复用全局主题定义 ---
 import { NAMED_THEMES } from '@/themes/terminalThemes'
-import { FONT_FAMILIES } from '@/themes/terminalThemes'
+import {
+  CUSTOM_FONT_FAMILY_VALUE,
+  FONT_FAMILIES,
+  getTerminalFontFamilySelectValue,
+  resolveTerminalFontFamily,
+} from '@/themes/terminalThemes'
 
 // 扩展Terminal类型以解决类型定义问题（如果类型文件缺失）
 import { useTerminalSetting } from '@/hooks/useTerminalSetting'
@@ -118,17 +123,15 @@ export function IntegratedTerminal({
   // These settings have more complex logic (mapping keys to objects/values)
   // and are kept separate for now.
   const [localThemeKey, setLocalThemeKey] = useState<string | null>(null)
-  const [localFontFamilyKey, setLocalFontFamilyKey] = useState<string | null>(
-    null
-  )
+  const [localFontFamily, setLocalFontFamily] = useState<string | null>(null)
 
   // --- 计算最终生效的设置 ---
   const effectiveTheme = localThemeKey
     ? NAMED_THEMES[localThemeKey as keyof typeof NAMED_THEMES]?.theme
     : theme
-  const effectiveFontFamily = localFontFamilyKey
-    ? FONT_FAMILIES[localFontFamilyKey]?.value
-    : (fontFamily ?? FONT_FAMILIES.default.value)
+  const effectiveFontFamily = resolveTerminalFontFamily(
+    localFontFamily ?? fontFamily
+  )
 
   // 调用 Hook，获取 terminal 实例和 ref
   // useXTerm 的 options 只在首次创建时使用。
@@ -140,7 +143,7 @@ export function IntegratedTerminal({
         cursorBlink: cursorBlink ?? true,
         scrollback: scrollback ?? 1000,
         fontSize: fontSize ?? 12,
-        fontFamily: fontFamily ?? FONT_FAMILIES.default.value,
+        fontFamily: resolveTerminalFontFamily(fontFamily),
         theme,
         allowProposedApi: true,
       }),
@@ -680,11 +683,11 @@ export function IntegratedTerminal({
                   <div
                     className="col-span-2 group flex cursor-pointer items-center gap-1.5"
                     onClick={(e) => {
-                      if (localFontFamilyKey !== null) {
+                      if (localFontFamily !== null) {
                         // Prevent default mousedown behavior which can cause focus shifts
                         // and trigger the popover to close.
                         e.preventDefault()
-                        setTimeout(() => setLocalFontFamilyKey(null), 0)
+                        setTimeout(() => setLocalFontFamily(null), 0)
                       }
                     }}
                   >
@@ -692,7 +695,7 @@ export function IntegratedTerminal({
                       htmlFor="font-family"
                       className="cursor-pointer"
                       title={
-                        localFontFamilyKey !== null
+                        localFontFamily !== null
                           ? 'Reset to default'
                           : undefined
                       }
@@ -701,29 +704,66 @@ export function IntegratedTerminal({
                     </Label>
                     <RotateCcw
                       className={`h-3 w-3 text-muted-foreground transition-opacity ${
-                        localFontFamilyKey !== null
+                        localFontFamily !== null
                           ? 'opacity-50 group-hover:opacity-100 cursor-pointer'
                           : 'opacity-0'
                       }`}
                     />
                   </div>
-                  <Select
-                    value={localFontFamilyKey ?? 'default'}
-                    onValueChange={(key) =>
-                      setLocalFontFamilyKey(key === 'default' ? null : key)
-                    }
-                  >
-                    <SelectTrigger id="font-family" className="col-span-3">
-                      <SelectValue placeholder="Select font" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(FONT_FAMILIES).map(([key, { name }]) => (
-                        <SelectItem key={key} value={key}>
-                          {name}
+                  <div className="col-span-3 grid gap-2">
+                    <Select
+                      value={getTerminalFontFamilySelectValue(
+                        localFontFamily ?? fontFamily
+                      )}
+                      onValueChange={(key) => {
+                        if (key === 'default') {
+                          setLocalFontFamily(null)
+                          return
+                        }
+
+                        if (key === CUSTOM_FONT_FAMILY_VALUE) {
+                          setLocalFontFamily(localFontFamily || 'SF Mono')
+                          return
+                        }
+
+                        setLocalFontFamily(key)
+                      }}
+                    >
+                      <SelectTrigger id="font-family">
+                        <SelectValue placeholder="Select font" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(FONT_FAMILIES).map(
+                          ([key, { name }]) => (
+                            <SelectItem key={key} value={key}>
+                              {name}
+                            </SelectItem>
+                          )
+                        )}
+                        <SelectItem value={CUSTOM_FONT_FAMILY_VALUE}>
+                          Custom system font...
                         </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                      </SelectContent>
+                    </Select>
+                    {getTerminalFontFamilySelectValue(
+                      localFontFamily ?? fontFamily
+                    ) === CUSTOM_FONT_FAMILY_VALUE && (
+                      <Input
+                        aria-label="Custom session font family"
+                        value={
+                          localFontFamily ??
+                          (getTerminalFontFamilySelectValue(fontFamily) ===
+                          CUSTOM_FONT_FAMILY_VALUE
+                            ? (fontFamily ?? '')
+                            : '')
+                        }
+                        onChange={(event) =>
+                          setLocalFontFamily(event.target.value)
+                        }
+                        placeholder="SF Mono, Hack, Iosevka..."
+                      />
+                    )}
+                  </div>
                 </div>
                 {/* Theme */}
                 <div className="grid grid-cols-5 items-center gap-4">
