@@ -67,6 +67,14 @@ export function getTunnelPortConflictMap(
   return conflicts
 }
 
+export function formatTunnelPortConflict(conflict: TunnelPortConflict): string {
+  if (conflict.kind === 'duplicate') {
+    return `Local port ${conflict.port} is also used by "${conflict.peerName}".`
+  }
+
+  return `Local port ${conflict.port} is already used by ${conflict.process} (PID ${conflict.pid}) on ${conflict.address}.`
+}
+
 function addConflict(
   conflicts: Map<string, TunnelPortConflict[]>,
   tunnelId: string,

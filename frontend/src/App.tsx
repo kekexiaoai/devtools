@@ -33,7 +33,7 @@ import {
 } from '@wailsjs/runtime/runtime'
 
 import { toolIds, type UiScale } from './types'
-import { DomReady, ForceQuit } from '@wailsjs/go/backend/App'
+import { DomReady, ForceQuit, GetListeningPorts } from '@wailsjs/go/backend/App'
 import { logToServer } from '@/lib/utils'
 import {
   AlertDialog,
@@ -75,6 +75,10 @@ import {
   getNextAutoRestartPlan,
   type TunnelAutoRestartState,
 } from './lib/tunnel-auto-restart'
+import {
+  formatTunnelPortConflict,
+  getTunnelPortConflictMap,
+} from './lib/tunnel-port-conflicts'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
 
@@ -504,6 +508,40 @@ function AppContent() {
     [fetchActiveTunnels]
   )
 
+  const confirmTunnelPortConflicts = useCallback(
+    async (tunnel: sshtunnel.SavedTunnelConfig): Promise<boolean> => {
+      let listeningPorts: Awaited<ReturnType<typeof GetListeningPorts>>
+      try {
+        listeningPorts = await GetListeningPorts()
+      } catch (error) {
+        logger.warn('Skipping tunnel port conflict confirmation', error)
+        return true
+      }
+
+      const conflicts =
+        getTunnelPortConflictMap(
+          savedTunnelsRef.current,
+          activeTunnelsRef.current,
+          listeningPorts
+        ).get(tunnel.id) ?? []
+
+      if (conflicts.length === 0) return true
+
+      const choice = await showDialog({
+        type: 'confirm',
+        title: `Start "${tunnel.name}" with port conflict?`,
+        message: conflicts.map(formatTunnelPortConflict).join('\n'),
+        buttons: [
+          { text: 'Cancel', variant: 'outline', value: 'cancel' },
+          { text: 'Start Anyway', variant: 'default', value: 'start' },
+        ],
+      })
+
+      return choice.buttonValue === 'start'
+    },
+    [logger, showDialog]
+  )
+
   const startTunnel = useCallback(
     async (id: string) => {
       const tunnel = savedTunnelsRef.current.find((t) => t.id === id)
@@ -517,6 +555,11 @@ function AppContent() {
       let toastId: string | number | undefined
 
       try {
+        const shouldContinue = await confirmTunnelPortConflicts(tunnel)
+        if (!shouldContinue) {
+          return
+        }
+
         const aliasForDisplay =
           tunnel.hostSource === 'ssh_config' ? tunnel.hostAlias! : tunnel.name
 
@@ -563,7 +606,7 @@ function AppContent() {
         )
       }
     },
-    [fetchActiveTunnels, verifyAndGetPassword]
+    [confirmTunnelPortConflicts, fetchActiveTunnels, verifyAndGetPassword]
   )
 
   const handleStartTunnel = useCallback(

@@ -41,7 +41,10 @@ import { sshtunnel } from '@wailsjs/go/models'
 import { formatTunnelDescription } from '@/lib/tunnel-utils'
 import { formatTunnelTimestamp, formatTunnelUptime } from '@/lib/tunnel-health'
 import type { TunnelAutoRestartState } from '@/lib/tunnel-auto-restart'
-import type { TunnelPortConflict } from '@/lib/tunnel-port-conflicts'
+import {
+  formatTunnelPortConflict,
+  type TunnelPortConflict,
+} from '@/lib/tunnel-port-conflicts'
 
 interface SavedTunnelItemProps {
   tunnel: sshtunnel.SavedTunnelConfig
@@ -152,14 +155,6 @@ const formatHostInfo = (tunnel: sshtunnel.SavedTunnelConfig): string => {
     return `via ${tunnel.manualHost.user}@${tunnel.manualHost.hostName}`
   }
   return 'via Unknown Host'
-}
-
-const formatPortConflict = (conflict: TunnelPortConflict): string => {
-  if (conflict.kind === 'duplicate') {
-    return `Local port ${conflict.port} is also used by "${conflict.peerName}".`
-  }
-
-  return `Local port ${conflict.port} is already used by ${conflict.process} (PID ${conflict.pid}) on ${conflict.address}.`
 }
 
 const getPortConflictKey = (conflict: TunnelPortConflict): string => {
@@ -287,7 +282,7 @@ export function SavedTunnelItem({
               <div className="space-y-1 leading-relaxed">
                 {portConflicts.map((conflict) => (
                   <p key={getPortConflictKey(conflict)}>
-                    {formatPortConflict(conflict)}
+                    {formatTunnelPortConflict(conflict)}
                   </p>
                 ))}
               </div>

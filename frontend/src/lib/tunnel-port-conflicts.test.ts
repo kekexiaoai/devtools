@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { backend, sshtunnel } from '@wailsjs/go/models'
-import { getTunnelPortConflictMap } from './tunnel-port-conflicts'
+import {
+  formatTunnelPortConflict,
+  getTunnelPortConflictMap,
+} from './tunnel-port-conflicts'
 
 function makeTunnel(
   id: string,
@@ -101,5 +104,26 @@ describe('getTunnelPortConflictMap', () => {
     )
 
     expect(conflicts.has('web')).toBe(true)
+  })
+
+  it('formats conflict messages for UI and confirmations', () => {
+    expect(
+      formatTunnelPortConflict({
+        kind: 'duplicate',
+        port: 8080,
+        peerId: 'admin',
+        peerName: 'Admin',
+      })
+    ).toBe('Local port 8080 is also used by "Admin".')
+
+    expect(
+      formatTunnelPortConflict({
+        kind: 'listening',
+        port: 5432,
+        address: '127.0.0.1',
+        process: 'postgres',
+        pid: '42',
+      })
+    ).toBe('Local port 5432 is already used by postgres (PID 42) on 127.0.0.1.')
   })
 })
