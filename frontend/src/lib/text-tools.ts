@@ -345,6 +345,114 @@ export function diffText(value: string): TextDiffResult {
   return { summary, lines }
 }
 
+export interface JsonPathMatch {
+  path: string
+  value: unknown
+}
+
+export function queryJsonPathText(value: string): JsonPathMatch[] {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch {
+    throw new Error('JSONPath input must be valid JSON.')
+  }
+
+  if (!isJsonPathInput(parsed)) {
+    throw new Error('JSONPath input must include path and json fields.')
+  }
+
+  return queryJsonPath(parsed.json, parsed.path)
+}
+
+export type JsonDiffType = 'added' | 'removed' | 'changed'
+
+export interface JsonDiffEntry {
+  path: string
+  type: JsonDiffType
+  before?: unknown
+  after?: unknown
+}
+
+export function diffJsonText(value: string): JsonDiffEntry[] {
+  const normalized = value.replaceAll('\r\n', '\n')
+  const delimiter = '\n---\n'
+  const delimiterIndex = normalized.indexOf(delimiter)
+  if (delimiterIndex === -1) {
+    throw new Error(
+      'JSON diff input must contain a line with --- between old and new JSON.'
+    )
+  }
+
+  let before: unknown
+  let after: unknown
+  try {
+    before = JSON.parse(normalized.slice(0, delimiterIndex))
+    after = JSON.parse(normalized.slice(delimiterIndex + delimiter.length))
+  } catch {
+    throw new Error('JSON diff input must contain valid JSON documents.')
+  }
+
+  const changes: JsonDiffEntry[] = []
+  collectJsonDiff('$', before, after, changes)
+  return changes
+}
+
+export interface CronParseResult {
+  expression: string
+  description: string
+  nextRuns: string[]
+}
+
+export function parseCronExpression(
+  expression: string,
+  now = new Date()
+): CronParseResult {
+  const trimmed = expression.trim()
+  const parts = trimmed.split(/\s+/)
+  if (parts.length !== 5) {
+    throw new Error('Cron expression must contain 5 fields.')
+  }
+
+  const [minuteRaw, hourRaw, dayRaw, monthRaw, weekdayRaw] = parts
+  const minute = parseCronField(minuteRaw, 0, 59)
+  const hour = parseCronField(hourRaw, 0, 23)
+  const day = parseCronField(dayRaw, 1, 31)
+  const month = parseCronField(monthRaw, 1, 12)
+  const weekday = parseCronField(weekdayRaw, 0, 7)
+
+  const cursor = new Date(now)
+  cursor.setUTCSeconds(0, 0)
+  const nextRuns: string[] = []
+  const maxChecks = 366 * 24 * 60
+
+  for (let checked = 0; checked < maxChecks && nextRuns.length < 5; checked++) {
+    const normalizedWeekday = cursor.getUTCDay()
+    if (
+      minute.has(cursor.getUTCMinutes()) &&
+      hour.has(cursor.getUTCHours()) &&
+      day.has(cursor.getUTCDate()) &&
+      month.has(cursor.getUTCMonth() + 1) &&
+      (weekday.has(normalizedWeekday) ||
+        (normalizedWeekday === 0 && weekday.has(7)))
+    ) {
+      nextRuns.push(cursor.toISOString())
+    }
+    cursor.setUTCMinutes(cursor.getUTCMinutes() + 1)
+  }
+
+  return {
+    expression: trimmed,
+    description: describeCronExpression(parts),
+    nextRuns,
+  }
+}
+
+export function yamlToJsonText(value: string): string {
+  const parsed = parseSimpleYaml(value)
+  return JSON.stringify(parsed, null, 2)
+}
+
 function parseTimestampInput(
   value: string,
   format: TimestampInputFormat
@@ -725,4 +833,304 @@ function buildLcsTable(oldLines: string[], newLines: string[]): number[][] {
   }
 
   return table
+}
+
+function isJsonPathInput(value: unknown): value is {
+  path: string
+  json: unknown
+} {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Record<string, unknown>
+  return typeof candidate.path === 'string' && 'json' in candidate
+}
+
+function queryJsonPath(json: unknown, path: string): JsonPathMatch[] {
+  if (!path.startsWith('$')) {
+    throw new Error('JSONPath must start with $.')
+  }
+
+  const tokens = parseJsonPathTokens(path)
+  let matches: JsonPathMatch[] = [{ path: '$', value: json }]
+
+  for (const token of tokens) {
+    matches = matches.flatMap((match) => expandJsonPathMatch(match, token))
+  }
+
+  return matches
+}
+
+type JsonPathToken =
+  | { type: 'property'; key: string }
+  | { type: 'index'; index: number }
+  | { type: 'wildcard' }
+
+function parseJsonPathTokens(path: string): JsonPathToken[] {
+  const tokens: JsonPathToken[] = []
+  let index = 1
+
+  while (index < path.length) {
+    if (path[index] === '.') {
+      const match = path.slice(index).match(/^\.([A-Za-z_$][\w$-]*)/)
+      if (!match) throw new Error('Unsupported JSONPath syntax.')
+      tokens.push({ type: 'property', key: match[1] })
+      index += match[0].length
+      continue
+    }
+
+    if (path[index] === '[') {
+      const match = path.slice(index).match(/^\[(\*|\d+)\]/)
+      if (!match) throw new Error('Unsupported JSONPath syntax.')
+      tokens.push(
+        match[1] === '*'
+          ? { type: 'wildcard' }
+          : { type: 'index', index: Number(match[1]) }
+      )
+      index += match[0].length
+      continue
+    }
+
+    throw new Error('Unsupported JSONPath syntax.')
+  }
+
+  return tokens
+}
+
+function expandJsonPathMatch(
+  match: JsonPathMatch,
+  token: JsonPathToken
+): JsonPathMatch[] {
+  if (token.type === 'property') {
+    if (!isRecord(match.value) || !(token.key in match.value)) return []
+    return [
+      {
+        path: `${match.path}.${token.key}`,
+        value: match.value[token.key],
+      },
+    ]
+  }
+
+  if (token.type === 'index') {
+    if (!Array.isArray(match.value) || token.index >= match.value.length) {
+      return []
+    }
+    return [
+      {
+        path: `${match.path}[${token.index}]`,
+        value: match.value[token.index],
+      },
+    ]
+  }
+
+  if (Array.isArray(match.value)) {
+    return (match.value as unknown[]).map((item, itemIndex) => ({
+      path: `${match.path}[${itemIndex}]`,
+      value: item,
+    }))
+  }
+
+  if (isRecord(match.value)) {
+    return Object.entries(match.value).map(([key, item]) => ({
+      path: `${match.path}.${key}`,
+      value: item,
+    }))
+  }
+
+  return []
+}
+
+function collectJsonDiff(
+  path: string,
+  before: unknown,
+  after: unknown,
+  changes: JsonDiffEntry[]
+) {
+  if (deepEqual(before, after)) return
+
+  if (before === undefined) {
+    changes.push({ path, type: 'added', after })
+    return
+  }
+  if (after === undefined) {
+    changes.push({ path, type: 'removed', before })
+    return
+  }
+
+  if (isRecord(before) && isRecord(after)) {
+    const keys = Array.from(
+      new Set([...Object.keys(before), ...Object.keys(after)])
+    ).sort()
+    keys.forEach((key) => {
+      collectJsonDiff(`${path}.${key}`, before[key], after[key], changes)
+    })
+    return
+  }
+
+  if (Array.isArray(before) && Array.isArray(after)) {
+    const maxLength = Math.max(before.length, after.length)
+    for (let index = 0; index < maxLength; index += 1) {
+      collectJsonDiff(`${path}[${index}]`, before[index], after[index], changes)
+    }
+    return
+  }
+
+  changes.push({ path, type: 'changed', before, after })
+}
+
+function deepEqual(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
+function parseCronField(value: string, min: number, max: number): Set<number> {
+  const result = new Set<number>()
+
+  value.split(',').forEach((part) => {
+    const trimmed = part.trim()
+    if (!trimmed) return
+
+    const [rangePart, stepPart] = trimmed.split('/')
+    const step = stepPart ? Number(stepPart) : 1
+    if (!Number.isInteger(step) || step <= 0) {
+      throw new Error('Invalid cron step value.')
+    }
+
+    let start = min
+    let end = max
+    if (rangePart !== '*') {
+      if (rangePart.includes('-')) {
+        const [rawStart, rawEnd] = rangePart.split('-').map(Number)
+        start = rawStart
+        end = rawEnd
+      } else {
+        start = Number(rangePart)
+        end = Number(rangePart)
+      }
+    }
+
+    if (
+      !Number.isInteger(start) ||
+      !Number.isInteger(end) ||
+      start < min ||
+      end > max ||
+      start > end
+    ) {
+      throw new Error('Invalid cron field value.')
+    }
+
+    for (let current = start; current <= end; current += step) {
+      result.add(current)
+    }
+  })
+
+  if (result.size === 0) {
+    throw new Error('Invalid cron field value.')
+  }
+  return result
+}
+
+function describeCronExpression(parts: string[]): string {
+  const [minute, hour, day, month, weekday] = parts
+  const phrases = [describeCronMinute(minute)]
+
+  if (hour !== '*') phrases.push(describeCronHour(hour))
+  if (day !== '*') phrases.push(`on day ${day} of the month`)
+  if (month !== '*') phrases.push(`in month ${month}`)
+  if (weekday !== '*') phrases.push(describeCronWeekday(weekday))
+
+  return `At ${phrases.filter(Boolean).join(' ')}`
+}
+
+function describeCronMinute(value: string): string {
+  if (value === '*') return 'every minute'
+  if (value.startsWith('*/')) return `every ${value.slice(2)}th minute`
+  return `minute ${value}`
+}
+
+function describeCronHour(value: string): string {
+  if (value.includes('-')) {
+    const [start, end] = value.split('-')
+    return `during hours ${start} through ${end}`
+  }
+  return `during hour ${value}`
+}
+
+function describeCronWeekday(value: string): string {
+  const names = [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+  ]
+  if (/^\d+$/.test(value)) {
+    const day = Number(value) % 7
+    return `on ${names[day]}`
+  }
+  return `on weekday ${value}`
+}
+
+function parseSimpleYaml(value: string): Record<string, unknown> {
+  const root: Record<string, unknown> = {}
+  let currentArrayKey: string | null = null
+
+  value
+    .replaceAll('\r\n', '\n')
+    .split('\n')
+    .forEach((line) => {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) return
+
+      if (trimmed.startsWith('- ')) {
+        if (!currentArrayKey) {
+          throw new Error('YAML array item must belong to a key.')
+        }
+        const currentValue = root[currentArrayKey]
+        if (!Array.isArray(currentValue)) {
+          throw new Error('YAML array parent is invalid.')
+        }
+        currentValue.push(parseYamlScalar(trimmed.slice(2)))
+        return
+      }
+
+      const separatorIndex = trimmed.indexOf(':')
+      if (separatorIndex === -1) {
+        throw new Error('Unsupported YAML syntax.')
+      }
+
+      const key = trimmed.slice(0, separatorIndex).trim()
+      const rawValue = trimmed.slice(separatorIndex + 1).trim()
+      if (!key) {
+        throw new Error('Unsupported YAML syntax.')
+      }
+
+      if (!rawValue) {
+        root[key] = []
+        currentArrayKey = key
+      } else {
+        root[key] = parseYamlScalar(rawValue)
+        currentArrayKey = null
+      }
+    })
+
+  return root
+}
+
+function parseYamlScalar(value: string): unknown {
+  const trimmed = value.trim()
+  if (trimmed === 'true') return true
+  if (trimmed === 'false') return false
+  if (trimmed === 'null') return null
+  if (/^-?\d+(?:\.\d+)?$/.test(trimmed)) return Number(trimmed)
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1)
+  }
+  return trimmed
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }

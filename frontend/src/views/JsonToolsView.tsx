@@ -6,9 +6,11 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardCopy,
+  Clock,
   Download,
   Eraser,
   FileDiff,
+  FileText,
   Fingerprint,
   Globe2,
   Hash,
@@ -35,15 +37,19 @@ import {
   decodeBase64Text,
   decodeUrlText,
   decodeJwt,
+  diffJsonText,
   diffText,
   encodeBase64Text,
   encodeUrlText,
   generateUuidV4,
   hashText,
+  parseCronExpression,
   parseUrlText,
+  queryJsonPathText,
   testRegexText,
   type TimestampDetails,
   type TimestampInputFormat,
+  yamlToJsonText,
 } from '@/lib/text-tools'
 
 type TextToolAction =
@@ -61,6 +67,10 @@ type TextToolAction =
   | 'url-parse'
   | 'regex-test'
   | 'text-diff'
+  | 'jsonpath-query'
+  | 'json-diff'
+  | 'cron-parse'
+  | 'yaml-to-json'
 
 type ToolAction = 'json' | TextToolAction
 
@@ -139,6 +149,39 @@ const textToolConfigs: TextToolConfig[] = [
     label: 'Text Diff',
     inputPlaceholder: 'old line\n---\nnew line',
     outputPlaceholder: 'Line diff result will be shown here...',
+    requiresInput: true,
+    layout: 'stacked',
+  },
+  {
+    action: 'jsonpath-query',
+    label: 'JSONPath',
+    inputPlaceholder:
+      '{\n  "path": "$.users[*].name",\n  "json": {\n    "users": [{ "name": "Ada" }]\n  }\n}',
+    outputPlaceholder: 'JSONPath matches will be shown here...',
+    requiresInput: true,
+    layout: 'stacked',
+  },
+  {
+    action: 'json-diff',
+    label: 'JSON Diff',
+    inputPlaceholder: '{"port":80}\n---\n{"port":443}',
+    outputPlaceholder: 'JSON diff result will be shown here...',
+    requiresInput: true,
+    layout: 'stacked',
+  },
+  {
+    action: 'cron-parse',
+    label: 'Cron Parser',
+    inputPlaceholder: '*/15 9-18 * * 1-5',
+    outputPlaceholder: 'Cron schedule details will be shown here...',
+    requiresInput: true,
+    layout: 'stacked',
+  },
+  {
+    action: 'yaml-to-json',
+    label: 'YAML to JSON',
+    inputPlaceholder: 'name: devtools\nports:\n  - 80\n  - 443',
+    outputPlaceholder: 'JSON output will be shown here...',
     requiresInput: true,
     layout: 'stacked',
   },
@@ -1135,6 +1178,15 @@ function TextToolIcon({ action }: { action: TextToolAction }) {
   if (action === 'text-diff') {
     return <FileDiff className="h-4 w-4" />
   }
+  if (action === 'json-diff') {
+    return <FileDiff className="h-4 w-4" />
+  }
+  if (action === 'cron-parse') {
+    return <Clock className="h-4 w-4" />
+  }
+  if (action === 'yaml-to-json') {
+    return <FileText className="h-4 w-4" />
+  }
   if (action.startsWith('hash')) {
     return <Hash className="h-4 w-4" />
   }
@@ -1163,6 +1215,14 @@ async function transformText(
       return JSON.stringify(testRegexText(value), null, 2)
     case 'text-diff':
       return JSON.stringify(diffText(value), null, 2)
+    case 'jsonpath-query':
+      return JSON.stringify(queryJsonPathText(value), null, 2)
+    case 'json-diff':
+      return JSON.stringify(diffJsonText(value), null, 2)
+    case 'cron-parse':
+      return JSON.stringify(parseCronExpression(value), null, 2)
+    case 'yaml-to-json':
+      return yamlToJsonText(value)
     case 'hash-md5':
       return hashText(value, 'MD5')
     case 'hash-sha1':
@@ -1202,6 +1262,14 @@ function getTextToolLabel(action: TextToolAction): string {
       return 'Regex tested.'
     case 'text-diff':
       return 'Text diff generated.'
+    case 'jsonpath-query':
+      return 'JSONPath query completed.'
+    case 'json-diff':
+      return 'JSON diff generated.'
+    case 'cron-parse':
+      return 'Cron expression parsed.'
+    case 'yaml-to-json':
+      return 'YAML converted to JSON.'
     case 'hash-md5':
       return 'MD5 hash generated.'
     case 'hash-sha1':

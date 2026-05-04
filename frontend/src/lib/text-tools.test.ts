@@ -6,12 +6,16 @@ import {
   decodeUrlText,
   decodeJwt,
   diffText,
+  diffJsonText,
   encodeBase64Text,
   encodeUrlText,
   generateUuidV4,
   hashText,
+  parseCronExpression,
   parseUrlText,
+  queryJsonPathText,
   testRegexText,
+  yamlToJsonText,
 } from './text-tools'
 
 describe('text tools', () => {
@@ -182,6 +186,54 @@ describe('text tools', () => {
     expect(() => diffText('same text')).toThrow(
       'Text diff input must contain a line with --- between old and new text.'
     )
+  })
+
+  it('queries JSON with a simple JSONPath expression', () => {
+    expect(
+      queryJsonPathText(
+        JSON.stringify({
+          path: '$.users[*].name',
+          json: { users: [{ name: 'Ada' }, { name: 'Linus' }] },
+        })
+      )
+    ).toEqual([
+      { path: '$.users[0].name', value: 'Ada' },
+      { path: '$.users[1].name', value: 'Linus' },
+    ])
+  })
+
+  it('diffs JSON documents by path', () => {
+    expect(
+      diffJsonText('{"port":80,"tags":["prod"]}\n---\n{"port":443}')
+    ).toEqual([
+      { path: '$.port', type: 'changed', before: 80, after: 443 },
+      { path: '$.tags', type: 'removed', before: ['prod'] },
+    ])
+  })
+
+  it('parses cron expressions and returns upcoming runs', () => {
+    const result = parseCronExpression(
+      '*/15 9-10 * * 1',
+      new Date('2030-01-07T09:00:00Z')
+    )
+
+    expect(result).toMatchObject({
+      expression: '*/15 9-10 * * 1',
+      description: 'At every 15th minute during hours 9 through 10 on Monday',
+    })
+    expect(result.nextRuns.slice(0, 3)).toEqual([
+      '2030-01-07T09:00:00.000Z',
+      '2030-01-07T09:15:00.000Z',
+      '2030-01-07T09:30:00.000Z',
+    ])
+  })
+
+  it('converts simple YAML to formatted JSON', () => {
+    expect(
+      yamlToJsonText(
+        ['name: devtools', 'ports:', '  - 80', '  - 443'].join('\n')
+      )
+    ).toBe(JSON.stringify({ name: 'devtools', ports: [80, 443] }, null, 2))
   })
 })
 
