@@ -1,6 +1,7 @@
 import { backend } from '@wailsjs/go/models'
 
 export const httpClientHistoryKey = 'devtools-http-client-history'
+export const httpClientSavedRequestsKey = 'devtools-http-client-saved-requests'
 
 export interface HTTPClientHistoryItem {
   id: string
@@ -12,6 +13,17 @@ export interface HTTPClientHistoryItem {
   statusCode: number
   durationMs: number
   createdAt: string
+}
+
+export interface HTTPSavedRequest {
+  id: string
+  name: string
+  method: string
+  url: string
+  headersText: string
+  body: string
+  timeoutSeconds: string
+  updatedAt: string
 }
 
 export function parseHTTPHeadersText(value: string): backend.HTTPHeader[] {
@@ -55,6 +67,40 @@ export function saveHTTPClientHistory(items: HTTPClientHistoryItem[]) {
   )
 }
 
+export function loadHTTPSavedRequests(): HTTPSavedRequest[] {
+  try {
+    const parsed = JSON.parse(
+      window.localStorage.getItem(httpClientSavedRequestsKey) ?? '[]'
+    ) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(isHTTPSavedRequest)
+  } catch {
+    return []
+  }
+}
+
+export function saveHTTPSavedRequests(items: HTTPSavedRequest[]) {
+  window.localStorage.setItem(
+    httpClientSavedRequestsKey,
+    JSON.stringify(items.slice(0, 50))
+  )
+}
+
+export function createHTTPSavedRequest(input: {
+  name: string
+  method: string
+  url: string
+  headersText: string
+  body: string
+  timeoutSeconds: string
+}): HTTPSavedRequest {
+  return {
+    ...input,
+    id: crypto.randomUUID(),
+    updatedAt: new Date().toISOString(),
+  }
+}
+
 export function createHTTPClientHistoryItem(
   method: string,
   url: string,
@@ -90,5 +136,20 @@ function isHTTPClientHistoryItem(
     typeof item.statusCode === 'number' &&
     typeof item.durationMs === 'number' &&
     typeof item.createdAt === 'string'
+  )
+}
+
+function isHTTPSavedRequest(value: unknown): value is HTTPSavedRequest {
+  if (!value || typeof value !== 'object') return false
+  const item = value as Record<string, unknown>
+  return (
+    typeof item.id === 'string' &&
+    typeof item.name === 'string' &&
+    typeof item.method === 'string' &&
+    typeof item.url === 'string' &&
+    typeof item.headersText === 'string' &&
+    typeof item.body === 'string' &&
+    typeof item.timeoutSeconds === 'string' &&
+    typeof item.updatedAt === 'string'
   )
 }

@@ -22,7 +22,10 @@ export interface EnvDiffEntry {
   type: 'added' | 'removed' | 'changed'
 }
 
+export const primaryEnvStorageKey = 'devtools-primary-env'
+
 const envKeyPattern = /^[A-Za-z_][A-Za-z0-9_]*$/
+const envTemplatePattern = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g
 
 export function parseEnvText(value: string): EnvParseResult {
   const seen = new Map<string, number>()
@@ -120,6 +123,25 @@ export function diffEnvEntries(
         type: 'changed' as const,
       },
     ]
+  })
+}
+
+export function loadPrimaryEnvText(): string {
+  return window.localStorage.getItem(primaryEnvStorageKey) ?? ''
+}
+
+export function savePrimaryEnvText(value: string) {
+  window.localStorage.setItem(primaryEnvStorageKey, value)
+}
+
+export function loadPrimaryEnvEntries(): EnvEntry[] {
+  return parseEnvText(loadPrimaryEnvText()).entries
+}
+
+export function applyEnvTemplate(value: string, entries: EnvEntry[]): string {
+  const values = new Map(entries.map((entry) => [entry.key, entry.value]))
+  return value.replace(envTemplatePattern, (match, key: string) => {
+    return values.get(key) ?? match
   })
 }
 

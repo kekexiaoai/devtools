@@ -3,6 +3,7 @@ import { backend } from '@wailsjs/go/models'
 
 import {
   createHTTPClientHistoryItem,
+  createHTTPSavedRequest,
   parseHTTPHeadersText,
 } from './http-client'
 
@@ -45,6 +46,26 @@ describe('http client helpers', () => {
       timeoutSeconds: '10',
       statusCode: 201,
       durationMs: 42,
+    })
+  })
+
+  it('creates saved requests with complete editable request details', () => {
+    const saved = createHTTPSavedRequest({
+      name: 'List users',
+      method: 'GET',
+      url: '{{BASE_URL}}/users',
+      headersText: 'Authorization: Bearer {{TOKEN}}',
+      body: '',
+      timeoutSeconds: '15',
+    })
+
+    expect(saved).toMatchObject({
+      name: 'List users',
+      method: 'GET',
+      url: '{{BASE_URL}}/users',
+      headersText: 'Authorization: Bearer {{TOKEN}}',
+      body: '',
+      timeoutSeconds: '15',
     })
   })
 })

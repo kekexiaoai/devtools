@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Copy, FileInput, FileText, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -16,7 +16,9 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   diffEnvEntries,
   formatEnvEntries,
+  loadPrimaryEnvText,
   parseEnvText,
+  savePrimaryEnvText,
 } from '@/lib/environment'
 
 const sampleEnv = [
@@ -27,7 +29,9 @@ const sampleEnv = [
 ].join('\n')
 
 export function EnvironmentView() {
-  const [envText, setEnvText] = useState(sampleEnv)
+  const [envText, setEnvText] = useState(
+    () => loadPrimaryEnvText() || sampleEnv
+  )
   const [compareText, setCompareText] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -41,6 +45,10 @@ export function EnvironmentView() {
     () => formatEnvEntries(parsed.entries),
     [parsed.entries]
   )
+
+  useEffect(() => {
+    savePrimaryEnvText(envText)
+  }, [envText])
 
   const loadFile = async (file: File | undefined) => {
     if (!file) return

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { diffEnvEntries, formatEnvEntries, parseEnvText } from './environment'
+import {
+  applyEnvTemplate,
+  diffEnvEntries,
+  formatEnvEntries,
+  parseEnvText,
+} from './environment'
 
 describe('environment helpers', () => {
   it('parses env text and marks duplicate keys', () => {
@@ -32,5 +37,18 @@ describe('environment helpers', () => {
       { key: 'B', left: '2', right: '3', type: 'changed' },
       { key: 'C', right: '4', type: 'added' },
     ])
+  })
+
+  it('applies double-brace environment variables to text', () => {
+    const env = parseEnvText(
+      'BASE_URL=https://api.example.com\nTOKEN=abc'
+    ).entries
+
+    expect(
+      applyEnvTemplate(
+        '{{BASE_URL}}/users\nAuthorization: Bearer {{TOKEN}}',
+        env
+      )
+    ).toBe('https://api.example.com/users\nAuthorization: Bearer abc')
   })
 })

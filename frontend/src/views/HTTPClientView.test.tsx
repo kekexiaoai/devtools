@@ -1,6 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { SendHTTPRequest } from '@wailsjs/go/backend/App'
+import { backend } from '@wailsjs/go/models'
 
+import { primaryEnvStorageKey } from '@/lib/environment'
 import { httpClientHistoryKey } from '@/lib/http-client'
 import { HTTPClientView } from './HTTPClientView'
 
@@ -96,5 +99,67 @@ describe('HTTPClientView', () => {
     ).toBeTruthy()
     expect(screen.getByDisplayValue('{"name":"Ada"}')).toBeTruthy()
     expect(screen.getByDisplayValue('10')).toBeTruthy()
+  })
+
+  it('saves current requests and loads them from the collection list', () => {
+    render(<HTTPClientView />)
+
+    fireEvent.change(
+      screen.getByPlaceholderText('https://api.example.com/resource'),
+      {
+        target: { value: '{{BASE_URL}}/users' },
+      }
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save Request' }))
+
+    expect(screen.getByText('GET {{BASE_URL}}/users')).toBeTruthy()
+
+    fireEvent.change(
+      screen.getByPlaceholderText('https://api.example.com/resource'),
+      {
+        target: { value: 'https://changed.example.com' },
+      }
+    )
+    fireEvent.click(screen.getByText('GET {{BASE_URL}}/users'))
+
+    expect(screen.getByDisplayValue('{{BASE_URL}}/users')).toBeTruthy()
+  })
+
+  it('resolves environment variables before sending requests', async () => {
+    vi.mocked(SendHTTPRequest).mockResolvedValue(
+      new backend.HTTPClientResponse({
+        status: '200 OK',
+        statusCode: 200,
+        headers: [],
+        body: '{}',
+        durationMs: 10,
+        sizeBytes: 2,
+      })
+    )
+    window.localStorage.setItem(
+      primaryEnvStorageKey,
+      'BASE_URL=https://api.example.com\nTOKEN=abc'
+    )
+
+    render(<HTTPClientView />)
+    fireEvent.change(
+      screen.getByPlaceholderText('https://api.example.com/resource'),
+      {
+        target: { value: '{{BASE_URL}}/users' },
+      }
+    )
+    fireEvent.click(screen.getByTestId('http-request-headers-trigger'))
+    fireEvent.change(screen.getByPlaceholderText('Header-Name: value'), {
+      target: { value: 'Authorization: Bearer {{TOKEN}}' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    expect(await screen.findByDisplayValue('{}')).toBeTruthy()
+    expect(SendHTTPRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'https://api.example.com/users',
+        headers: [expect.objectContaining({ value: 'Bearer abc' })],
+      })
+    )
   })
 })

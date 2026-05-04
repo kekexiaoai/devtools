@@ -1,5 +1,13 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { ChevronDown, Clock, Copy, History, Loader2, Send } from 'lucide-react'
+import {
+  ChevronDown,
+  Clock,
+  Copy,
+  History,
+  Loader2,
+  Save,
+  Send,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -21,13 +29,18 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { SendHTTPRequest } from '@wailsjs/go/backend/App'
 import { backend } from '@wailsjs/go/models'
+import { applyEnvTemplate, loadPrimaryEnvEntries } from '@/lib/environment'
 import {
   createHTTPClientHistoryItem,
+  createHTTPSavedRequest,
   formatHTTPHeaders,
   loadHTTPClientHistory,
+  loadHTTPSavedRequests,
   parseHTTPHeadersText,
   saveHTTPClientHistory,
+  saveHTTPSavedRequests,
   type HTTPClientHistoryItem,
+  type HTTPSavedRequest,
 } from '@/lib/http-client'
 
 const httpMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'] as const
@@ -46,6 +59,9 @@ export function HTTPClientView() {
   const [history, setHistory] = useState<HTTPClientHistoryItem[]>(() =>
     loadHTTPClientHistory()
   )
+  const [savedRequests, setSavedRequests] = useState<HTTPSavedRequest[]>(() =>
+    loadHTTPSavedRequests()
+  )
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [isRequestHeadersOpen, setIsRequestHeadersOpen] = useState(false)
   const [isRequestBodyOpen, setIsRequestBodyOpen] = useState(false)
@@ -61,13 +77,17 @@ export function HTTPClientView() {
     setIsSending(true)
     setError('')
     try {
-      const headers = parseHTTPHeadersText(headersText)
+      const envEntries = loadPrimaryEnvEntries()
+      const renderedUrl = applyEnvTemplate(url, envEntries)
+      const renderedHeadersText = applyEnvTemplate(headersText, envEntries)
+      const renderedBody = applyEnvTemplate(body, envEntries)
+      const headers = parseHTTPHeadersText(renderedHeadersText)
       const nextResponse = await SendHTTPRequest(
         new backend.HTTPClientRequest({
           method,
-          url,
+          url: renderedUrl,
           headers,
-          body,
+          body: renderedBody,
           timeoutSeconds: Number(timeoutSeconds) || 30,
         })
       )
@@ -96,6 +116,26 @@ export function HTTPClientView() {
     toast.success('Response body copied.')
   }
 
+  const saveCurrentRequest = () => {
+    const saved = createHTTPSavedRequest({
+      name: `${method} ${url}`,
+      method,
+      url,
+      headersText,
+      body,
+      timeoutSeconds,
+    })
+    const nextSavedRequests = [
+      saved,
+      ...savedRequests.filter(
+        (item) => !(item.method === method && item.url === url)
+      ),
+    ].slice(0, 50)
+    setSavedRequests(nextSavedRequests)
+    saveHTTPSavedRequests(nextSavedRequests)
+    toast.success('Request saved.')
+  }
+
   const loadHistoryItem = () => {
     if (!selectedHistoryItem) return
     setMethod(selectedHistoryItem.method as typeof method)
@@ -107,6 +147,16 @@ export function HTTPClientView() {
     setIsRequestBodyOpen(Boolean(selectedHistoryItem.body))
     setSelectedHistoryItem(null)
     setIsHistoryOpen(false)
+  }
+
+  const loadSavedRequest = (item: HTTPSavedRequest) => {
+    setMethod(item.method as typeof method)
+    setUrl(item.url)
+    setHeadersText(item.headersText)
+    setBody(item.body)
+    setTimeoutSeconds(item.timeoutSeconds)
+    setIsRequestHeadersOpen(Boolean(item.headersText))
+    setIsRequestBodyOpen(Boolean(item.body))
   }
 
   return (
@@ -211,9 +261,40 @@ export function HTTPClientView() {
             data-testid="http-request-panel-header"
             className="border-b px-4 py-3"
           >
-            <CardTitle>Request</CardTitle>
+            <CardTitle className="flex items-center justify-between gap-3">
+              <span>Request</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={saveCurrentRequest}
+                disabled={!url}
+              >
+                <Save className="mr-2 h-4 w-4" />
+                Save Request
+              </Button>
+            </CardTitle>
           </CardHeader>
           <CardContent className="flex h-full min-h-0 flex-col gap-2 p-4">
+            {savedRequests.length > 0 && (
+              <div
+                data-testid="http-saved-requests"
+                className="max-h-24 overflow-auto rounded-md border bg-muted/20 p-1"
+              >
+                {savedRequests.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => loadSavedRequest(item)}
+                    className="flex w-full items-center justify-between gap-3 rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
+                  >
+                    <span className="truncate font-medium">{item.name}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {new Date(item.updatedAt).toLocaleDateString()}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="grid gap-2 md:grid-cols-[8rem_1fr_5rem]">
               <select
                 value={method}
