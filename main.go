@@ -61,6 +61,7 @@ func main() {
 		BackgroundColour: &options.RGBA{R: 37, G: 37, B: 37, A: 255},
 		OnStartup: func(ctx context.Context) {
 			app.Startup(ctx)
+			app.SetupTrayMenu()
 		},
 		OnShutdown: func(ctx context.Context) {
 			app.Shutdown(ctx)

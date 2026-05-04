@@ -41,6 +41,7 @@ type App struct {
 	isMacOS      bool
 	configDir    string
 	logFilePath  string
+	trayHandle   uintptr
 }
 
 // NewApp creates a new App application struct
@@ -205,6 +206,7 @@ func (a *App) Shutdown(ctx context.Context) {
 		log.Println("Shutting down TerminalService...")
 		a.TerminalService.Shutdown()
 	}
+	a.TeardownTrayMenu()
 	log.Println("App shutdown completed.")
 }
 
