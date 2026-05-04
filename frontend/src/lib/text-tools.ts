@@ -401,6 +401,13 @@ export function diffJsonText(value: string): JsonDiffEntry[] {
 export interface CronParseResult {
   expression: string
   description: string
+  fields: {
+    minutes: string[]
+    hours: string[]
+    daysOfMonth: string[]
+    months: string[]
+    daysOfWeek: string[]
+  }
   nextRuns: string[]
 }
 
@@ -418,8 +425,8 @@ export function parseCronExpression(
   const minute = parseCronField(minuteRaw, 0, 59)
   const hour = parseCronField(hourRaw, 0, 23)
   const day = parseCronField(dayRaw, 1, 31)
-  const month = parseCronField(monthRaw, 1, 12)
-  const weekday = parseCronField(weekdayRaw, 0, 7)
+  const month = parseCronField(monthRaw, 1, 12, monthAliases)
+  const weekday = parseCronField(weekdayRaw, 0, 7, weekdayAliases)
 
   const cursor = new Date(now)
   cursor.setUTCSeconds(0, 0)
@@ -444,6 +451,18 @@ export function parseCronExpression(
   return {
     expression: trimmed,
     description: describeCronExpression(parts),
+    fields: {
+      minutes: formatCronValues(
+        minute,
+        0,
+        59,
+        (item) => `:${String(item).padStart(2, '0')}`
+      ),
+      hours: formatCronValues(hour, 0, 23, String),
+      daysOfMonth: formatCronValues(day, 1, 31, String),
+      months: formatCronValues(month, 1, 12, (item) => monthNames[item - 1]),
+      daysOfWeek: formatCronValues(weekday, 0, 7, formatWeekdayName),
+    },
     nextRuns,
   }
 }
@@ -980,7 +999,45 @@ function deepEqual(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right)
 }
 
-function parseCronField(value: string, min: number, max: number): Set<number> {
+const monthNames = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
+
+const weekdayNames = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+]
+
+const monthAliases = new Map(
+  monthNames.map((name, index) => [name.slice(0, 3).toUpperCase(), index + 1])
+)
+
+const weekdayAliases = new Map(
+  weekdayNames.map((name, index) => [name.slice(0, 3).toUpperCase(), index])
+)
+
+function parseCronField(
+  value: string,
+  min: number,
+  max: number,
+  aliases = new Map<string, number>()
+): Set<number> {
   const result = new Set<number>()
 
   value.split(',').forEach((part) => {
@@ -997,12 +1054,14 @@ function parseCronField(value: string, min: number, max: number): Set<number> {
     let end = max
     if (rangePart !== '*') {
       if (rangePart.includes('-')) {
-        const [rawStart, rawEnd] = rangePart.split('-').map(Number)
+        const [rawStart, rawEnd] = rangePart
+          .split('-')
+          .map((item) => parseCronFieldNumber(item, aliases))
         start = rawStart
         end = rawEnd
       } else {
-        start = Number(rangePart)
-        end = Number(rangePart)
+        start = parseCronFieldNumber(rangePart, aliases)
+        end = parseCronFieldNumber(rangePart, aliases)
       }
     }
 
@@ -1025,6 +1084,14 @@ function parseCronField(value: string, min: number, max: number): Set<number> {
     throw new Error('Invalid cron field value.')
   }
   return result
+}
+
+function parseCronFieldNumber(
+  value: string,
+  aliases: Map<string, number>
+): number {
+  const aliasValue = aliases.get(value.trim().toUpperCase())
+  return aliasValue ?? Number(value)
 }
 
 function describeCronExpression(parts: string[]): string {
@@ -1054,20 +1121,38 @@ function describeCronHour(value: string): string {
 }
 
 function describeCronWeekday(value: string): string {
-  const names = [
-    'Sunday',
-    'Monday',
-    'Tuesday',
-    'Wednesday',
-    'Thursday',
-    'Friday',
-    'Saturday',
-  ]
   if (/^\d+$/.test(value)) {
     const day = Number(value) % 7
-    return `on ${names[day]}`
+    return `on ${weekdayNames[day]}`
+  }
+  const aliasValue = weekdayAliases.get(value.toUpperCase())
+  if (aliasValue !== undefined) {
+    return `on ${weekdayNames[aliasValue]}`
   }
   return `on weekday ${value}`
+}
+
+function formatCronValues(
+  values: Set<number>,
+  min: number,
+  max: number,
+  formatter: (value: number) => string
+): string[] {
+  const expectedSize = max === 7 ? 7 : max - min + 1
+  const normalized = Array.from(values)
+    .map((value) => (max === 7 && value === 7 ? 0 : value))
+    .filter((value, index, source) => source.indexOf(value) === index)
+    .sort((left, right) => left - right)
+
+  if (normalized.length === expectedSize) {
+    return ['(All)']
+  }
+
+  return normalized.map(formatter)
+}
+
+function formatWeekdayName(value: number): string {
+  return weekdayNames[value % 7]
 }
 
 function parseSimpleYaml(value: string): Record<string, unknown> {

@@ -102,4 +102,16 @@ describe('JsonToolsView text tools', () => {
     expect(screen.getByText('Relative')).toBeTruthy()
     expect(screen.getByLabelText('Timestamp Input').tagName).toBe('INPUT')
   })
+
+  it('shows a dedicated cron parser workspace', () => {
+    renderJsonToolsView()
+
+    fireEvent.click(screen.getByRole('tab', { name: /Cron Parser/i }))
+
+    expect(
+      screen.getByTestId('text-tool-workspace').getAttribute('data-layout')
+    ).toBe('cron')
+    expect(screen.getByLabelText('Cron Expression').tagName).toBe('INPUT')
+    expect(screen.getByText('Next Executions')).toBeTruthy()
+  })
 })

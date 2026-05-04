@@ -226,6 +226,18 @@ describe('text tools', () => {
       '2030-01-07T09:15:00.000Z',
       '2030-01-07T09:30:00.000Z',
     ])
+    expect(result.fields.minutes.slice(0, 3)).toEqual([':00', ':15', ':30'])
+    expect(result.fields.daysOfWeek).toEqual(['Monday'])
+  })
+
+  it('parses cron weekday names', () => {
+    const result = parseCronExpression(
+      '0 0 * * SUN',
+      new Date('2030-01-01T00:00:00Z')
+    )
+
+    expect(result.description).toBe('At minute 0 during hour 0 on Sunday')
+    expect(result.fields.daysOfWeek).toEqual(['Sunday'])
   })
 
   it('converts simple YAML to formatted JSON', () => {

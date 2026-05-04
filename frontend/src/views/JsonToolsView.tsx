@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import ReactJson from 'react-json-view'
 import {
   ArrowRightLeft,
@@ -47,6 +47,7 @@ import {
   parseUrlText,
   queryJsonPathText,
   testRegexText,
+  type CronParseResult,
   type TimestampDetails,
   type TimestampInputFormat,
   yamlToJsonText,
@@ -241,6 +242,21 @@ const textToolConfigs: TextToolConfig[] = [
     requiresInput: false,
     layout: 'uuid',
   },
+]
+
+const cronExamples = [
+  { label: 'Every Minute (* * * * *)', value: '* * * * *' },
+  { label: 'Every Five Minutes (*/5 * * * *)', value: '*/5 * * * *' },
+  { label: 'Every 30 Minutes (*/30 * * * *)', value: '*/30 * * * *' },
+  { label: 'Every Hour (0 * * * *)', value: '0 * * * *' },
+  { label: 'Every Six Hours (0 */6 * * *)', value: '0 */6 * * *' },
+  { label: 'During the Work Day (*/5 9-17 * * *)', value: '*/5 9-17 * * *' },
+  { label: 'Every day at Midnight (0 0 * * *)', value: '0 0 * * *' },
+  { label: 'Every day at 2 AM (0 2 * * *)', value: '0 2 * * *' },
+  { label: 'Every Sunday at midnight (0 0 * * SUN)', value: '0 0 * * SUN' },
+  { label: 'Every weekday at midnight (0 0 * * 1-5)', value: '0 0 * * 1-5' },
+  { label: 'At the Start of Every Month (0 0 1 * *)', value: '0 0 1 * *' },
+  { label: 'On January 1st at Midnight (0 0 1 1 *)', value: '0 0 1 1 *' },
 ]
 
 function createInitialTextToolStates(): Record<TextToolAction, TextToolState> {
@@ -707,6 +723,16 @@ function TextToolWorkspace({
     )
   }
 
+  if (config.action === 'cron-parse') {
+    return (
+      <CronToolWorkspace
+        onInputChange={onInputChange}
+        onOutputChange={onOutputChange}
+        state={state}
+      />
+    )
+  }
+
   if (config.layout === 'stacked') {
     return (
       <div
@@ -830,6 +856,116 @@ function CompactTextAreaField({
         className="h-32 resize-y font-mono text-sm"
         placeholder={placeholder}
       />
+    </div>
+  )
+}
+
+function CronToolWorkspace({
+  onInputChange,
+  onOutputChange,
+  state,
+}: {
+  onInputChange: (value: string) => void
+  onOutputChange: (value: string) => void
+  state: TextToolState
+}) {
+  const details = useMemo(() => parseCronDetails(state.output), [state.output])
+  const fieldRows = [
+    ['Minutes', details?.fields.minutes],
+    ['Hours', details?.fields.hours],
+    ['Day of Month', details?.fields.daysOfMonth],
+    ['Months', details?.fields.months],
+    ['Day of Week', details?.fields.daysOfWeek],
+  ] as const
+
+  const updateCronInput = (value: string) => {
+    onInputChange(value)
+    try {
+      onOutputChange(JSON.stringify(parseCronExpression(value), null, 2))
+    } catch {
+      onOutputChange('')
+    }
+  }
+
+  return (
+    <div
+      data-testid="text-tool-workspace"
+      data-layout="cron"
+      className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4 overflow-hidden"
+    >
+      <div className="grid gap-3 lg:grid-cols-[minmax(260px,0.7fr)_minmax(260px,0.9fr)]">
+        <div className="grid gap-1.5">
+          <label
+            htmlFor="cron-expression"
+            className="text-sm font-semibold text-foreground"
+          >
+            Cron Expression
+          </label>
+          <Input
+            id="cron-expression"
+            value={state.input}
+            onChange={(event) => updateCronInput(event.target.value)}
+            placeholder="*/5 * * * *"
+            className="font-mono text-sm"
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <label className="text-sm font-semibold text-foreground">
+            Examples
+          </label>
+          <Select onValueChange={updateCronInput}>
+            <SelectTrigger>
+              <SelectValue placeholder="Pick an example..." />
+            </SelectTrigger>
+            <SelectContent>
+              {cronExamples.map((example) => (
+                <SelectItem key={example.value} value={example.value}>
+                  {example.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="min-h-0 overflow-auto rounded-md border border-border bg-muted/30 p-4">
+        <div className="grid max-w-4xl gap-5">
+          <div className="text-lg font-semibold">
+            {details?.description ??
+              'Enter a five-field cron expression or choose an example.'}
+          </div>
+          <div className="grid gap-2 text-sm">
+            {fieldRows.map(([label, values]) => (
+              <CronFieldRow key={label} label={label} values={values ?? []} />
+            ))}
+          </div>
+          <div className="grid gap-2 text-sm">
+            <div className="font-semibold">Next Executions</div>
+            <div className="grid gap-1 pl-4 font-mono">
+              {details?.nextRuns.length ? (
+                details.nextRuns.map((run) => (
+                  <div key={run}>{formatCronRun(run)}</div>
+                ))
+              ) : (
+                <div className="text-muted-foreground">--</div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CronFieldRow({ label, values }: { label: string; values: string[] }) {
+  return (
+    <div className="grid grid-cols-[8rem_1fr] gap-4">
+      <div className="text-right font-medium text-muted-foreground">
+        {label}
+      </div>
+      <div className="font-mono">
+        {values.length ? values.join(', ') : '--'}
+      </div>
     </div>
   )
 }
@@ -1026,6 +1162,29 @@ function parseTimestampDetails(value: string): TimestampDetails | null {
   } catch {
     return null
   }
+}
+
+function parseCronDetails(value: string): CronParseResult | null {
+  if (!value) return null
+
+  try {
+    return JSON.parse(value) as CronParseResult
+  } catch {
+    return null
+  }
+}
+
+function formatCronRun(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
 }
 
 function getTimestampRows(details: TimestampDetails | null): Array<{
