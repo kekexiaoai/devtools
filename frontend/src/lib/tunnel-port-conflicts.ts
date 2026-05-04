@@ -75,6 +75,19 @@ export function formatTunnelPortConflict(conflict: TunnelPortConflict): string {
   return `Local port ${conflict.port} is already used by ${conflict.process} (PID ${conflict.pid}) on ${conflict.address}.`
 }
 
+export function formatTunnelPortConflictSummary(
+  groups: Array<{ tunnelName: string; conflicts: TunnelPortConflict[] }>
+): string {
+  return groups
+    .flatMap((group) => [
+      `${group.tunnelName}:`,
+      ...group.conflicts.map(
+        (conflict) => `- ${formatTunnelPortConflict(conflict)}`
+      ),
+    ])
+    .join('\n')
+}
+
 function addConflict(
   conflicts: Map<string, TunnelPortConflict[]>,
   tunnelId: string,

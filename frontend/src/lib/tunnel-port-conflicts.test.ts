@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { backend, sshtunnel } from '@wailsjs/go/models'
 import {
+  formatTunnelPortConflictSummary,
   formatTunnelPortConflict,
   getTunnelPortConflictMap,
 } from './tunnel-port-conflicts'
@@ -125,5 +126,42 @@ describe('getTunnelPortConflictMap', () => {
         pid: '42',
       })
     ).toBe('Local port 5432 is already used by postgres (PID 42) on 127.0.0.1.')
+  })
+
+  it('formats grouped conflict summaries for profile startup', () => {
+    expect(
+      formatTunnelPortConflictSummary([
+        {
+          tunnelName: 'Database',
+          conflicts: [
+            {
+              kind: 'listening',
+              port: 5432,
+              address: '127.0.0.1',
+              process: 'postgres',
+              pid: '42',
+            },
+          ],
+        },
+        {
+          tunnelName: 'Admin',
+          conflicts: [
+            {
+              kind: 'duplicate',
+              port: 8080,
+              peerId: 'api',
+              peerName: 'API',
+            },
+          ],
+        },
+      ])
+    ).toBe(
+      [
+        'Database:',
+        '- Local port 5432 is already used by postgres (PID 42) on 127.0.0.1.',
+        'Admin:',
+        '- Local port 8080 is also used by "API".',
+      ].join('\n')
+    )
   })
 })

@@ -76,7 +76,7 @@ import {
   type TunnelAutoRestartState,
 } from './lib/tunnel-auto-restart'
 import {
-  formatTunnelPortConflict,
+  formatTunnelPortConflictSummary,
   getTunnelPortConflictMap,
 } from './lib/tunnel-port-conflicts'
 
@@ -85,6 +85,10 @@ export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
 export type TerminalSession = types.TerminalSessionInfo & {
   displayName: string
   status: ConnectionStatus
+}
+
+interface StartTunnelOptions {
+  skipPortConflictConfirmation?: boolean
 }
 
 /**
@@ -508,8 +512,11 @@ function AppContent() {
     [fetchActiveTunnels]
   )
 
-  const confirmTunnelPortConflicts = useCallback(
-    async (tunnel: sshtunnel.SavedTunnelConfig): Promise<boolean> => {
+  const confirmTunnelsPortConflicts = useCallback(
+    async (
+      tunnels: sshtunnel.SavedTunnelConfig[],
+      title: string
+    ): Promise<boolean> => {
       let listeningPorts: Awaited<ReturnType<typeof GetListeningPorts>>
       try {
         listeningPorts = await GetListeningPorts()
@@ -518,19 +525,24 @@ function AppContent() {
         return true
       }
 
-      const conflicts =
-        getTunnelPortConflictMap(
-          savedTunnelsRef.current,
-          activeTunnelsRef.current,
-          listeningPorts
-        ).get(tunnel.id) ?? []
+      const conflictMap = getTunnelPortConflictMap(
+        savedTunnelsRef.current,
+        activeTunnelsRef.current,
+        listeningPorts
+      )
+      const conflictGroups = tunnels
+        .map((tunnel) => ({
+          tunnelName: tunnel.name,
+          conflicts: conflictMap.get(tunnel.id) ?? [],
+        }))
+        .filter((group) => group.conflicts.length > 0)
 
-      if (conflicts.length === 0) return true
+      if (conflictGroups.length === 0) return true
 
       const choice = await showDialog({
         type: 'confirm',
-        title: `Start "${tunnel.name}" with port conflict?`,
-        message: conflicts.map(formatTunnelPortConflict).join('\n'),
+        title,
+        message: formatTunnelPortConflictSummary(conflictGroups),
         buttons: [
           { text: 'Cancel', variant: 'outline', value: 'cancel' },
           { text: 'Start Anyway', variant: 'default', value: 'start' },
@@ -543,7 +555,7 @@ function AppContent() {
   )
 
   const startTunnel = useCallback(
-    async (id: string) => {
+    async (id: string, options: StartTunnelOptions = {}) => {
       const tunnel = savedTunnelsRef.current.find((t) => t.id === id)
       if (!tunnel) {
         toast.error('Could not find tunnel configuration.')
@@ -555,9 +567,14 @@ function AppContent() {
       let toastId: string | number | undefined
 
       try {
-        const shouldContinue = await confirmTunnelPortConflicts(tunnel)
-        if (!shouldContinue) {
-          return
+        if (!options.skipPortConflictConfirmation) {
+          const shouldContinue = await confirmTunnelsPortConflicts(
+            [tunnel],
+            `Start "${tunnel.name}" with port conflict?`
+          )
+          if (!shouldContinue) {
+            return
+          }
         }
 
         const aliasForDisplay =
@@ -606,7 +623,7 @@ function AppContent() {
         )
       }
     },
-    [confirmTunnelPortConflicts, fetchActiveTunnels, verifyAndGetPassword]
+    [confirmTunnelsPortConflicts, fetchActiveTunnels, verifyAndGetPassword]
   )
 
   const handleStartTunnel = useCallback(
@@ -677,7 +694,7 @@ function AppContent() {
         }))
 
         void (async () => {
-          await startTunnel(configId)
+          await startTunnel(configId, { skipPortConflictConfirmation: true })
           const tunnels = await fetchActiveTunnels(false)
           const restarted = tunnels.some(
             (tunnel) =>
@@ -716,6 +733,9 @@ function AppContent() {
         const savedTunnelIds = new Set(
           savedTunnelsRef.current.map((tunnel) => tunnel.id)
         )
+        const savedTunnelMap = new Map(
+          savedTunnelsRef.current.map((tunnel) => [tunnel.id, tunnel])
+        )
         const activeConfigIds = new Set(
           activeTunnelsRef.current
             .filter((tunnel) => tunnel.status === 'active')
@@ -744,10 +764,25 @@ function AppContent() {
           return
         }
 
+        const startableTunnels = startableTunnelIds
+          .map((id) => savedTunnelMap.get(id))
+          .filter((tunnel): tunnel is sshtunnel.SavedTunnelConfig =>
+            Boolean(tunnel)
+          )
+        const shouldContinue = await confirmTunnelsPortConflicts(
+          startableTunnels,
+          `Start profile "${profile.name}" with port conflicts?`
+        )
+        if (!shouldContinue) {
+          return
+        }
+
         setStartingProfileIds((prev) => [...prev, profileId])
         try {
           for (const tunnelId of startableTunnelIds) {
-            await startTunnel(tunnelId)
+            await startTunnel(tunnelId, {
+              skipPortConflictConfirmation: true,
+            })
           }
           toast.success(`Profile "${profile.name}" startup completed.`)
         } finally {
@@ -755,7 +790,7 @@ function AppContent() {
         }
       })()
     },
-    [startTunnel]
+    [confirmTunnelsPortConflicts, startTunnel]
   )
 
   useEffect(() => {
