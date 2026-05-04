@@ -31,12 +31,198 @@ export function decodeUrlText(value: string): string {
   }
 }
 
+export type HashAlgorithm = 'MD5' | 'SHA-1' | 'SHA-256' | 'SHA-512'
+
+export async function hashText(
+  value: string,
+  algorithm: HashAlgorithm
+): Promise<string> {
+  if (algorithm === 'MD5') {
+    return md5(value)
+  }
+
+  const digest = await crypto.subtle.digest(
+    algorithm,
+    new TextEncoder().encode(value)
+  )
+  return bytesToHex(new Uint8Array(digest))
+}
+
+export interface DecodedJwt {
+  header: Record<string, unknown>
+  payload: Record<string, unknown>
+  signature: string
+  expiresAt?: string
+  expired?: boolean
+}
+
+export function decodeJwt(token: string): DecodedJwt {
+  const parts = token.trim().split('.')
+  if (parts.length !== 3) {
+    throw new Error('Invalid JWT input.')
+  }
+
+  try {
+    const header = JSON.parse(decodeBase64Url(parts[0])) as Record<
+      string,
+      unknown
+    >
+    const payload = JSON.parse(decodeBase64Url(parts[1])) as Record<
+      string,
+      unknown
+    >
+    const exp = typeof payload.exp === 'number' ? payload.exp : undefined
+    return {
+      header,
+      payload,
+      signature: parts[2],
+      expiresAt: exp ? new Date(exp * 1000).toISOString() : undefined,
+      expired: exp ? Date.now() > exp * 1000 : undefined,
+    }
+  } catch {
+    throw new Error('Invalid JWT input.')
+  }
+}
+
+export interface TimestampConversion {
+  seconds: number
+  milliseconds: number
+  utc: string
+  local: string
+}
+
+export function convertUnixTimestamp(value: string): TimestampConversion {
+  const trimmed = value.trim()
+  if (!/^\d+$/.test(trimmed)) {
+    throw new Error('Invalid Unix timestamp.')
+  }
+
+  const raw = Number(trimmed)
+  const milliseconds = trimmed.length >= 13 ? raw : raw * 1000
+  const date = new Date(milliseconds)
+  if (Number.isNaN(date.getTime())) {
+    throw new Error('Invalid Unix timestamp.')
+  }
+
+  return {
+    seconds: Math.floor(milliseconds / 1000),
+    milliseconds,
+    utc: date.toISOString(),
+    local: date.toLocaleString(),
+  }
+}
+
+export function generateUuidV4(count: number): string[] {
+  const safeCount = Math.min(Math.max(Math.floor(count), 1), 100)
+  return Array.from({ length: safeCount }, () => crypto.randomUUID())
+}
+
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = ''
   bytes.forEach((byte) => {
     binary += String.fromCharCode(byte)
   })
   return btoa(binary)
+}
+
+function decodeBase64Url(value: string): string {
+  const padded = value.padEnd(
+    value.length + ((4 - (value.length % 4)) % 4),
+    '='
+  )
+  const base64 = padded.replaceAll('-', '+').replaceAll('_', '/')
+  const bytes = base64ToBytes(base64)
+  return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+function md5(value: string): string {
+  const bytes = new TextEncoder().encode(value)
+  const bitLength = bytes.length * 8
+  const paddedLength = (((bytes.length + 8) >> 6) + 1) << 6
+  const padded = new Uint8Array(paddedLength)
+  padded.set(bytes)
+  padded[bytes.length] = 0x80
+  const view = new DataView(padded.buffer)
+  view.setUint32(paddedLength - 8, bitLength, true)
+
+  let a = 0x67452301
+  let b = 0xefcdab89
+  let c = 0x98badcfe
+  let d = 0x10325476
+
+  for (let offset = 0; offset < padded.length; offset += 64) {
+    const m = Array.from({ length: 16 }, (_, index) =>
+      view.getUint32(offset + index * 4, true)
+    )
+    let aa = a
+    let bb = b
+    let cc = c
+    let dd = d
+
+    for (let i = 0; i < 64; i += 1) {
+      let f = 0
+      let g = 0
+      if (i < 16) {
+        f = (bb & cc) | (~bb & dd)
+        g = i
+      } else if (i < 32) {
+        f = (dd & bb) | (~dd & cc)
+        g = (5 * i + 1) % 16
+      } else if (i < 48) {
+        f = bb ^ cc ^ dd
+        g = (3 * i + 5) % 16
+      } else {
+        f = cc ^ (bb | ~dd)
+        g = (7 * i) % 16
+      }
+      const next = dd
+      dd = cc
+      cc = bb
+      bb = add32(
+        bb,
+        rotateLeft(add32(add32(aa, f), add32(md5K[i], m[g])), md5S[i])
+      )
+      aa = next
+    }
+
+    a = add32(a, aa)
+    b = add32(b, bb)
+    c = add32(c, cc)
+    d = add32(d, dd)
+  }
+
+  return [a, b, c, d]
+    .map((word) =>
+      [0, 8, 16, 24]
+        .map((shift) => ((word >>> shift) & 0xff).toString(16).padStart(2, '0'))
+        .join('')
+    )
+    .join('')
+}
+
+const md5S = [
+  7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5,
+  9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11,
+  16, 23, 4, 11, 16, 23, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15,
+  21,
+]
+
+const md5K = Array.from({ length: 64 }, (_, index) =>
+  Math.floor(Math.abs(Math.sin(index + 1)) * 2 ** 32)
+)
+
+function add32(a: number, b: number): number {
+  return (a + b) >>> 0
+}
+
+function rotateLeft(value: number, shift: number): number {
+  return (value << shift) | (value >>> (32 - shift))
 }
 
 function base64ToBytes(value: string): Uint8Array {
