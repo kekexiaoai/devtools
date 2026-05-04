@@ -86,7 +86,11 @@ describe('useSshConnection', () => {
         'Connecting to my-alias...'
       )
       expect(mockedToast.success).toHaveBeenCalledWith(
-        'Terminal for my-alias launched.'
+        'Terminal for my-alias launched.',
+        {
+          id: 'ssh-connection-success:external:remote:my-alias',
+          duration: 2500,
+        }
       )
       expect(mockedToast.dismiss).toHaveBeenCalledWith('toast-123')
     })
@@ -156,7 +160,11 @@ describe('useSshConnection', () => {
 
     await expect(promise!).resolves.toBe('Terminal for my-alias launched.')
     expect(mockedToast.success).toHaveBeenCalledWith(
-      'Terminal for my-alias launched.'
+      'Terminal for my-alias launched.',
+      {
+        id: 'ssh-connection-success:external:remote:my-alias',
+        duration: 2500,
+      }
     )
   })
 
@@ -251,7 +259,11 @@ describe('useSshConnection', () => {
 
     await expect(promise!).resolves.toBe('Terminal for my-alias launched.')
     expect(mockedToast.success).toHaveBeenCalledWith(
-      'Terminal for my-alias launched.'
+      'Terminal for my-alias launched.',
+      {
+        id: 'ssh-connection-success:external:remote:my-alias',
+        duration: 2500,
+      }
     )
   })
 
@@ -327,7 +339,11 @@ describe('useSshConnection', () => {
       )
       expect(mockedToast.dismiss).toHaveBeenCalledWith('toast-123')
       expect(mockedToast.success).toHaveBeenCalledWith(
-        'Terminal for my-alias is ready.'
+        'Terminal for my-alias is ready.',
+        {
+          id: 'ssh-connection-success:internal:remote:my-alias',
+          duration: 2500,
+        }
       )
     })
     expect(mockOnOpenTerminal).toHaveBeenCalledWith(mockSessionInfo)
@@ -367,7 +383,11 @@ describe('useSshConnection', () => {
       expect(mockedToast.loading).toHaveBeenCalledWith('Connecting to local...')
       expect(mockedToast.dismiss).toHaveBeenCalledWith('toast-123')
       expect(mockedToast.success).toHaveBeenCalledWith(
-        'Terminal for local is ready.'
+        'Terminal for local is ready.',
+        {
+          id: 'ssh-connection-success:internal:local:local',
+          duration: 2500,
+        }
       )
     })
     expect(mockStartLocalSession).toHaveBeenCalledWith('local-session-123')

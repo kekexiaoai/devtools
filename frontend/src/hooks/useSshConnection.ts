@@ -436,7 +436,10 @@ export function useSshConnection({
           const { context, message } = state
           // Only show success toast for non-verify strategies, as 'verify' is a silent check.
           if (context.strategy !== 'verify') {
-            toast.success(message)
+            toast.success(message, {
+              id: getConnectionSuccessToastId(context),
+              duration: 2500,
+            })
           }
           context.resolve(message)
           setState({ status: 'idle' })
@@ -506,4 +509,13 @@ export function useSshConnection({
   )
 
   return { connect }
+}
+
+function getConnectionSuccessToastId(context: ConnectionContext): string {
+  return [
+    'ssh-connection-success',
+    context.strategy,
+    context.type,
+    context.alias,
+  ].join(':')
 }
