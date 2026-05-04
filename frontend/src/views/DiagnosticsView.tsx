@@ -17,6 +17,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { getTunnelHealthSummary } from '@/lib/tunnel-health'
+import { getTunnelPortConflictMap } from '@/lib/tunnel-port-conflicts'
+import { buildTunnelFailureDiagnostics } from '@/lib/tunnel-start-diagnostics'
 import { Copy, Loader2, RefreshCw, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -24,12 +26,14 @@ interface DiagnosticsViewProps {
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
   savedTunnels: sshtunnel.SavedTunnelConfig[]
   tunnelProfiles: sshgate.TunnelProfile[]
+  tunnelErrors: Map<string, Error>
 }
 
 export function DiagnosticsView({
   activeTunnels,
   savedTunnels,
   tunnelProfiles,
+  tunnelErrors,
 }: DiagnosticsViewProps) {
   const [snapshot, setSnapshot] = useState<backend.DiagnosticsSnapshot | null>(
     null
@@ -44,6 +48,18 @@ export function DiagnosticsView({
     return getTunnelHealthSummary(activeTunnels)
   }, [activeTunnels])
 
+  const portConflicts = useMemo(() => {
+    return getTunnelPortConflictMap(savedTunnels, activeTunnels, listeningPorts)
+  }, [savedTunnels, activeTunnels, listeningPorts])
+
+  const tunnelFailureDiagnostics = useMemo(() => {
+    return buildTunnelFailureDiagnostics({
+      savedTunnels,
+      tunnelErrors,
+      portConflicts,
+    })
+  }, [savedTunnels, tunnelErrors, portConflicts])
+
   const diagnosticSummary = useMemo(() => {
     return [
       `Platform: ${snapshot?.platform ?? 'Unknown'}`,
@@ -55,6 +71,7 @@ export function DiagnosticsView({
       `Saved tunnels: ${savedTunnels.length}`,
       `Tunnel profiles: ${tunnelProfiles.length}`,
       `Listening ports: ${listeningPorts.length}`,
+      `Tunnel startup failures: ${tunnelFailureDiagnostics.length}`,
     ].join('\n')
   }, [
     snapshot,
@@ -62,6 +79,7 @@ export function DiagnosticsView({
     savedTunnels.length,
     tunnelProfiles.length,
     listeningPorts.length,
+    tunnelFailureDiagnostics.length,
   ])
 
   const refresh = useCallback(async () => {
@@ -157,6 +175,52 @@ export function DiagnosticsView({
             <Metric label="Saved" value={savedTunnels.length} />
             <Metric label="Profiles" value={tunnelProfiles.length} />
             <Metric label="Listening Ports" value={listeningPorts.length} />
+            <Metric
+              label="Startup Failures"
+              value={tunnelFailureDiagnostics.length}
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="xl:col-span-3">
+          <CardHeader>
+            <CardTitle>Recent Tunnel Failures</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {tunnelFailureDiagnostics.length > 0 ? (
+              <div className="space-y-3">
+                {tunnelFailureDiagnostics.map((entry) => (
+                  <div
+                    key={entry.tunnelId}
+                    className="rounded-md border bg-destructive/5 p-3 text-sm"
+                  >
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="font-medium">{entry.tunnelName}</div>
+                        <div className="text-xs text-destructive">
+                          {entry.diagnosis.reason}
+                        </div>
+                      </div>
+                      <div className="font-mono text-xs text-muted-foreground">
+                        {entry.tunnelId}
+                      </div>
+                    </div>
+                    <p className="whitespace-pre-wrap break-all text-xs text-muted-foreground">
+                      {entry.diagnosis.details}
+                    </p>
+                    <ul className="mt-2 list-disc space-y-1 pl-4 text-xs">
+                      {entry.diagnosis.suggestions.map((suggestion) => (
+                        <li key={suggestion}>{suggestion}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">
+                No tunnel startup failures recorded in this session.
+              </div>
+            )}
           </CardContent>
         </Card>
 

@@ -1296,6 +1296,7 @@ function AppContent() {
           activeTunnels={activeTunnels}
           savedTunnels={savedTunnels}
           tunnelProfiles={tunnelProfiles}
+          tunnelErrors={tunnelErrors}
         />
       ),
       Settings: <SettingsView platform={platform} />,
