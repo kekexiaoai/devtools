@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react' // prettier-ignore
+import React, { useMemo, useRef } from 'react' // prettier-ignore
 import {
   Card,
   CardContent,
@@ -21,6 +21,13 @@ import { useSettingsStore, type ShortcutAction } from '@/hooks/useSettingsStore'
 import { NAMED_THEMES } from '@/themes/terminalThemes'
 import { ShortcutInput } from '@/components/ShortcutInput'
 import { FontFamilyCombobox } from '@/components/terminal/FontFamilyCombobox'
+import { Download, Upload } from 'lucide-react'
+import {
+  createSettingsBackup,
+  parseSettingsBackupText,
+  restoreSettingsBackup,
+} from '@/lib/settings-backup'
+import { toast } from 'sonner'
 
 const availableThemes = [
   { name: 'System Default', value: 'System Default' },
@@ -39,10 +46,42 @@ const shortcutActions: { id: ShortcutAction; name: string }[] = [
 
 export function SettingsView({ platform }: { platform: string }) {
   const settings = useSettingsStore()
+  const importInputRef = useRef<HTMLInputElement>(null)
 
   const isMac = useMemo(() => {
     return platform === 'darwin'
   }, [platform])
+
+  const handleExportSettings = () => {
+    const backup = createSettingsBackup(window.localStorage)
+    const blob = new Blob([JSON.stringify(backup, null, 2)], {
+      type: 'application/json',
+    })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `devtools-settings-${backup.exportedAt.slice(0, 10)}.json`
+    link.click()
+    URL.revokeObjectURL(url)
+    toast.success('Settings exported.')
+  }
+
+  const handleImportSettings = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    try {
+      const backup = parseSettingsBackupText(await file.text())
+      restoreSettingsBackup(backup, window.localStorage)
+      toast.success('Settings imported. Reloading app...')
+      window.setTimeout(() => window.location.reload(), 300)
+    } catch (error) {
+      toast.error(`Failed to import settings: ${String(error)}`)
+    }
+  }
 
   return (
     <div className="p-4 h-full flex flex-col gap-4 overflow-y-auto">
@@ -54,6 +93,36 @@ export function SettingsView({ platform }: { platform: string }) {
       </div>
 
       <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Import / Export</CardTitle>
+            <CardDescription>
+              Move app preferences, host metadata, tunnel tags, and terminal
+              snippets between machines.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={handleExportSettings}>
+              <Download className="mr-2 h-4 w-4" />
+              Export Settings
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => importInputRef.current?.click()}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Import Settings
+            </Button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(event) => void handleImportSettings(event)}
+            />
+          </CardContent>
+        </Card>
+
         {/* General Settings */}
         <Card>
           <CardHeader>
