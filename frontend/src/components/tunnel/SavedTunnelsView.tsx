@@ -16,7 +16,7 @@ import {
 } from '@dnd-kit/sortable'
 import { SavedTunnelItem } from './SavedTunnelItem'
 import { SortableTunnelItem } from './SortableTunnelItem'
-import { sshtunnel } from '@wailsjs/go/models'
+import { sshgate, sshtunnel } from '@wailsjs/go/models'
 import { Loader2 } from 'lucide-react'
 import type { TunnelAutoRestartState } from '@/lib/tunnel-auto-restart'
 import type { TunnelPortConflict } from '@/lib/tunnel-port-conflicts'
@@ -27,11 +27,14 @@ interface SavedTunnelsViewProps {
   isLoading: boolean
   startingTunnelIds: string[]
   checkingTunnelIds: string[]
+  preflightingTunnelIds: string[]
+  tunnelPreflightResults: Map<string, sshgate.TunnelPreflightResult>
   autoRestartState: Record<string, TunnelAutoRestartState>
   portConflicts: Map<string, TunnelPortConflict[]>
   onStartTunnel: (id: string) => void
   onStopTunnel: (runtimeId: string) => void
   onCheckTunnelHealth: (runtimeId: string) => void
+  onRunTunnelPreflight: (id: string) => void
   onDeleteTunnel: (id: string) => void | Promise<void>
   onDuplicateTunnel: (id: string) => void | Promise<void>
   onOrderChange: (orderedIds: string[]) => void
@@ -46,11 +49,14 @@ export function SavedTunnelsView({
   isLoading,
   startingTunnelIds,
   checkingTunnelIds,
+  preflightingTunnelIds,
+  tunnelPreflightResults,
   autoRestartState,
   portConflicts,
   onStartTunnel,
   onStopTunnel,
   onCheckTunnelHealth,
+  onRunTunnelPreflight,
   onDeleteTunnel,
   onDuplicateTunnel,
   onOrderChange,
@@ -135,12 +141,15 @@ export function SavedTunnelsView({
                     !!activeTunnel &&
                     checkingTunnelIds.includes(activeTunnel.id)
                   }
+                  isPreflighting={preflightingTunnelIds.includes(tunnel.id)}
+                  preflightResult={tunnelPreflightResults.get(tunnel.id)}
                   autoRestartState={autoRestartState[tunnel.id]}
                   portConflicts={portConflicts.get(tunnel.id)}
                   lastError={tunnelErrors.get(tunnel.id)}
                   onStart={onStartTunnel}
                   onStop={onStopTunnel}
                   onCheckHealth={onCheckTunnelHealth}
+                  onRunPreflight={onRunTunnelPreflight}
                   onDelete={() => void onDeleteTunnel(tunnel.id)}
                   onDuplicate={() => void onDuplicateTunnel(tunnel.id)}
                   onEdit={onEditTunnel}
@@ -165,12 +174,17 @@ export function SavedTunnelsView({
                 activeTunnel={activeTunnelMap.get(activeDragItem.id)}
                 isStarting={startingTunnelIds.includes(activeDragItem.id)}
                 isCheckingHealth={false}
+                isPreflighting={preflightingTunnelIds.includes(
+                  activeDragItem.id
+                )}
+                preflightResult={tunnelPreflightResults.get(activeDragItem.id)}
                 autoRestartState={autoRestartState[activeDragItem.id]}
                 portConflicts={portConflicts.get(activeDragItem.id)}
                 lastError={tunnelErrors.get(activeDragItem.id)}
                 onStart={() => {}}
                 onStop={() => {}}
                 onCheckHealth={() => {}}
+                onRunPreflight={() => {}}
                 onDelete={() => {}}
                 onDuplicate={() => {}}
                 onEdit={() => {}}

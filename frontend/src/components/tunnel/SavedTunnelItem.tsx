@@ -23,6 +23,7 @@ import {
   AlertTriangle,
   ChevronsUpDown,
   Activity,
+  ShieldCheck,
 } from 'lucide-react'
 import {
   Collapsible,
@@ -37,7 +38,7 @@ import {
 } from '@/components/ui/tooltip'
 import { TunnelStatusIndicator } from './TunnelStatusIndicator'
 import { appLogger } from '@/lib/logger'
-import { sshtunnel } from '@wailsjs/go/models'
+import { sshgate, sshtunnel } from '@wailsjs/go/models'
 import { formatTunnelDescription } from '@/lib/tunnel-utils'
 import { formatTunnelTimestamp, formatTunnelUptime } from '@/lib/tunnel-health'
 import type { TunnelAutoRestartState } from '@/lib/tunnel-auto-restart'
@@ -53,6 +54,7 @@ interface SavedTunnelItemProps {
   onStart: (id: string) => void
   onStop: (id: string) => void
   onCheckHealth: (runtimeId: string) => void
+  onRunPreflight: (id: string) => void
   onDelete: () => void
   onEdit: (tunnel: sshtunnel.SavedTunnelConfig) => void
   onDuplicate: () => void
@@ -60,6 +62,8 @@ interface SavedTunnelItemProps {
   lastError?: Error
   isStarting: boolean
   isCheckingHealth: boolean
+  isPreflighting: boolean
+  preflightResult?: sshgate.TunnelPreflightResult
   autoRestartState?: TunnelAutoRestartState
   portConflicts?: TunnelPortConflict[]
   isSelected: boolean
@@ -166,12 +170,28 @@ const getPortConflictKey = (conflict: TunnelPortConflict): string => {
   return `${conflict.kind}-${conflict.port}-${conflict.address}-${conflict.pid}`
 }
 
+const formatPreflightCheckName = (name: string): string => {
+  switch (name) {
+    case 'config':
+      return 'Config'
+    case 'local_port':
+      return 'Local port'
+    case 'ssh_connection':
+      return 'SSH'
+    case 'remote_target':
+      return 'Remote target'
+    default:
+      return name
+  }
+}
+
 export function SavedTunnelItem({
   tunnel,
   activeTunnel,
   onStart,
   onStop,
   onCheckHealth,
+  onRunPreflight,
   onDelete,
   onEdit,
   onDuplicate,
@@ -179,6 +199,8 @@ export function SavedTunnelItem({
   lastError,
   isStarting,
   isCheckingHealth,
+  isPreflighting,
+  preflightResult,
   autoRestartState,
   portConflicts = [],
   isSelected,
@@ -321,6 +343,29 @@ export function SavedTunnelItem({
               <p className="leading-relaxed">{autoRestartLabel}</p>
             </div>
           )}
+          {preflightResult && (
+            <div
+              className={cn(
+                'mt-2 text-xs flex items-start gap-2 rounded-md p-2',
+                preflightResult.healthy
+                  ? 'bg-green-500/10 text-green-700 dark:text-green-400'
+                  : 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400'
+              )}
+            >
+              <ShieldCheck className="h-4 w-4 mt-px shrink-0" />
+              <div className="space-y-1 leading-relaxed">
+                <p className="font-medium">
+                  Preflight{' '}
+                  {preflightResult.healthy ? 'passed' : 'needs attention'}
+                </p>
+                {preflightResult.checks.map((check) => (
+                  <p key={check.name}>
+                    {formatPreflightCheckName(check.name)}: {check.message}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
           {activeTunnel && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-muted-foreground">
               <div className="rounded-md bg-muted px-2 py-1">
@@ -376,6 +421,19 @@ export function SavedTunnelItem({
         </TooltipProvider>
         <Button variant="outline" size="sm" onClick={onDuplicate}>
           <Copy className="mr-2 h-4 w-4" /> Duplicate
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onRunPreflight(tunnel.id)}
+          disabled={isBusy || isPreflighting}
+        >
+          {isPreflighting ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <ShieldCheck className="mr-2 h-4 w-4" />
+          )}
+          {isPreflighting ? 'Checking...' : 'Preflight'}
         </Button>
         {activeTunnel && (
           <Button

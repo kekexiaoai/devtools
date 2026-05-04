@@ -37,7 +37,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { sshtunnel } from '@wailsjs/go/models'
+import { sshgate, sshtunnel } from '@wailsjs/go/models'
 import { SavedTunnelItem } from './SavedTunnelItem'
 import { appLogger } from '@/lib/logger'
 import type { TunnelAutoRestartState } from '@/lib/tunnel-auto-restart'
@@ -171,11 +171,14 @@ interface SavedTunnelsWithMiniMapViewProps {
   isLoading: boolean
   startingTunnelIds: string[]
   checkingTunnelIds: string[]
+  preflightingTunnelIds: string[]
+  tunnelPreflightResults: Map<string, sshgate.TunnelPreflightResult>
   autoRestartState: Record<string, TunnelAutoRestartState>
   portConflicts: Map<string, TunnelPortConflict[]>
   onStartTunnel: (id: string) => void
   onStopTunnel: (runtimeId: string) => void
   onCheckTunnelHealth: (runtimeId: string) => void
+  onRunTunnelPreflight: (id: string) => void
   onDeleteTunnel: (id: string) => void | Promise<void>
   onDuplicateTunnel: (id: string) => void | Promise<void>
   tunnelErrors: Map<string, Error>
@@ -192,11 +195,14 @@ export const SavedTunnelsWithMiniMapView: React.FC<
   isLoading,
   startingTunnelIds,
   checkingTunnelIds,
+  preflightingTunnelIds,
+  tunnelPreflightResults,
   autoRestartState,
   portConflicts,
   onStartTunnel,
   onStopTunnel,
   onCheckTunnelHealth,
+  onRunTunnelPreflight,
   onDeleteTunnel,
   onDuplicateTunnel,
   tunnelErrors,
@@ -430,6 +436,7 @@ export const SavedTunnelsWithMiniMapView: React.FC<
                       onStart={onStartTunnel}
                       onStop={onStopTunnel}
                       onCheckHealth={onCheckTunnelHealth}
+                      onRunPreflight={onRunTunnelPreflight}
                       onDelete={() => void onDeleteTunnel(tunnel.id)}
                       onEdit={onEditTunnel}
                       onDuplicate={() => void onDuplicateTunnel(tunnel.id)}
@@ -440,6 +447,8 @@ export const SavedTunnelsWithMiniMapView: React.FC<
                         !!activeTunnel &&
                         checkingTunnelIds.includes(activeTunnel.id)
                       }
+                      isPreflighting={preflightingTunnelIds.includes(tunnel.id)}
+                      preflightResult={tunnelPreflightResults.get(tunnel.id)}
                       autoRestartState={autoRestartState[tunnel.id]}
                       portConflicts={portConflicts.get(tunnel.id)}
                       isSelected={selectedNavId === tunnel.id}

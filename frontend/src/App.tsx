@@ -21,6 +21,7 @@ import {
   GetSavedTunnels,
   GetTunnelProfiles,
   GetSSHHosts,
+  RunTunnelPreflight,
   SaveTunnelProfile,
   StartTunnelFromConfig,
   StopForward,
@@ -140,6 +141,12 @@ function AppContent() {
   activeTunnelsRef.current = activeTunnels
   const [startingTunnelIds, setStartingTunnelIds] = useState<string[]>([])
   const [checkingTunnelIds, setCheckingTunnelIds] = useState<string[]>([])
+  const [preflightingTunnelIds, setPreflightingTunnelIds] = useState<string[]>(
+    []
+  )
+  const [tunnelPreflightResults, setTunnelPreflightResults] = useState<
+    Map<string, sshgate.TunnelPreflightResult>
+  >(new Map())
   const [autoRestartState, setAutoRestartState] = useState<
     Record<string, TunnelAutoRestartState>
   >({})
@@ -510,6 +517,51 @@ function AppContent() {
       })()
     },
     [fetchActiveTunnels]
+  )
+
+  const handleRunTunnelPreflight = useCallback(
+    (id: string) => {
+      void (async () => {
+        const tunnel = savedTunnelsRef.current.find((item) => item.id === id)
+        if (!tunnel) {
+          toast.error('Could not find tunnel configuration.')
+          return
+        }
+
+        const aliasForDisplay =
+          tunnel.hostSource === 'ssh_config'
+            ? (tunnel.hostAlias ?? tunnel.name)
+            : tunnel.name
+        const password = await verifyAndGetPassword({
+          alias: aliasForDisplay,
+          strategy: 'verify',
+          tunnelConfigID: id,
+        })
+        if (password === null) return
+
+        setPreflightingTunnelIds((current) => [...current, id])
+        try {
+          const result = await RunTunnelPreflight(id, password)
+          setTunnelPreflightResults((current) => {
+            const next = new Map(current)
+            next.set(id, result)
+            return next
+          })
+          if (result.healthy) {
+            toast.success(`Preflight passed for "${tunnel.name}".`)
+          } else {
+            toast.warning(`Preflight found issues for "${tunnel.name}".`)
+          }
+        } catch (error) {
+          toast.error(`Preflight failed: ${String(error)}`)
+        } finally {
+          setPreflightingTunnelIds((current) =>
+            current.filter((tunnelId) => tunnelId !== id)
+          )
+        }
+      })()
+    },
+    [verifyAndGetPassword]
   )
 
   const confirmTunnelsPortConflicts = useCallback(
@@ -1263,12 +1315,15 @@ function AppContent() {
           activeTunnels={activeTunnels}
           startingTunnelIds={startingTunnelIds}
           checkingTunnelIds={checkingTunnelIds}
+          preflightingTunnelIds={preflightingTunnelIds}
+          tunnelPreflightResults={tunnelPreflightResults}
           autoRestartState={autoRestartState}
           tunnelErrors={tunnelErrors}
           isLoadingTunnels={isLoadingTunnels}
           onStartTunnel={handleStartTunnel}
           onStopTunnel={handleStopTunnel}
           onCheckTunnelHealth={handleCheckTunnelHealth}
+          onRunTunnelPreflight={handleRunTunnelPreflight}
           onOrderChange={handleOrderChange}
           onOpenCreateTunnel={handleOpenCreateTunnel}
           onOpenProfileManager={() => setIsProfileDialogOpen(true)}
@@ -1308,6 +1363,8 @@ function AppContent() {
     activeTunnels,
     startingTunnelIds,
     checkingTunnelIds,
+    preflightingTunnelIds,
+    tunnelPreflightResults,
     autoRestartState,
     handleStartTunnelProfile,
     tunnelProfiles,
@@ -1322,6 +1379,7 @@ function AppContent() {
     handleOrderChange,
     handleEditTunnel,
     handleCheckTunnelHealth,
+    handleRunTunnelPreflight,
     terminalSessions,
     closeTerminal,
     renameTerminal,

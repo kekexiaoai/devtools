@@ -8,7 +8,7 @@ import {
   StopForward,
 } from '@wailsjs/go/sshgate/Service'
 import { GetListeningPorts } from '@wailsjs/go/backend/App'
-import { backend, sshtunnel } from '@wailsjs/go/models'
+import { backend, sshgate, sshtunnel } from '@wailsjs/go/models'
 import { Button } from '@/components/ui/button'
 import { FolderKanban, PlusCircle } from 'lucide-react'
 import { SshConnectionHook } from '@/hooks/useSshConnection'
@@ -25,12 +25,15 @@ interface TunnelsViewProps {
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
   startingTunnelIds: string[]
   checkingTunnelIds: string[]
+  preflightingTunnelIds: string[]
+  tunnelPreflightResults: Map<string, sshgate.TunnelPreflightResult>
   autoRestartState: Record<string, TunnelAutoRestartState>
   tunnelErrors: Map<string, Error>
   isLoadingTunnels: boolean
   onStartTunnel: (id: string) => void
   onStopTunnel: (runtimeId: string) => void
   onCheckTunnelHealth: (runtimeId: string) => void
+  onRunTunnelPreflight: (id: string) => void
   onOrderChange: (orderedIds: string[]) => void
   onOpenCreateTunnel: () => void
   onOpenProfileManager: () => void
@@ -43,12 +46,15 @@ export function TunnelsView({
   activeTunnels,
   startingTunnelIds,
   checkingTunnelIds,
+  preflightingTunnelIds,
+  tunnelPreflightResults,
   autoRestartState,
   tunnelErrors,
   isLoadingTunnels,
   onStartTunnel,
   onStopTunnel,
   onCheckTunnelHealth,
+  onRunTunnelPreflight,
   onOrderChange,
   onOpenCreateTunnel,
   onOpenProfileManager,
@@ -188,11 +194,14 @@ export function TunnelsView({
             isLoading={isLoadingTunnels}
             startingTunnelIds={startingTunnelIds}
             checkingTunnelIds={checkingTunnelIds}
+            preflightingTunnelIds={preflightingTunnelIds}
+            tunnelPreflightResults={tunnelPreflightResults}
             autoRestartState={autoRestartState}
             portConflicts={portConflicts}
             onStartTunnel={onStartTunnel}
             onStopTunnel={onStopTunnel}
             onCheckTunnelHealth={onCheckTunnelHealth}
+            onRunTunnelPreflight={onRunTunnelPreflight}
             onDeleteTunnel={handleDeleteTunnel}
             onDuplicateTunnel={handleDuplicateTunnel}
             onOrderChange={onOrderChange}
@@ -207,11 +216,14 @@ export function TunnelsView({
             isLoading={isLoadingTunnels}
             startingTunnelIds={startingTunnelIds}
             checkingTunnelIds={checkingTunnelIds}
+            preflightingTunnelIds={preflightingTunnelIds}
+            tunnelPreflightResults={tunnelPreflightResults}
             autoRestartState={autoRestartState}
             portConflicts={portConflicts}
             onStartTunnel={onStartTunnel}
             onStopTunnel={onStopTunnel}
             onCheckTunnelHealth={onCheckTunnelHealth}
+            onRunTunnelPreflight={onRunTunnelPreflight}
             onDeleteTunnel={handleDeleteTunnel}
             onDuplicateTunnel={handleDuplicateTunnel}
             onOrderChange={onOrderChange}
