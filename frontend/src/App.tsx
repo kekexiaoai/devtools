@@ -9,6 +9,9 @@ import { DashboardView } from './views/DashboardView'
 import { TunnelsView } from './views/TunnelsView'
 import { SettingsView } from './views/SettingsView'
 import { DiagnosticsView } from './views/DiagnosticsView'
+import { HTTPClientView } from './views/HTTPClientView'
+import { PortMonitorView } from './views/PortMonitorView'
+import { EnvironmentView } from './views/EnvironmentView'
 import { CommandPalette } from './components/CommandPalette'
 import { useSettingsStore } from './hooks/useSettingsStore'
 import { TitleBar } from '@/components/TitleBar'
@@ -67,6 +70,9 @@ import {
   Settings,
   StopCircle,
   ActivitySquare,
+  Globe2,
+  Network,
+  SlidersHorizontal,
   TerminalSquare,
   TrainFrontTunnel,
 } from 'lucide-react'
@@ -1391,6 +1397,30 @@ function AppContent() {
         run: () => handleNavigate('Diagnostics'),
       },
       {
+        id: 'navigate-http-client',
+        title: 'HTTP Client',
+        group: 'Navigate',
+        keywords: ['request', 'api', 'rest'],
+        icon: <Globe2 className="h-4 w-4" />,
+        run: () => handleNavigate('HTTPClient'),
+      },
+      {
+        id: 'navigate-port-monitor',
+        title: 'Port Monitor',
+        group: 'Navigate',
+        keywords: ['port', 'listen', 'process'],
+        icon: <Network className="h-4 w-4" />,
+        run: () => handleNavigate('PortMonitor'),
+      },
+      {
+        id: 'navigate-environment',
+        title: 'Environment',
+        group: 'Navigate',
+        keywords: ['env', 'variables', 'dotenv'],
+        icon: <SlidersHorizontal className="h-4 w-4" />,
+        run: () => handleNavigate('Environment'),
+      },
+      {
         id: 'navigate-file-syncer',
         title: 'File Syncer',
         group: 'Navigate',
@@ -1599,6 +1629,9 @@ function AppContent() {
           onClearTunnelFailureHistory={handleClearTunnelFailureHistory}
         />
       ),
+      HTTPClient: <HTTPClientView />,
+      PortMonitor: <PortMonitorView isActive={activeTool === 'PortMonitor'} />,
+      Environment: <EnvironmentView />,
       Settings: <SettingsView platform={platform} />,
     }
   }, [

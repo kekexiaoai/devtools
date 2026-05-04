@@ -66,6 +66,10 @@ export function SelectFile(arg1) {
   return window['go']['backend']['App']['SelectFile'](arg1);
 }
 
+export function SendHTTPRequest(arg1) {
+  return window['go']['backend']['App']['SendHTTPRequest'](arg1);
+}
+
 export function SetupTrayMenu() {
   return window['go']['backend']['App']['SetupTrayMenu']();
 }

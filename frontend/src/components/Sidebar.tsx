@@ -9,6 +9,9 @@ import {
   TerminalSquare,
   LayoutDashboard,
   ActivitySquare,
+  Globe2,
+  Network,
+  SlidersHorizontal,
 } from 'lucide-react'
 import React from 'react'
 import { useSettingsStore } from '@/hooks/useSettingsStore'
@@ -24,6 +27,9 @@ const tools = [
   { id: 'Tunnels', icon: TrainFrontTunnel, label: 'Tunnels' },
   { id: 'Terminal', icon: TerminalSquare, label: 'Terminal' },
   { id: 'Diagnostics', icon: ActivitySquare, label: 'Diagnostics' },
+  { id: 'HTTPClient', icon: Globe2, label: 'HTTP Client' },
+  { id: 'PortMonitor', icon: Network, label: 'Port Monitor' },
+  { id: 'Environment', icon: SlidersHorizontal, label: 'Environment' },
   { id: 'FileSyncer', icon: ArrowRightLeft, label: 'File Syncer' },
   { id: 'JsonTools', icon: Braces, label: 'Tools' },
 ]
@@ -68,18 +74,20 @@ export function Sidebar({ activeTool, onToolChange }: SidebarProps) {
         sidebarCollapsed ? 'w-16' : 'w-56'
       }`}
     >
-      <nav className="flex h-full flex-col items-center gap-2">
-        {tools.map((tool) => (
-          <NavButton
-            key={tool.id}
-            isActive={activeTool === tool.id}
-            onClick={() => onToolChange(tool.id)}
-            label={tool.label}
-            isCollapsed={sidebarCollapsed}
-          >
-            <tool.icon className="h-5 w-5 shrink-0" />
-          </NavButton>
-        ))}
+      <nav className="flex h-full min-h-0 flex-col items-center gap-2">
+        <div className="flex min-h-0 w-full flex-1 flex-col gap-2 overflow-y-auto">
+          {tools.map((tool) => (
+            <NavButton
+              key={tool.id}
+              isActive={activeTool === tool.id}
+              onClick={() => onToolChange(tool.id)}
+              label={tool.label}
+              isCollapsed={sidebarCollapsed}
+            >
+              <tool.icon className="h-5 w-5 shrink-0" />
+            </NavButton>
+          ))}
+        </div>
         <div className="mt-auto flex w-full flex-col gap-2">
           <NavButton
             isActive={activeTool === 'Settings'}

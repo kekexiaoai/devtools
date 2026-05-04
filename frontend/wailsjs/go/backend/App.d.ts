@@ -37,6 +37,8 @@ export function SelectDirectory(arg1:string):Promise<string>;
 
 export function SelectFile(arg1:string):Promise<string>;
 
+export function SendHTTPRequest(arg1:backend.HTTPClientRequest):Promise<backend.HTTPClientResponse>;
+
 export function SetupTrayMenu():Promise<void>;
 
 export function ShowConfirmDialog(arg1:string,arg2:string):Promise<string>;

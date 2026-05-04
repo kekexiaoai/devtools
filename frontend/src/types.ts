@@ -8,6 +8,9 @@ export const toolIds = [
   'Tunnels',
   'Terminal',
   'Diagnostics',
+  'HTTPClient',
+  'PortMonitor',
+  'Environment',
 ] as const
 
 export type ToolId = (typeof toolIds)[number]
