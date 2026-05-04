@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { sshtunnel } from '@wailsjs/go/models'
-import { diagnoseTunnelStartFailure } from './tunnel-start-diagnostics'
+import {
+  buildTunnelFailureDiagnostics,
+  diagnoseTunnelStartFailure,
+} from './tunnel-start-diagnostics'
 import type { TunnelPortConflict } from './tunnel-port-conflicts'
 
 function makeTunnel(
@@ -87,5 +90,37 @@ describe('diagnoseTunnelStartFailure', () => {
     expect(diagnosis.suggestions).toContain(
       'Open Diagnostics and review the recent application log for this startup attempt.'
     )
+  })
+})
+
+describe('buildTunnelFailureDiagnostics', () => {
+  it('builds diagnostics for saved tunnels with startup errors', () => {
+    const tunnel = makeTunnel({ id: 'db', name: 'Database' })
+    const entries = buildTunnelFailureDiagnostics({
+      savedTunnels: [tunnel],
+      tunnelErrors: new Map([
+        ['db', new Error('the local port is already in use')],
+        ['missing', new Error('ignored')],
+      ]),
+      portConflicts: new Map([
+        [
+          'db',
+          [
+            {
+              kind: 'listening',
+              port: 5432,
+              address: '127.0.0.1',
+              process: 'postgres',
+              pid: '42',
+            },
+          ],
+        ],
+      ]),
+    })
+
+    expect(entries).toHaveLength(1)
+    expect(entries[0].tunnelId).toBe('db')
+    expect(entries[0].tunnelName).toBe('Database')
+    expect(entries[0].diagnosis.reason).toBe('Local port conflict')
   })
 })

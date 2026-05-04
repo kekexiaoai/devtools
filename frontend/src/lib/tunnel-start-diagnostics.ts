@@ -10,10 +10,23 @@ export interface TunnelStartFailureDiagnosis {
   suggestions: string[]
 }
 
+export interface TunnelFailureDiagnosticEntry {
+  tunnelId: string
+  tunnelName: string
+  error: Error
+  diagnosis: TunnelStartFailureDiagnosis
+}
+
 interface DiagnoseTunnelStartFailureInput {
   tunnel: sshtunnel.SavedTunnelConfig
   error: Error
   portConflicts: TunnelPortConflict[]
+}
+
+interface BuildTunnelFailureDiagnosticsInput {
+  savedTunnels: sshtunnel.SavedTunnelConfig[]
+  tunnelErrors: Map<string, Error>
+  portConflicts: Map<string, TunnelPortConflict[]>
 }
 
 export function diagnoseTunnelStartFailure({
@@ -101,6 +114,30 @@ export function diagnoseTunnelStartFailure({
       'Try starting the equivalent SSH command from the tunnel card to compare the raw SSH output.',
     ],
   }
+}
+
+export function buildTunnelFailureDiagnostics({
+  savedTunnels,
+  tunnelErrors,
+  portConflicts,
+}: BuildTunnelFailureDiagnosticsInput): TunnelFailureDiagnosticEntry[] {
+  return savedTunnels.flatMap((tunnel) => {
+    const error = tunnelErrors.get(tunnel.id)
+    if (!error) return []
+
+    return [
+      {
+        tunnelId: tunnel.id,
+        tunnelName: tunnel.name,
+        error,
+        diagnosis: diagnoseTunnelStartFailure({
+          tunnel,
+          error,
+          portConflicts: portConflicts.get(tunnel.id) ?? [],
+        }),
+      },
+    ]
+  })
 }
 
 function formatSshTarget(tunnel: sshtunnel.SavedTunnelConfig): string {
