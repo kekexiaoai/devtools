@@ -8,6 +8,7 @@ import { TerminalView } from './views/TerminalView'
 import { DashboardView } from './views/DashboardView'
 import { TunnelsView } from './views/TunnelsView'
 import { SettingsView } from './views/SettingsView'
+import { DiagnosticsView } from './views/DiagnosticsView'
 import { CommandPalette } from './components/CommandPalette'
 import { useSettingsStore } from './hooks/useSettingsStore'
 import { TitleBar } from '@/components/TitleBar'
@@ -56,6 +57,7 @@ import {
   PlusCircle,
   Server,
   Settings,
+  ActivitySquare,
   TerminalSquare,
   TrainFrontTunnel,
 } from 'lucide-react'
@@ -1029,6 +1031,14 @@ function AppContent() {
         run: () => handleNavigate('Terminal'),
       },
       {
+        id: 'navigate-diagnostics',
+        title: 'Diagnostics',
+        group: 'Navigate',
+        keywords: ['logs', 'health', 'status'],
+        icon: <ActivitySquare className="h-4 w-4" />,
+        run: () => handleNavigate('Diagnostics'),
+      },
+      {
         id: 'navigate-file-syncer',
         title: 'File Syncer',
         group: 'Navigate',
@@ -1201,6 +1211,13 @@ function AppContent() {
           platform={platform}
           // 传递 isDarkMode
           isDarkMode={isDarkMode}
+        />
+      ),
+      Diagnostics: (
+        <DiagnosticsView
+          activeTunnels={activeTunnels}
+          savedTunnels={savedTunnels}
+          tunnelProfiles={tunnelProfiles}
         />
       ),
       Settings: <SettingsView platform={platform} />,

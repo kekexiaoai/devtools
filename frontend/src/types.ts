@@ -7,6 +7,7 @@ export const toolIds = [
   'SshGate',
   'Tunnels',
   'Terminal',
+  'Diagnostics',
 ] as const
 
 export type ToolId = (typeof toolIds)[number]

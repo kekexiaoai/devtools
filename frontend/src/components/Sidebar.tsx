@@ -8,6 +8,7 @@ import {
   Settings,
   TerminalSquare,
   LayoutDashboard,
+  ActivitySquare,
 } from 'lucide-react'
 import React from 'react'
 import { useSettingsStore } from '@/hooks/useSettingsStore'
@@ -22,6 +23,7 @@ const tools = [
   { id: 'SshGate', icon: Server, label: 'SSH Gate' },
   { id: 'Tunnels', icon: TrainFrontTunnel, label: 'Tunnels' },
   { id: 'Terminal', icon: TerminalSquare, label: 'Terminal' },
+  { id: 'Diagnostics', icon: ActivitySquare, label: 'Diagnostics' },
   { id: 'FileSyncer', icon: ArrowRightLeft, label: 'File Syncer' },
   { id: 'JsonTools', icon: Braces, label: 'JSON Tools' },
 ]
