@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect } from 'react'
-import { sshtunnel } from '@wailsjs/go/models'
+import { sshgate, sshtunnel } from '@wailsjs/go/models'
 import {
   Card,
   CardContent,
@@ -16,6 +16,8 @@ import {
   Terminal,
   RefreshCw,
   StopCircle,
+  FolderKanban,
+  Settings2,
 } from 'lucide-react'
 import { type ToolId } from '@/types'
 
@@ -31,7 +33,11 @@ interface DashboardViewProps {
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
   startingTunnelIds: string[]
   onOpenCreateTunnel: () => void
+  onOpenProfileManager: () => void
+  onStartTunnelProfile: (profileId: string) => void
   activeSyncsCount: number
+  tunnelProfiles: sshgate.TunnelProfile[]
+  startingProfileIds: string[]
 }
 
 export function DashboardView({
@@ -42,7 +48,11 @@ export function DashboardView({
   startingTunnelIds,
   onStopTunnel,
   onOpenCreateTunnel,
+  onOpenProfileManager,
+  onStartTunnelProfile,
   activeSyncsCount,
+  tunnelProfiles,
+  startingProfileIds,
 }: DashboardViewProps) {
   const systemStatus = {
     activeTunnels: activeTunnels.length,
@@ -82,6 +92,10 @@ export function DashboardView({
 
   const recentTunnels = useMemo(() => {
     return savedTunnels.slice(0, 5) // Show the 5 most recent tunnels
+  }, [savedTunnels])
+
+  const savedTunnelIds = useMemo(() => {
+    return new Set(savedTunnels.map((tunnel) => tunnel.id))
   }, [savedTunnels])
 
   return (
@@ -134,6 +148,78 @@ export function DashboardView({
                 <Terminal className="h-6 w-6 mb-2" />
                 <span>New Terminal</span>
               </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-start justify-between gap-3">
+              <div>
+                <CardTitle>Tunnel Profiles</CardTitle>
+                <CardDescription>
+                  Start grouped tunnels for a workspace.
+                </CardDescription>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onOpenProfileManager}
+              >
+                <Settings2 className="mr-2 h-4 w-4" />
+                Manage
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {tunnelProfiles.length > 0 ? (
+                <div className="space-y-2">
+                  {tunnelProfiles.map((profile) => {
+                    const validTunnelCount = profile.tunnelIds.filter((id) =>
+                      savedTunnelIds.has(id)
+                    ).length
+                    const isStarting = startingProfileIds.includes(profile.id)
+                    return (
+                      <div
+                        key={profile.id}
+                        className="flex items-center justify-between px-3 py-2 bg-muted rounded-md"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <FolderKanban className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <div className="min-w-0">
+                            <div className="font-medium truncate">
+                              {profile.name}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {validTunnelCount} tunnels
+                            </div>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => onStartTunnelProfile(profile.id)}
+                          disabled={isStarting || validTunnelCount === 0}
+                        >
+                          {isStarting ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Play className="mr-2 h-4 w-4" />
+                          )}
+                          {isStarting ? 'Starting' : 'Start'}
+                        </Button>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="text-center text-muted-foreground py-4">
+                  <p>No tunnel profiles yet.</p>
+                  <Button
+                    variant="link"
+                    className="mt-1"
+                    onClick={onOpenProfileManager}
+                  >
+                    Create your first profile
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 

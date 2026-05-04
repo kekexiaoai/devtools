@@ -9,7 +9,7 @@ import {
 } from '@wailsjs/go/sshgate/Service'
 import { sshtunnel } from '@wailsjs/go/models'
 import { Button } from '@/components/ui/button'
-import { PlusCircle } from 'lucide-react'
+import { FolderKanban, PlusCircle } from 'lucide-react'
 import { SshConnectionHook } from '@/hooks/useSshConnection'
 import { toast } from 'sonner'
 import { appLogger } from '@/lib/logger'
@@ -27,6 +27,7 @@ interface TunnelsViewProps {
   onStopTunnel: (runtimeId: string) => void
   onOrderChange: (orderedIds: string[]) => void
   onOpenCreateTunnel: () => void
+  onOpenProfileManager: () => void
   onEditTunnel: (tunnel: sshtunnel.SavedTunnelConfig) => void
 }
 
@@ -41,6 +42,7 @@ export function TunnelsView({
   onStopTunnel,
   onOrderChange,
   onOpenCreateTunnel,
+  onOpenProfileManager,
   onEditTunnel,
 }: TunnelsViewProps) {
   const { useTunnelMiniMap } = useSettingsStore()
@@ -131,10 +133,16 @@ export function TunnelsView({
       <div className="flex-shrink-0 mb-2">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">Tunnels</h1>
-          <Button onClick={onOpenCreateTunnel} size="sm">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Create Tunnel
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={onOpenProfileManager} size="sm" variant="outline">
+              <FolderKanban className="mr-2 h-4 w-4" />
+              Profiles
+            </Button>
+            <Button onClick={onOpenCreateTunnel} size="sm">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Create Tunnel
+            </Button>
+          </div>
         </div>
         <p className="text-muted-foreground">
           Manage and monitor your SSH tunnels.

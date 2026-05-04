@@ -11,10 +11,14 @@ import { SettingsView } from './views/SettingsView'
 import { useSettingsStore } from './hooks/useSettingsStore'
 import { TitleBar } from '@/components/TitleBar'
 import { CreateTunnelDialog } from '@/components/tunnel/CreateTunnelDialog'
+import { TunnelProfileDialog } from '@/components/tunnel/TunnelProfileDialog'
 import {
+  DeleteTunnelProfile,
   GetActiveTunnels,
   GetSavedTunnels,
+  GetTunnelProfiles,
   GetSSHHosts,
+  SaveTunnelProfile,
   StartTunnelFromConfig,
   StopForward,
   UpdateTunnelsOrder,
@@ -46,7 +50,7 @@ import { AlertTriangle } from 'lucide-react'
 import { useThemeDetector } from './hooks/useThemeDetector'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'sonner'
-import { sshtunnel, types } from '@wailsjs/go/models'
+import { sshgate, sshtunnel, types } from '@wailsjs/go/models'
 import { useSshConnection } from './hooks/useSshConnection'
 import { useDialog } from './hooks/useDialog'
 import { appLogger } from './lib/logger'
@@ -91,9 +95,19 @@ function AppContent() {
   const savedTunnelsRef = useRef(savedTunnels)
   savedTunnelsRef.current = savedTunnels
 
+  const [tunnelProfiles, setTunnelProfiles] = useState<sshgate.TunnelProfile[]>(
+    []
+  )
+  const tunnelProfilesRef = useRef(tunnelProfiles)
+  tunnelProfilesRef.current = tunnelProfiles
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false)
+  const [startingProfileIds, setStartingProfileIds] = useState<string[]>([])
+
   const [activeTunnels, setActiveTunnels] = useState<
     sshtunnel.ActiveTunnelInfo[]
   >([])
+  const activeTunnelsRef = useRef(activeTunnels)
+  activeTunnelsRef.current = activeTunnels
   const [startingTunnelIds, setStartingTunnelIds] = useState<string[]>([])
   const [tunnelErrors, setTunnelErrors] = useState<Map<string, Error>>(
     new Map()
@@ -392,6 +406,14 @@ function AppContent() {
     }
   }, [logger])
 
+  const fetchTunnelProfiles = useCallback(async () => {
+    try {
+      setTunnelProfiles(await GetTunnelProfiles())
+    } catch (error) {
+      logger.error(`Failed to load tunnel profiles: ${String(error)}`)
+    }
+  }, [logger])
+
   const fetchActiveTunnels = useCallback(
     async (isInitialLoad = false) => {
       if (isInitialLoad) {
@@ -411,69 +433,147 @@ function AppContent() {
     [logger]
   )
 
-  const handleStartTunnel = useCallback(
-    (id: string) => {
-      // This function is now synchronous and returns void, satisfying ESLint.
-      // The async logic is wrapped in an immediately-invoked function expression (IIFE).
-      void (async () => {
-        const tunnel = savedTunnelsRef.current.find((t) => t.id === id)
-        if (!tunnel) {
-          toast.error('Could not find tunnel configuration.')
+  const startTunnel = useCallback(
+    async (id: string) => {
+      const tunnel = savedTunnelsRef.current.find((t) => t.id === id)
+      if (!tunnel) {
+        toast.error('Could not find tunnel configuration.')
+        return
+      }
+
+      // Set starting state immediately for UI feedback (e.g., spinner on button)
+      setStartingTunnelIds((prev) => [...prev, id])
+      let toastId: string | number | undefined
+
+      try {
+        const aliasForDisplay =
+          tunnel.hostSource === 'ssh_config' ? tunnel.hostAlias! : tunnel.name
+
+        // Step 1: Perform interactive verification. NO TOASTS should be shown here.
+        const password = await verifyAndGetPassword({
+          alias: aliasForDisplay,
+          strategy: 'verify',
+          tunnelConfigID: id,
+        })
+
+        // If user cancelled the dialog, verifyAndGetPassword resolves to null.
+        // The hook itself shows a cancellation toast, so we just exit gracefully.
+        if (password === null) {
           return
         }
 
-        // Set starting state immediately for UI feedback (e.g., spinner on button)
-        setStartingTunnelIds((prev) => [...prev, id])
-        let toastId: string | number | undefined
+        // Step 2: Interactive part is done. Now show loading toast and start the tunnel.
+        toastId = toast.loading(`Starting tunnel "${tunnel.name}"...`)
+        await StartTunnelFromConfig(id, password)
+        await fetchActiveTunnels(false)
+        const successMessage = `Tunnel "${tunnel.name}" started successfully.`
+        toast.success(successMessage, { id: toastId })
 
-        try {
-          const aliasForDisplay =
-            tunnel.hostSource === 'ssh_config' ? tunnel.hostAlias! : tunnel.name
+        // Clear any previous errors for this tunnel on success
+        setTunnelErrors((prev) => {
+          const newErrors = new Map(prev)
+          newErrors.delete(id)
+          return newErrors
+        })
+      } catch (error: unknown) {
+        // This catch block handles actual errors, not cancellations.
+        const err = error instanceof Error ? error : new Error(String(error))
+        const errorMessage = `Failed to start tunnel: ${err.message}`
+        if (toastId) {
+          toast.error(errorMessage, { id: toastId })
+        } else {
+          toast.error(errorMessage)
+        }
+        setTunnelErrors((prev) => new Map(prev).set(id, err))
+      } finally {
+        // This will run for success, error, and cancellation cases.
+        setStartingTunnelIds((prev) =>
+          prev.filter((tunnelId) => tunnelId !== id)
+        )
+      }
+    },
+    [fetchActiveTunnels, verifyAndGetPassword]
+  )
 
-          // Step 1: Perform interactive verification. NO TOASTS should be shown here.
-          const password = await verifyAndGetPassword({
-            alias: aliasForDisplay,
-            strategy: 'verify',
-            tunnelConfigID: id,
-          })
+  const handleStartTunnel = useCallback(
+    (id: string) => {
+      void startTunnel(id)
+    },
+    [startTunnel]
+  )
 
-          // If user cancelled the dialog, verifyAndGetPassword resolves to null.
-          // The hook itself shows a cancellation toast, so we just exit gracefully.
-          if (password === null) {
-            return
-          }
+  const handleStartTunnelProfile = useCallback(
+    (profileId: string) => {
+      void (async () => {
+        const profile = tunnelProfilesRef.current.find(
+          (p) => p.id === profileId
+        )
+        if (!profile) {
+          toast.error('Could not find tunnel profile.')
+          return
+        }
 
-          // Step 2: Interactive part is done. Now show loading toast and start the tunnel.
-          toastId = toast.loading(`Starting tunnel "${tunnel.name}"...`)
-          await StartTunnelFromConfig(id, password)
-          const successMessage = `Tunnel "${tunnel.name}" started successfully.`
-          toast.success(successMessage, { id: toastId })
+        const savedTunnelIds = new Set(
+          savedTunnelsRef.current.map((tunnel) => tunnel.id)
+        )
+        const activeConfigIds = new Set(
+          activeTunnelsRef.current
+            .filter((tunnel) => tunnel.status === 'active')
+            .map((tunnel) => tunnel.configId)
+        )
+        const validTunnelIds = profile.tunnelIds.filter((id) =>
+          savedTunnelIds.has(id)
+        )
+        const missingCount = profile.tunnelIds.length - validTunnelIds.length
+        const startableTunnelIds = validTunnelIds.filter(
+          (id) => !activeConfigIds.has(id)
+        )
+        const runningCount = validTunnelIds.length - startableTunnelIds.length
 
-          // Clear any previous errors for this tunnel on success
-          setTunnelErrors((prev) => {
-            const newErrors = new Map(prev)
-            newErrors.delete(id)
-            return newErrors
-          })
-        } catch (error: unknown) {
-          // This catch block handles actual errors, not cancellations.
-          const err = error instanceof Error ? error : new Error(String(error))
-          const errorMessage = `Failed to start tunnel: ${err.message}`
-          if (toastId) {
-            toast.error(errorMessage, { id: toastId })
-          } else {
-            toast.error(errorMessage)
-          }
-          setTunnelErrors((prev) => new Map(prev).set(id, err))
-        } finally {
-          // This will run for success, error, and cancellation cases.
-          setStartingTunnelIds((prev) =>
-            prev.filter((tunnelId) => tunnelId !== id)
+        if (missingCount > 0) {
+          toast.warning(
+            `${missingCount} tunnel reference(s) are missing from "${profile.name}".`
           )
+        }
+        if (startableTunnelIds.length === 0) {
+          toast.info(
+            runningCount > 0
+              ? `All tunnels in "${profile.name}" are already running.`
+              : `"${profile.name}" has no saved tunnels.`
+          )
+          return
+        }
+
+        setStartingProfileIds((prev) => [...prev, profileId])
+        try {
+          for (const tunnelId of startableTunnelIds) {
+            await startTunnel(tunnelId)
+          }
+          toast.success(`Profile "${profile.name}" startup completed.`)
+        } finally {
+          setStartingProfileIds((prev) => prev.filter((id) => id !== profileId))
         }
       })()
     },
-    [verifyAndGetPassword]
+    [startTunnel]
+  )
+
+  const handleSaveTunnelProfile = useCallback(
+    async (profile: sshgate.TunnelProfile) => {
+      const saved = await SaveTunnelProfile(profile)
+      await fetchTunnelProfiles()
+      toast.success(`Profile "${saved.name}" saved.`)
+    },
+    [fetchTunnelProfiles]
+  )
+
+  const handleDeleteTunnelProfile = useCallback(
+    async (id: string) => {
+      await DeleteTunnelProfile(id)
+      await fetchTunnelProfiles()
+      toast.success('Profile deleted.')
+    },
+    [fetchTunnelProfiles]
   )
 
   useEffect(() => {
@@ -517,6 +617,7 @@ function AppContent() {
 
   useEffect(() => {
     void fetchSavedTunnels()
+    void fetchTunnelProfiles()
     void fetchActiveTunnels(true)
     const cleanupTunnelChangedEvent = EventsOn(
       'tunnels:changed',
@@ -526,12 +627,17 @@ function AppContent() {
       'saved_tunnels_changed',
       () => void fetchSavedTunnels()
     )
+    const cleanupTunnelProfilesChangedEvent = EventsOn(
+      'tunnel_profiles_changed',
+      () => void fetchTunnelProfiles()
+    )
 
     return () => {
       cleanupTunnelChangedEvent()
       cleanupSavedTunnelsChangedEvent()
+      cleanupTunnelProfilesChangedEvent()
     }
-  }, [fetchActiveTunnels, fetchSavedTunnels])
+  }, [fetchActiveTunnels, fetchSavedTunnels, fetchTunnelProfiles])
 
   // --- App 组件提供管理终端会话的函数 ---
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null)
@@ -677,7 +783,11 @@ function AppContent() {
           activeTunnels={activeTunnels}
           startingTunnelIds={startingTunnelIds}
           onOpenCreateTunnel={handleOpenCreateTunnel}
+          onOpenProfileManager={() => setIsProfileDialogOpen(true)}
+          onStartTunnelProfile={handleStartTunnelProfile}
           activeSyncsCount={activeSyncsCount} // Pass calculated count
+          tunnelProfiles={tunnelProfiles}
+          startingProfileIds={startingProfileIds}
         />
       ),
       FileSyncer: (
@@ -708,6 +818,7 @@ function AppContent() {
           onStopTunnel={handleStopTunnel}
           onOrderChange={handleOrderChange}
           onOpenCreateTunnel={handleOpenCreateTunnel}
+          onOpenProfileManager={() => setIsProfileDialogOpen(true)}
           onEditTunnel={handleEditTunnel}
         />
       ),
@@ -735,6 +846,9 @@ function AppContent() {
     savedTunnels,
     activeTunnels,
     startingTunnelIds,
+    handleStartTunnelProfile,
+    tunnelProfiles,
+    startingProfileIds,
     handleOpenCreateTunnel,
     activeTool,
     isDarkMode,
@@ -834,6 +948,14 @@ function AppContent() {
         onSuccess={handleTunnelDialogSuccess}
         hosts={sshHosts}
         tunnelToEdit={editingTunnel}
+      />
+      <TunnelProfileDialog
+        open={isProfileDialogOpen}
+        onOpenChange={setIsProfileDialogOpen}
+        profiles={tunnelProfiles}
+        savedTunnels={savedTunnels}
+        onSaveProfile={handleSaveTunnelProfile}
+        onDeleteProfile={handleDeleteTunnelProfile}
       />
     </>
   )
