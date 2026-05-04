@@ -334,35 +334,47 @@ export function JsonToolsView({
       </div>
 
       <TabsContent value="json" className="min-h-0">
-        <div className="flex h-full flex-col space-y-4">
-          <div className="flex-shrink-0 flex items-center gap-x-2">
-            <Button onClick={formatAndValidate}>
-              <ArrowRightLeft className="mr-2 h-4 w-4" /> Format / Validate
+        <div className="flex h-full min-h-0 gap-3">
+          <div className="flex w-44 shrink-0 flex-col gap-2 overflow-y-auto border-r border-border pr-3">
+            <Button onClick={formatAndValidate} className="justify-start">
+              <ArrowRightLeft className="mr-2 h-4 w-4" />
+              Format
             </Button>
-            <Button onClick={() => void minifyAndCopy()} variant="outline">
-              <Download className="mr-2 h-4 w-4" /> Minify & Copy
+            <Button
+              onClick={() => void minifyAndCopy()}
+              variant="outline"
+              className="justify-start"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Minify
             </Button>
-            <div className="flex-grow" />
             <Button
               onClick={() => void copyJsonOutput()}
               variant="secondary"
               disabled={Object.keys(outputObject).length === 0}
+              className="justify-start"
             >
-              <ClipboardCopy className="mr-2 h-4 w-4" /> Copy Output
+              <ClipboardCopy className="mr-2 h-4 w-4" />
+              Copy
             </Button>
-            <Button onClick={clearJson} variant="destructive">
-              <Trash2 className="mr-2 h-4 w-4" /> Clear
+            <Button
+              onClick={clearJson}
+              variant="destructive"
+              className="justify-start"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Clear
             </Button>
+
+            {validation.isValid !== null && (
+              <StatusMessage
+                isValid={validation.isValid}
+                message={validation.message}
+              />
+            )}
           </div>
 
-          {validation.isValid !== null && (
-            <StatusMessage
-              isValid={validation.isValid}
-              message={validation.message}
-            />
-          )}
-
-          <div className="flex-grow flex items-stretch gap-x-2 overflow-hidden min-h-0">
+          <div className="min-w-0 flex-grow flex items-stretch gap-x-2 overflow-hidden min-h-0">
             {isInputVisible && (
               <ToolTextPanel
                 label="Input"
@@ -424,49 +436,63 @@ export function JsonToolsView({
             }
             className="h-full min-h-0"
           >
-            <div className="flex h-full min-h-0 flex-col space-y-4">
-              <TabsList className="h-auto flex-wrap justify-start">
-                {textToolConfigs.map((config) => (
-                  <TabsTrigger
-                    key={config.action}
-                    value={config.action}
-                    onClick={() => setActiveTextTool(config.action)}
-                  >
-                    {config.action.startsWith('base64') && (
-                      <LockKeyhole className="h-4 w-4" />
-                    )}
-                    {config.action.startsWith('url') && (
-                      <Link className="h-4 w-4" />
-                    )}
-                    {config.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
+            <div className="flex h-full min-h-0 gap-3">
+              <div className="flex w-48 shrink-0 flex-col gap-3 overflow-y-auto border-r border-border pr-3">
+                <TabsList className="h-auto w-full flex-col items-stretch justify-start">
+                  {textToolConfigs.map((config) => (
+                    <TabsTrigger
+                      key={config.action}
+                      value={config.action}
+                      onClick={() => setActiveTextTool(config.action)}
+                      className="w-full justify-start"
+                    >
+                      {config.action.startsWith('base64') && (
+                        <LockKeyhole className="h-4 w-4" />
+                      )}
+                      {config.action.startsWith('url') && (
+                        <Link className="h-4 w-4" />
+                      )}
+                      {config.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
 
-              <div className="flex-shrink-0 flex items-center gap-2">
-                <Button onClick={() => void runTextTool()}>
-                  <ArrowRightLeft className="mr-2 h-4 w-4" /> Run
-                </Button>
-                <Button
-                  onClick={() => void copyTextOutput()}
-                  variant="secondary"
-                  disabled={!currentTextToolState.output}
-                >
-                  <ClipboardCopy className="mr-2 h-4 w-4" /> Copy Output
-                </Button>
-                <Button onClick={clearTextTools} variant="destructive">
-                  <Eraser className="mr-2 h-4 w-4" /> Clear
-                </Button>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    onClick={() => void runTextTool()}
+                    className="justify-start"
+                  >
+                    <ArrowRightLeft className="mr-2 h-4 w-4" />
+                    Run
+                  </Button>
+                  <Button
+                    onClick={() => void copyTextOutput()}
+                    variant="secondary"
+                    disabled={!currentTextToolState.output}
+                    className="justify-start"
+                  >
+                    <ClipboardCopy className="mr-2 h-4 w-4" />
+                    Copy
+                  </Button>
+                  <Button
+                    onClick={clearTextTools}
+                    variant="destructive"
+                    className="justify-start"
+                  >
+                    <Eraser className="mr-2 h-4 w-4" />
+                    Clear
+                  </Button>
+                </div>
+
+                {currentTextToolState.status && (
+                  <StatusMessage
+                    tone={currentTextToolState.status.tone}
+                    message={currentTextToolState.status.message}
+                  />
+                )}
               </div>
 
-              {currentTextToolState.status && (
-                <StatusMessage
-                  tone={currentTextToolState.status.tone}
-                  message={currentTextToolState.status.message}
-                />
-              )}
-
-              <div className="flex-grow grid grid-cols-1 gap-3 overflow-hidden min-h-0 lg:grid-cols-2">
+              <div className="min-w-0 flex-grow grid grid-cols-1 gap-3 overflow-hidden min-h-0 lg:grid-cols-2">
                 <ToolTextPanel
                   label={`${currentTextTool.label} Input`}
                   value={currentTextToolState.input}
