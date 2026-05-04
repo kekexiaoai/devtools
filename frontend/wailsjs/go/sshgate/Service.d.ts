@@ -37,6 +37,8 @@ export function GetTunnelProfiles():Promise<Array<sshgate.TunnelProfile>>;
 
 export function ReloadSSHHosts():Promise<void>;
 
+export function RunTunnelPreflight(arg1:string,arg2:string):Promise<sshgate.TunnelPreflightResult>;
+
 export function SavePassword(arg1:string,arg2:string):Promise<void>;
 
 export function SaveSSHConfigFileContent(arg1:string):Promise<void>;

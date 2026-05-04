@@ -66,6 +66,10 @@ export function ReloadSSHHosts() {
   return window['go']['sshgate']['Service']['ReloadSSHHosts']();
 }
 
+export function RunTunnelPreflight(arg1, arg2) {
+  return window['go']['sshgate']['Service']['RunTunnelPreflight'](arg1, arg2);
+}
+
 export function SavePassword(arg1, arg2) {
   return window['go']['sshgate']['Service']['SavePassword'](arg1, arg2);
 }
