@@ -66,6 +66,10 @@ export function GetTunnelDetail(arg1) {
   return window['go']['sshgate']['Service']['GetTunnelDetail'](arg1);
 }
 
+export function GetTunnelEventFeed(arg1) {
+  return window['go']['sshgate']['Service']['GetTunnelEventFeed'](arg1);
+}
+
 export function GetTunnelProfiles() {
   return window['go']['sshgate']['Service']['GetTunnelProfiles']();
 }

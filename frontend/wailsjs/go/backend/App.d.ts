@@ -37,6 +37,8 @@ export function SelectDirectory(arg1:string):Promise<string>;
 
 export function SelectFile(arg1:string):Promise<string>;
 
+export function SetupTrayMenu():Promise<void>;
+
 export function ShowConfirmDialog(arg1:string,arg2:string):Promise<string>;
 
 export function ShowErrorDialog(arg1:string,arg2:string):Promise<void>;
@@ -46,3 +48,5 @@ export function ShowInfoDialog(arg1:string,arg2:string):Promise<void>;
 export function Shutdown(arg1:context.Context):Promise<void>;
 
 export function Startup(arg1:context.Context):Promise<void>;
+
+export function TeardownTrayMenu():Promise<void>;

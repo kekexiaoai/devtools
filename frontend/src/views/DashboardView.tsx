@@ -1,5 +1,6 @@
-import React, { useMemo, useEffect } from 'react'
-import { sshgate, sshtunnel } from '@wailsjs/go/models'
+import React, { useCallback, useMemo, useEffect, useState } from 'react'
+import { backend, sshgate, sshtunnel } from '@wailsjs/go/models'
+import { GetListeningPorts } from '@wailsjs/go/backend/App'
 import {
   Card,
   CardContent,
@@ -18,13 +19,17 @@ import {
   StopCircle,
   FolderKanban,
   Settings2,
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
 } from 'lucide-react'
 import { type ToolId } from '@/types'
 
 import { formatTunnelDescription } from '@/lib/tunnel-utils'
-import { getTunnelHealthSummary } from '@/lib/tunnel-health'
 import { appLogger, logMeta } from '@/lib/logger'
 import { debounce } from '@/lib/utils'
+import { getTunnelPortConflictMap } from '@/lib/tunnel-port-conflicts'
+import { buildTunnelOverview } from '@/lib/tunnel-overview'
 
 interface DashboardViewProps {
   onNavigate: (toolId: ToolId) => void
@@ -39,6 +44,7 @@ interface DashboardViewProps {
   onStopTunnelProfile: (profileId: string) => void
   activeSyncsCount: number
   tunnelProfiles: sshgate.TunnelProfile[]
+  tunnelEvents: sshgate.TunnelEventFeedItem[]
   startingProfileIds: string[]
   stoppingProfileIds: string[]
 }
@@ -56,17 +62,24 @@ export function DashboardView({
   onStopTunnelProfile,
   activeSyncsCount,
   tunnelProfiles,
+  tunnelEvents,
   startingProfileIds,
   stoppingProfileIds,
 }: DashboardViewProps) {
-  const systemStatus = {
-    ...getTunnelHealthSummary(activeTunnels),
-    activeSyncs: activeSyncsCount,
-  }
-
   const logger = useMemo(() => {
     return appLogger.withPrefix('DashboardView')
   }, [])
+  const [listeningPorts, setListeningPorts] = useState<backend.ListeningPort[]>(
+    []
+  )
+
+  const refreshListeningPorts = useCallback(async () => {
+    try {
+      setListeningPorts(await GetListeningPorts())
+    } catch (error) {
+      logger.warn('Failed to refresh dashboard listening ports', error)
+    }
+  }, [logger])
 
   const activeTunnelMap = useMemo(() => {
     // Map by config ID for easier lookup
@@ -102,6 +115,27 @@ export function DashboardView({
   const savedTunnelIds = useMemo(() => {
     return new Set(savedTunnels.map((tunnel) => tunnel.id))
   }, [savedTunnels])
+
+  const portConflicts = useMemo(() => {
+    return getTunnelPortConflictMap(savedTunnels, activeTunnels, listeningPorts)
+  }, [savedTunnels, activeTunnels, listeningPorts])
+
+  const tunnelOverview = useMemo(() => {
+    return buildTunnelOverview({
+      savedTunnels,
+      activeTunnels,
+      portConflicts,
+      events: tunnelEvents,
+    })
+  }, [savedTunnels, activeTunnels, portConflicts, tunnelEvents])
+
+  useEffect(() => {
+    void refreshListeningPorts()
+    const timer = window.setInterval(() => {
+      void refreshListeningPorts()
+    }, 15000)
+    return () => window.clearInterval(timer)
+  }, [refreshListeningPorts])
 
   return (
     <div className="px-6 h-full overflow-y-auto">
@@ -344,27 +378,55 @@ export function DashboardView({
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>System Status</CardTitle>
+              <CardTitle>Tunnel Overview</CardTitle>
+              <CardDescription>
+                Runtime health and recent issues.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-1">
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <OverviewMetric
+                  label="Running"
+                  value={tunnelOverview.stats.running}
+                  tone="success"
+                />
+                <OverviewMetric
+                  label="Stopped"
+                  value={tunnelOverview.stats.stopped}
+                />
+                <OverviewMetric
+                  label="Disconnected"
+                  value={tunnelOverview.stats.disconnected}
+                  tone={
+                    tunnelOverview.stats.disconnected > 0 ? 'danger' : 'muted'
+                  }
+                />
+                <OverviewMetric
+                  label="Conflicts"
+                  value={tunnelOverview.stats.conflictTunnels}
+                  tone={
+                    tunnelOverview.stats.conflictTunnels > 0
+                      ? 'warning'
+                      : 'muted'
+                  }
+                />
+              </div>
               <button
                 className="flex items-center justify-between w-full p-3 -m-3 rounded-lg hover:bg-accent text-left"
                 onClick={() => onNavigate('Tunnels')}
               >
-                <span className="text-muted-foreground">Healthy Tunnels</span>
-                <span className="font-bold text-lg">
-                  {systemStatus.healthy}
+                <span className="flex items-center gap-2 text-muted-foreground">
+                  {tunnelOverview.healthTone === 'healthy' ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  ) : tunnelOverview.healthTone === 'warning' ? (
+                    <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                  ) : (
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
+                  )}
+                  Overall Health
                 </span>
-              </button>
-              <button
-                className="flex items-center justify-between w-full p-3 -m-3 rounded-lg hover:bg-accent text-left"
-                onClick={() => onNavigate('Tunnels')}
-              >
-                <span className="text-muted-foreground">
-                  Disconnected Tunnels
-                </span>
-                <span className="font-bold text-lg text-destructive">
-                  {systemStatus.disconnected}
+                <span className="font-semibold capitalize">
+                  {tunnelOverview.healthTone}
                 </span>
               </button>
               <button
@@ -372,14 +434,101 @@ export function DashboardView({
                 onClick={() => onNavigate('FileSyncer')}
               >
                 <span className="text-muted-foreground">Active Syncs</span>
-                <span className="font-bold text-lg">
-                  {systemStatus.activeSyncs}
-                </span>
+                <span className="font-bold text-lg">{activeSyncsCount}</span>
               </button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Event Feed</CardTitle>
+              <CardDescription>Latest tunnel lifecycle events.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {tunnelOverview.recentEvents.length > 0 ? (
+                <div className="space-y-2">
+                  {tunnelOverview.recentEvents.map((event) => (
+                    <div
+                      key={`${event.sequence}-${event.configId}`}
+                      className="rounded-md border border-border bg-muted/40 p-2"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <Activity
+                            className={`h-3.5 w-3.5 shrink-0 ${getEventIconClass(event.level)}`}
+                          />
+                          <span className="truncate text-sm font-medium">
+                            {event.tunnelName}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-muted-foreground">
+                          {formatEventTime(event.timestamp)}
+                        </span>
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                        {event.message}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                  No tunnel events yet.
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
       </div>
     </div>
   )
+}
+
+function OverviewMetric({
+  label,
+  tone = 'muted',
+  value,
+}: {
+  label: string
+  tone?: 'success' | 'warning' | 'danger' | 'muted'
+  value: number
+}) {
+  const toneClass = {
+    success: 'text-green-600',
+    warning: 'text-yellow-600',
+    danger: 'text-destructive',
+    muted: 'text-foreground',
+  }[tone]
+
+  return (
+    <div className="rounded-md border border-border bg-muted/30 px-3 py-2">
+      <div className={`text-xl font-bold ${toneClass}`}>{value}</div>
+      <div className="text-xs text-muted-foreground">{label}</div>
+    </div>
+  )
+}
+
+function getEventIconClass(level: string): string {
+  switch (level) {
+    case 'ERROR':
+      return 'text-destructive'
+    case 'WARN':
+      return 'text-yellow-600'
+    case 'SUCCESS':
+      return 'text-green-600'
+    default:
+      return 'text-muted-foreground'
+  }
+}
+
+function formatEventTime(value: string): string {
+  if (!value) return ''
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  return new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
 }

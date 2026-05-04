@@ -37,6 +37,8 @@ export function GetSavedTunnels():Promise<Array<sshtunnel.SavedTunnelConfig>>;
 
 export function GetTunnelDetail(arg1:string):Promise<sshgate.TunnelDetail>;
 
+export function GetTunnelEventFeed(arg1:number):Promise<Array<sshgate.TunnelEventFeedItem>>;
+
 export function GetTunnelProfiles():Promise<Array<sshgate.TunnelProfile>>;
 
 export function ImportSSHConfigHosts(arg1:Array<types.SSHHost>,arg2:boolean):Promise<Array<sshgate.SSHHostImportResult>>;

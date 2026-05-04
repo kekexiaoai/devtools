@@ -20,6 +20,7 @@ import {
   GetActiveTunnels,
   GetSavedTunnels,
   GetTunnelProfiles,
+  GetTunnelEventFeed,
   GetSSHHosts,
   RunTunnelPreflight,
   SaveTunnelProfile,
@@ -187,6 +188,9 @@ function AppContent() {
   const [tunnelFailureHistory, setTunnelFailureHistory] = useState<
     TunnelFailureHistoryEntry[]
   >(() => loadTunnelFailureHistory())
+  const [tunnelEvents, setTunnelEvents] = useState<
+    sshgate.TunnelEventFeedItem[]
+  >([])
   const [isLoadingTunnels, setIsLoadingTunnels] = useState(true)
   const [shouldStartNext, setShouldStartNext] = useState(false)
   const prevTunnelsRef = useRef<sshtunnel.SavedTunnelConfig[] | undefined>(
@@ -501,6 +505,14 @@ function AppContent() {
       setTunnelProfiles(await GetTunnelProfiles())
     } catch (error) {
       logger.error(`Failed to load tunnel profiles: ${String(error)}`)
+    }
+  }, [logger])
+
+  const fetchTunnelEvents = useCallback(async () => {
+    try {
+      setTunnelEvents(await GetTunnelEventFeed(50))
+    } catch (error) {
+      logger.error(`Failed to load tunnel events: ${String(error)}`)
     }
   }, [logger])
 
@@ -1107,13 +1119,17 @@ function AppContent() {
     void fetchSavedTunnels()
     void fetchTunnelProfiles()
     void fetchActiveTunnels(true)
-    const cleanupTunnelChangedEvent = EventsOn(
-      'tunnels:changed',
-      () => void fetchActiveTunnels(false)
-    )
+    void fetchTunnelEvents()
+    const cleanupTunnelChangedEvent = EventsOn('tunnels:changed', () => {
+      void fetchActiveTunnels(false)
+      void fetchTunnelEvents()
+    })
     const cleanupSavedTunnelsChangedEvent = EventsOn(
       'saved_tunnels_changed',
-      () => void fetchSavedTunnels()
+      () => {
+        void fetchSavedTunnels()
+        void fetchTunnelEvents()
+      }
     )
     const cleanupTunnelProfilesChangedEvent = EventsOn(
       'tunnel_profiles_changed',
@@ -1125,7 +1141,12 @@ function AppContent() {
       cleanupSavedTunnelsChangedEvent()
       cleanupTunnelProfilesChangedEvent()
     }
-  }, [fetchActiveTunnels, fetchSavedTunnels, fetchTunnelProfiles])
+  }, [
+    fetchActiveTunnels,
+    fetchSavedTunnels,
+    fetchTunnelProfiles,
+    fetchTunnelEvents,
+  ])
 
   // --- App 组件提供管理终端会话的函数 ---
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null)
@@ -1489,6 +1510,7 @@ function AppContent() {
           onStopTunnelProfile={handleStopTunnelProfile}
           activeSyncsCount={activeSyncsCount} // Pass calculated count
           tunnelProfiles={tunnelProfiles}
+          tunnelEvents={tunnelEvents}
           startingProfileIds={startingProfileIds}
           stoppingProfileIds={stoppingProfileIds}
         />
@@ -1572,6 +1594,7 @@ function AppContent() {
     handleStartTunnelProfile,
     handleStopTunnelProfile,
     tunnelProfiles,
+    tunnelEvents,
     startingProfileIds,
     stoppingProfileIds,
     handleOpenCreateTunnel,

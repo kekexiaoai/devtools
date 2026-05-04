@@ -66,6 +66,10 @@ export function SelectFile(arg1) {
   return window['go']['backend']['App']['SelectFile'](arg1);
 }
 
+export function SetupTrayMenu() {
+  return window['go']['backend']['App']['SetupTrayMenu']();
+}
+
 export function ShowConfirmDialog(arg1, arg2) {
   return window['go']['backend']['App']['ShowConfirmDialog'](arg1, arg2);
 }
@@ -84,4 +88,8 @@ export function Shutdown(arg1) {
 
 export function Startup(arg1) {
   return window['go']['backend']['App']['Startup'](arg1);
+}
+
+export function TeardownTrayMenu() {
+  return window['go']['backend']['App']['TeardownTrayMenu']();
 }
