@@ -21,6 +21,8 @@ export function IsDebug():Promise<boolean>;
 
 export function IsQuitting():Promise<boolean>;
 
+export function ListSystemFonts():Promise<Array<string>>;
+
 export function LogFromFrontend(arg1:types.LogEntry):Promise<void>;
 
 export function Menu(arg1:menu.Menu):Promise<void>;

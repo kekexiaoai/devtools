@@ -393,6 +393,10 @@ export const FONT_FAMILIES: Record<string, { name: string; value: string }> = {
     name: 'MesloLGS NF',
     value: '"MesloLGS NF", monospace',
   },
+  'meslolgm-nerd-font': {
+    name: 'MesloLGM Nerd Font',
+    value: '"MesloLGM Nerd Font", monospace',
+  },
   'dejavu-sans-mono': {
     name: 'DejaVu Sans Mono',
     value: '"DejaVu Sans Mono", monospace',
@@ -429,13 +433,32 @@ export type TerminalFontFamilyOption = {
 }
 
 export function getTerminalFontFamilyOptions(
-  query = ''
+  query = '',
+  systemFonts: string[] = []
 ): TerminalFontFamilyOption[] {
   const normalizedQuery = query.trim().toLowerCase()
-  const options = Object.entries(FONT_FAMILIES).map(([key, font]) => ({
-    key,
-    ...font,
-  }))
+  const seen = new Set<string>()
+  const options: TerminalFontFamilyOption[] = []
+
+  Object.entries(FONT_FAMILIES).forEach(([key, font]) => {
+    seen.add(font.name.toLowerCase())
+    options.push({ key, ...font })
+  })
+
+  systemFonts.forEach((fontName) => {
+    const trimmed = fontName.trim()
+    const normalizedName = trimmed.toLowerCase()
+    if (!trimmed || seen.has(normalizedName)) {
+      return
+    }
+
+    seen.add(normalizedName)
+    options.push({
+      key: trimmed,
+      name: trimmed,
+      value: formatCustomFontFamily(trimmed),
+    })
+  })
 
   if (!normalizedQuery) {
     return options

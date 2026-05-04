@@ -34,6 +34,10 @@ export function IsQuitting() {
   return window['go']['backend']['App']['IsQuitting']();
 }
 
+export function ListSystemFonts() {
+  return window['go']['backend']['App']['ListSystemFonts']();
+}
+
 export function LogFromFrontend(arg1) {
   return window['go']['backend']['App']['LogFromFrontend'](arg1);
 }

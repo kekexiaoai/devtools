@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Check, ChevronsUpDown } from 'lucide-react'
+import { ListSystemFonts } from '@wailsjs/go/backend/App'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,6 +25,9 @@ type FontFamilyComboboxProps = {
   placeholder?: string
 }
 
+let systemFontsCache: string[] | null = null
+let systemFontsPromise: Promise<string[]> | null = null
+
 export function FontFamilyCombobox({
   id,
   value,
@@ -33,7 +37,11 @@ export function FontFamilyCombobox({
 }: FontFamilyComboboxProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const options = useMemo(() => getTerminalFontFamilyOptions(query), [query])
+  const [systemFonts, setSystemFonts] = useState<string[]>([])
+  const options = useMemo(
+    () => getTerminalFontFamilyOptions(query, systemFonts),
+    [query, systemFonts]
+  )
   const selectValue = getTerminalFontFamilySelectValue(value)
   const customValue = query.trim()
   const normalizedCustomValue = customValue.toLowerCase()
@@ -54,6 +62,26 @@ export function FontFamilyCombobox({
     setQuery('')
     setOpen(false)
   }
+
+  useEffect(() => {
+    let cancelled = false
+
+    loadSystemFonts()
+      .then((fonts) => {
+        if (!cancelled) {
+          setSystemFonts(fonts)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSystemFonts([])
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -114,4 +142,20 @@ export function FontFamilyCombobox({
       </PopoverContent>
     </Popover>
   )
+}
+
+function loadSystemFonts(): Promise<string[]> {
+  if (systemFontsCache) {
+    return Promise.resolve(systemFontsCache)
+  }
+
+  systemFontsPromise ??= Promise.resolve()
+    .then(() => ListSystemFonts())
+    .then((fonts) => {
+      systemFontsCache = fonts
+      return fonts
+    })
+    .catch(() => [])
+
+  return systemFontsPromise
 }

@@ -37,6 +37,14 @@ describe('terminal font families', () => {
     ).toEqual(['cascadia-code', 'cascadia-mono'])
   })
 
+  it('includes searchable system font families', () => {
+    expect(
+      getTerminalFontFamilyOptions('meslolgm', ['MesloLGM Nerd Font']).map(
+        (font) => font.name
+      )
+    ).toEqual(['MesloLGM Nerd Font'])
+  })
+
   it('shows preset labels and custom font names', () => {
     expect(getFilteredTerminalFontFamilyLabel('sf-mono')).toBe('SF Mono')
     expect(getFilteredTerminalFontFamilyLabel('CommitMono')).toBe('CommitMono')
