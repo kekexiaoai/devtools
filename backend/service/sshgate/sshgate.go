@@ -41,6 +41,11 @@ type Service struct {
 	tunnelsConfig     *TunnelsConfig
 	configMu          sync.RWMutex
 
+	// --- For tunnel profile persistence ---
+	profilesConfigPath string
+	profilesConfig     *TunnelProfilesConfig
+	profileMu          sync.RWMutex
+
 	// For debouncing frontend events for saved tunnels
 	savedTunnelsEventDebouncer   *time.Timer
 	savedTunnelsDebounceDuration time.Duration
@@ -54,6 +59,7 @@ func NewService(sshMgr *sshmanager.Manager) *Service {
 		sshManager:                   sshMgr,
 		tunnelManager:                tunnelMgr,
 		tunnelsConfig:                &TunnelsConfig{Tunnels: []sshtunnel.SavedTunnelConfig{}},
+		profilesConfig:               &TunnelProfilesConfig{Profiles: []TunnelProfile{}},
 		savedTunnelsDebounceDuration: 200 * time.Millisecond,
 	}
 	return s
@@ -67,6 +73,9 @@ func (s *Service) Startup(ctx context.Context) error {
 	if err := s.loadTunnelsConfig(); err != nil {
 		log.Printf("Warning: could not load tunnel configurations: %v", err)
 		// We don't return the error, as the app can still function without saved tunnels.
+	}
+	if err := s.loadProfilesConfig(); err != nil {
+		log.Printf("Warning: could not load tunnel profiles: %v", err)
 	}
 
 	return s.tunnelManager.Startup(ctx)
@@ -389,13 +398,18 @@ func (s *Service) DeleteTunnelConfig(id string) error {
 			s.tunnelsConfig.TunnelsOrder = newOrder
 		}
 		// Also delete any saved password for this tunnel
-		if err := s.sshManager.DeletePassword(id); err != nil {
-			// Log as a warning, as the primary operation (deleting the config) succeeded.
-			log.Printf("Warning: could not delete password for tunnel ID %s: %v", id, err)
+		if s.sshManager != nil {
+			if err := s.sshManager.DeletePassword(id); err != nil {
+				// Log as a warning, as the primary operation (deleting the config) succeeded.
+				log.Printf("Warning: could not delete password for tunnel ID %s: %v", id, err)
+			}
 		}
 
 		log.Printf("Deleted tunnel config with ID: %s", id)
-		return s.saveTunnelsConfig()
+		if err := s.saveTunnelsConfig(); err != nil {
+			return err
+		}
+		return s.removeTunnelFromProfiles(id)
 	}
 
 	log.Printf("Could not delete tunnel config: ID %s not found.", id)
