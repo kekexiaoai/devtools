@@ -8,8 +8,13 @@ import {
   ClipboardCopy,
   Download,
   Eraser,
+  FileDiff,
+  Fingerprint,
+  Globe2,
+  Hash,
   Link,
   LockKeyhole,
+  Search,
   Trash2,
 } from 'lucide-react'
 
@@ -30,10 +35,13 @@ import {
   decodeBase64Text,
   decodeUrlText,
   decodeJwt,
+  diffText,
   encodeBase64Text,
   encodeUrlText,
   generateUuidV4,
   hashText,
+  parseUrlText,
+  testRegexText,
   type TimestampDetails,
   type TimestampInputFormat,
 } from '@/lib/text-tools'
@@ -50,6 +58,9 @@ type TextToolAction =
   | 'jwt-decode'
   | 'timestamp-convert'
   | 'uuid-generate'
+  | 'url-parse'
+  | 'regex-test'
+  | 'text-diff'
 
 type ToolAction = 'json' | TextToolAction
 
@@ -103,6 +114,31 @@ const textToolConfigs: TextToolConfig[] = [
     label: 'URL Decode',
     inputPlaceholder: 'URL encoded text to decode...',
     outputPlaceholder: 'URL decoded output will be shown here...',
+    requiresInput: true,
+    layout: 'stacked',
+  },
+  {
+    action: 'url-parse',
+    label: 'URL Parser',
+    inputPlaceholder: 'https://user:pass@example.com:8443/path?x=1&x=2#top',
+    outputPlaceholder: 'Parsed URL details will be shown here...',
+    requiresInput: true,
+    layout: 'stacked',
+  },
+  {
+    action: 'regex-test',
+    label: 'Regex Tester',
+    inputPlaceholder:
+      '{\n  "pattern": "id=(\\\\d+)",\n  "flags": "g",\n  "text": "id=42 id=7"\n}',
+    outputPlaceholder: 'Regex matches will be shown here...',
+    requiresInput: true,
+    layout: 'stacked',
+  },
+  {
+    action: 'text-diff',
+    label: 'Text Diff',
+    inputPlaceholder: 'old line\n---\nnew line',
+    outputPlaceholder: 'Line diff result will be shown here...',
     requiresInput: true,
     layout: 'stacked',
   },
@@ -402,12 +438,7 @@ export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
                 className="w-full justify-start"
                 onClick={() => setActiveTool(config.action)}
               >
-                {config.action.startsWith('base64') && (
-                  <LockKeyhole className="h-4 w-4" />
-                )}
-                {config.action.startsWith('url') && (
-                  <Link className="h-4 w-4" />
-                )}
+                <TextToolIcon action={config.action} />
                 {config.label}
               </TabsTrigger>
             ))}
@@ -1088,6 +1119,31 @@ function ToolTextPanel({
   )
 }
 
+function TextToolIcon({ action }: { action: TextToolAction }) {
+  if (action.startsWith('base64')) {
+    return <LockKeyhole className="h-4 w-4" />
+  }
+  if (action === 'url-encode' || action === 'url-decode') {
+    return <Link className="h-4 w-4" />
+  }
+  if (action === 'url-parse') {
+    return <Globe2 className="h-4 w-4" />
+  }
+  if (action === 'regex-test') {
+    return <Search className="h-4 w-4" />
+  }
+  if (action === 'text-diff') {
+    return <FileDiff className="h-4 w-4" />
+  }
+  if (action.startsWith('hash')) {
+    return <Hash className="h-4 w-4" />
+  }
+  if (action === 'uuid-generate') {
+    return <Fingerprint className="h-4 w-4" />
+  }
+  return <Braces className="h-4 w-4" />
+}
+
 async function transformText(
   action: TextToolAction,
   value: string
@@ -1101,6 +1157,12 @@ async function transformText(
       return encodeUrlText(value)
     case 'url-decode':
       return decodeUrlText(value)
+    case 'url-parse':
+      return JSON.stringify(parseUrlText(value), null, 2)
+    case 'regex-test':
+      return JSON.stringify(testRegexText(value), null, 2)
+    case 'text-diff':
+      return JSON.stringify(diffText(value), null, 2)
     case 'hash-md5':
       return hashText(value, 'MD5')
     case 'hash-sha1':
@@ -1134,6 +1196,12 @@ function getTextToolLabel(action: TextToolAction): string {
       return 'URL encoded.'
     case 'url-decode':
       return 'URL decoded.'
+    case 'url-parse':
+      return 'URL parsed.'
+    case 'regex-test':
+      return 'Regex tested.'
+    case 'text-diff':
+      return 'Text diff generated.'
     case 'hash-md5':
       return 'MD5 hash generated.'
     case 'hash-sha1':

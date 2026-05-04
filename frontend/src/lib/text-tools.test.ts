@@ -5,10 +5,13 @@ import {
   decodeBase64Text,
   decodeUrlText,
   decodeJwt,
+  diffText,
   encodeBase64Text,
   encodeUrlText,
   generateUuidV4,
   hashText,
+  parseUrlText,
+  testRegexText,
 } from './text-tools'
 
 describe('text tools', () => {
@@ -114,6 +117,70 @@ describe('text tools', () => {
     expect(ids).toHaveLength(2)
     expect(ids[0]).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+    )
+  })
+
+  it('parses URLs without exposing passwords', () => {
+    expect(
+      parseUrlText('https://user:secret@example.com:8443/a/b?x=1&x=2#top')
+    ).toMatchObject({
+      protocol: 'https:',
+      username: 'user',
+      passwordPresent: true,
+      host: 'example.com:8443',
+      hostname: 'example.com',
+      port: '8443',
+      pathname: '/a/b',
+      queryParams: [
+        { name: 'x', value: '1' },
+        { name: 'x', value: '2' },
+      ],
+      hash: '#top',
+    })
+  })
+
+  it('rejects invalid URLs', () => {
+    expect(() => parseUrlText('not a url')).toThrow('Invalid URL input.')
+  })
+
+  it('tests regex input and reports captures', () => {
+    const result = testRegexText(
+      JSON.stringify({
+        pattern: 'id=(\\d+)',
+        flags: 'g',
+        text: 'id=42 id=7',
+      })
+    )
+
+    expect(result).toMatchObject({
+      count: 2,
+      matches: [
+        { match: 'id=42', index: 0, captures: ['42'] },
+        { match: 'id=7', index: 6, captures: ['7'] },
+      ],
+    })
+  })
+
+  it('rejects invalid regex tester JSON', () => {
+    expect(() => testRegexText('{"pattern":42}')).toThrow(
+      'Regex tester input must include string pattern and text fields.'
+    )
+  })
+
+  it('diffs text separated by the tool delimiter', () => {
+    expect(diffText('alpha\nbeta\n---\nalpha\ngamma')).toMatchObject({
+      summary: { added: 1, removed: 1, unchanged: 1 },
+      lines: [
+        { type: 'unchanged', oldLine: 1, newLine: 1, text: 'alpha' },
+        { type: 'removed', oldLine: 2, text: 'beta' },
+        { type: 'added', newLine: 2, text: 'gamma' },
+      ],
+    })
+  })
+
+  it('rejects text diff input without a delimiter', () => {
+    expect(() => diffText('same text')).toThrow(
+      'Text diff input must contain a line with --- between old and new text.'
     )
   })
 })

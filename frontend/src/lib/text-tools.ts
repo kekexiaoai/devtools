@@ -194,6 +194,157 @@ export function generateUuidV4(count: number): string[] {
   return Array.from({ length: safeCount }, () => crypto.randomUUID())
 }
 
+export interface ParsedUrlDetails {
+  href: string
+  origin: string
+  protocol: string
+  username: string
+  passwordPresent: boolean
+  host: string
+  hostname: string
+  port: string
+  pathname: string
+  search: string
+  hash: string
+  queryParams: Array<{ name: string; value: string }>
+}
+
+export function parseUrlText(value: string): ParsedUrlDetails {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    throw new Error('Invalid URL input.')
+  }
+
+  try {
+    const url = new URL(trimmed)
+    return {
+      href: url.href,
+      origin: url.origin,
+      protocol: url.protocol,
+      username: url.username,
+      passwordPresent: Boolean(url.password),
+      host: url.host,
+      hostname: url.hostname,
+      port: url.port,
+      pathname: url.pathname,
+      search: url.search,
+      hash: url.hash,
+      queryParams: Array.from(url.searchParams.entries()).map(
+        ([name, paramValue]) => ({
+          name,
+          value: paramValue,
+        })
+      ),
+    }
+  } catch {
+    throw new Error('Invalid URL input.')
+  }
+}
+
+export interface RegexTestResult {
+  pattern: string
+  flags: string
+  count: number
+  matches: Array<{
+    match: string
+    index: number
+    captures: string[]
+    namedGroups?: Record<string, string>
+  }>
+}
+
+export function testRegexText(value: string): RegexTestResult {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch {
+    throw new Error('Regex tester input must be valid JSON.')
+  }
+
+  if (!isRegexTesterInput(parsed)) {
+    throw new Error(
+      'Regex tester input must include string pattern and text fields.'
+    )
+  }
+
+  const flags = normalizeRegexFlags(parsed.flags ?? '')
+  let regex: RegExp
+  try {
+    regex = new RegExp(
+      parsed.pattern,
+      flags.includes('g') ? flags : `${flags}g`
+    )
+  } catch {
+    throw new Error('Invalid regular expression.')
+  }
+
+  const matches: RegexTestResult['matches'] = []
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(parsed.text)) !== null) {
+    matches.push({
+      match: match[0],
+      index: match.index,
+      captures: match.slice(1),
+      namedGroups: match.groups,
+    })
+
+    if (match[0] === '') {
+      regex.lastIndex += 1
+    }
+  }
+
+  return {
+    pattern: parsed.pattern,
+    flags: regex.flags,
+    count: matches.length,
+    matches,
+  }
+}
+
+export type TextDiffLineType = 'unchanged' | 'added' | 'removed'
+
+export interface TextDiffLine {
+  type: TextDiffLineType
+  text: string
+  oldLine?: number
+  newLine?: number
+}
+
+export interface TextDiffResult {
+  summary: {
+    added: number
+    removed: number
+    unchanged: number
+  }
+  lines: TextDiffLine[]
+}
+
+export function diffText(value: string): TextDiffResult {
+  const normalized = value.replaceAll('\r\n', '\n')
+  const delimiter = '\n---\n'
+  const delimiterIndex = normalized.indexOf(delimiter)
+  if (delimiterIndex === -1) {
+    throw new Error(
+      'Text diff input must contain a line with --- between old and new text.'
+    )
+  }
+
+  const oldLines = normalized.slice(0, delimiterIndex).split('\n')
+  const newLines = normalized
+    .slice(delimiterIndex + delimiter.length)
+    .split('\n')
+  const lines = buildLineDiff(oldLines, newLines)
+  const summary = lines.reduce(
+    (acc, line) => {
+      acc[line.type] += 1
+      return acc
+    },
+    { added: 0, removed: 0, unchanged: 0 }
+  )
+
+  return { summary, lines }
+}
+
 function parseTimestampInput(
   value: string,
   format: TimestampInputFormat
@@ -464,4 +615,114 @@ function base64ToBytes(value: string): Uint8Array {
     bytes[i] = binary.charCodeAt(i)
   }
   return bytes
+}
+
+function isRegexTesterInput(value: unknown): value is {
+  pattern: string
+  flags?: string
+  text: string
+} {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+
+  const candidate = value as Record<string, unknown>
+  return (
+    typeof candidate.pattern === 'string' &&
+    typeof candidate.text === 'string' &&
+    (candidate.flags === undefined || typeof candidate.flags === 'string')
+  )
+}
+
+function normalizeRegexFlags(flags: string): string {
+  const allowed = new Set(['d', 'g', 'i', 'm', 's', 'u', 'v', 'y'])
+  const seen = new Set<string>()
+  let normalized = ''
+
+  for (const flag of flags) {
+    if (!allowed.has(flag)) {
+      throw new Error('Invalid regular expression flags.')
+    }
+    if (seen.has(flag)) {
+      throw new Error('Invalid regular expression flags.')
+    }
+    seen.add(flag)
+    normalized += flag
+  }
+
+  return normalized
+}
+
+function buildLineDiff(oldLines: string[], newLines: string[]): TextDiffLine[] {
+  const table = buildLcsTable(oldLines, newLines)
+  const lines: TextDiffLine[] = []
+  let oldIndex = 0
+  let newIndex = 0
+
+  while (oldIndex < oldLines.length && newIndex < newLines.length) {
+    if (oldLines[oldIndex] === newLines[newIndex]) {
+      lines.push({
+        type: 'unchanged',
+        oldLine: oldIndex + 1,
+        newLine: newIndex + 1,
+        text: oldLines[oldIndex],
+      })
+      oldIndex += 1
+      newIndex += 1
+    } else if (table[oldIndex + 1][newIndex] >= table[oldIndex][newIndex + 1]) {
+      lines.push({
+        type: 'removed',
+        oldLine: oldIndex + 1,
+        text: oldLines[oldIndex],
+      })
+      oldIndex += 1
+    } else {
+      lines.push({
+        type: 'added',
+        newLine: newIndex + 1,
+        text: newLines[newIndex],
+      })
+      newIndex += 1
+    }
+  }
+
+  while (oldIndex < oldLines.length) {
+    lines.push({
+      type: 'removed',
+      oldLine: oldIndex + 1,
+      text: oldLines[oldIndex],
+    })
+    oldIndex += 1
+  }
+
+  while (newIndex < newLines.length) {
+    lines.push({
+      type: 'added',
+      newLine: newIndex + 1,
+      text: newLines[newIndex],
+    })
+    newIndex += 1
+  }
+
+  return lines
+}
+
+function buildLcsTable(oldLines: string[], newLines: string[]): number[][] {
+  const table = Array.from({ length: oldLines.length + 1 }, () =>
+    Array.from({ length: newLines.length + 1 }, () => 0)
+  )
+
+  for (let oldIndex = oldLines.length - 1; oldIndex >= 0; oldIndex -= 1) {
+    for (let newIndex = newLines.length - 1; newIndex >= 0; newIndex -= 1) {
+      table[oldIndex][newIndex] =
+        oldLines[oldIndex] === newLines[newIndex]
+          ? table[oldIndex + 1][newIndex + 1] + 1
+          : Math.max(
+              table[oldIndex + 1][newIndex],
+              table[oldIndex][newIndex + 1]
+            )
+    }
+  }
+
+  return table
 }
