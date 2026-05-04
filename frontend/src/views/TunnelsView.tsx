@@ -10,6 +10,14 @@ import {
 import { GetListeningPorts } from '@wailsjs/go/backend/App'
 import { backend, sshgate, sshtunnel } from '@wailsjs/go/models'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { FolderKanban, PlusCircle } from 'lucide-react'
 import { SshConnectionHook } from '@/hooks/useSshConnection'
 import { toast } from 'sonner'
@@ -17,6 +25,13 @@ import { appLogger } from '@/lib/logger'
 import { useSettingsStore } from '@/hooks/useSettingsStore'
 import { useDialog } from '@/hooks/useDialog'
 import type { TunnelAutoRestartState } from '@/lib/tunnel-auto-restart'
+import {
+  filterTunnels,
+  getAllTunnelTags,
+  loadTunnelTags,
+  saveTunnelTags,
+  type TunnelStatusFilter,
+} from '@/lib/tunnel-filters'
 import { getTunnelPortConflictMap } from '@/lib/tunnel-port-conflicts'
 
 interface TunnelsViewProps {
@@ -61,6 +76,12 @@ export function TunnelsView({
   onEditTunnel,
 }: TunnelsViewProps) {
   const { useTunnelMiniMap } = useSettingsStore()
+  const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<TunnelStatusFilter>('all')
+  const [tagFilter, setTagFilter] = useState('all')
+  const [tagsByTunnel, setTagsByTunnel] = useState<Record<string, string[]>>(
+    () => loadTunnelTags()
+  )
 
   const logger = useMemo(() => {
     return appLogger.withPrefix('TunnelsView')
@@ -90,6 +111,50 @@ export function TunnelsView({
   const portConflicts = useMemo(() => {
     return getTunnelPortConflictMap(savedTunnels, activeTunnels, listeningPorts)
   }, [savedTunnels, activeTunnels, listeningPorts])
+
+  const visibleTunnels = useMemo(() => {
+    return filterTunnels(savedTunnels, activeTunnels, {
+      query,
+      status: statusFilter,
+      tag: tagFilter,
+      tagsByTunnel,
+    })
+  }, [
+    savedTunnels,
+    activeTunnels,
+    query,
+    statusFilter,
+    tagFilter,
+    tagsByTunnel,
+  ])
+
+  const allTags = useMemo(() => getAllTunnelTags(tagsByTunnel), [tagsByTunnel])
+
+  const handleTagsChange = useCallback((id: string, tags: string[]) => {
+    setTagsByTunnel((current) => {
+      const next = { ...current, [id]: tags }
+      if (tags.length === 0) {
+        delete next[id]
+      }
+      saveTunnelTags(next)
+      return next
+    })
+  }, [])
+
+  const handleVisibleOrderChange = useCallback(
+    (orderedVisibleIds: string[]) => {
+      const visibleSet = new Set(visibleTunnels.map((tunnel) => tunnel.id))
+      let visibleIndex = 0
+      const mergedIds = savedTunnels.map((tunnel) => {
+        if (!visibleSet.has(tunnel.id)) return tunnel.id
+        const nextVisibleId = orderedVisibleIds[visibleIndex]
+        visibleIndex += 1
+        return nextVisibleId
+      })
+      onOrderChange(mergedIds)
+    },
+    [savedTunnels, visibleTunnels, onOrderChange]
+  )
 
   const handleOpenInTerminal = useCallback(
     (tunnel: sshtunnel.SavedTunnelConfig) => {
@@ -185,11 +250,51 @@ export function TunnelsView({
         <p className="text-muted-foreground">
           Manage and monitor your SSH tunnels.
         </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search tunnels, hosts, ports, tags..."
+            className="w-full md:w-80"
+          />
+          <Select
+            value={statusFilter}
+            onValueChange={(value) =>
+              setStatusFilter(value as TunnelStatusFilter)
+            }
+          >
+            <SelectTrigger className="w-36">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="running">Running</SelectItem>
+              <SelectItem value="stopped">Stopped</SelectItem>
+              <SelectItem value="disconnected">Disconnected</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={tagFilter} onValueChange={setTagFilter}>
+            <SelectTrigger className="w-36">
+              <SelectValue placeholder="Tag" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Tags</SelectItem>
+              {allTags.map((tag) => (
+                <SelectItem key={tag} value={tag}>
+                  {tag}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="text-xs text-muted-foreground">
+            {visibleTunnels.length} / {savedTunnels.length}
+          </div>
+        </div>
       </div>
       <div className="flex-1 min-h-0">
         {useTunnelMiniMap ? (
           <SavedTunnelsWithMiniMapView
-            savedTunnels={savedTunnels}
+            savedTunnels={visibleTunnels}
             activeTunnels={activeTunnels}
             isLoading={isLoadingTunnels}
             startingTunnelIds={startingTunnelIds}
@@ -204,14 +309,16 @@ export function TunnelsView({
             onRunTunnelPreflight={onRunTunnelPreflight}
             onDeleteTunnel={handleDeleteTunnel}
             onDuplicateTunnel={handleDuplicateTunnel}
-            onOrderChange={onOrderChange}
+            onOrderChange={handleVisibleOrderChange}
+            tagsByTunnel={tagsByTunnel}
+            onTagsChange={handleTagsChange}
             tunnelErrors={tunnelErrors}
             onOpenInTerminal={handleOpenInTerminal}
             onEditTunnel={onEditTunnel}
           />
         ) : (
           <SavedTunnelsView
-            savedTunnels={savedTunnels}
+            savedTunnels={visibleTunnels}
             activeTunnels={activeTunnels}
             isLoading={isLoadingTunnels}
             startingTunnelIds={startingTunnelIds}
@@ -226,7 +333,9 @@ export function TunnelsView({
             onRunTunnelPreflight={onRunTunnelPreflight}
             onDeleteTunnel={handleDeleteTunnel}
             onDuplicateTunnel={handleDuplicateTunnel}
-            onOrderChange={onOrderChange}
+            onOrderChange={handleVisibleOrderChange}
+            tagsByTunnel={tagsByTunnel}
+            onTagsChange={handleTagsChange}
             tunnelErrors={tunnelErrors}
             onOpenInTerminal={handleOpenInTerminal}
             onEditTunnel={onEditTunnel}

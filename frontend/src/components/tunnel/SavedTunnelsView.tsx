@@ -31,6 +31,8 @@ interface SavedTunnelsViewProps {
   tunnelPreflightResults: Map<string, sshgate.TunnelPreflightResult>
   autoRestartState: Record<string, TunnelAutoRestartState>
   portConflicts: Map<string, TunnelPortConflict[]>
+  tagsByTunnel: Record<string, string[]>
+  onTagsChange: (id: string, tags: string[]) => void
   onStartTunnel: (id: string) => void
   onStopTunnel: (runtimeId: string) => void
   onCheckTunnelHealth: (runtimeId: string) => void
@@ -53,6 +55,8 @@ export function SavedTunnelsView({
   tunnelPreflightResults,
   autoRestartState,
   portConflicts,
+  tagsByTunnel,
+  onTagsChange,
   onStartTunnel,
   onStopTunnel,
   onCheckTunnelHealth,
@@ -145,11 +149,13 @@ export function SavedTunnelsView({
                   preflightResult={tunnelPreflightResults.get(tunnel.id)}
                   autoRestartState={autoRestartState[tunnel.id]}
                   portConflicts={portConflicts.get(tunnel.id)}
+                  tags={tagsByTunnel[tunnel.id] ?? []}
                   lastError={tunnelErrors.get(tunnel.id)}
                   onStart={onStartTunnel}
                   onStop={onStopTunnel}
                   onCheckHealth={onCheckTunnelHealth}
                   onRunPreflight={onRunTunnelPreflight}
+                  onTagsChange={(tags) => onTagsChange(tunnel.id, tags)}
                   onDelete={() => void onDeleteTunnel(tunnel.id)}
                   onDuplicate={() => void onDuplicateTunnel(tunnel.id)}
                   onEdit={onEditTunnel}
@@ -180,11 +186,13 @@ export function SavedTunnelsView({
                 preflightResult={tunnelPreflightResults.get(activeDragItem.id)}
                 autoRestartState={autoRestartState[activeDragItem.id]}
                 portConflicts={portConflicts.get(activeDragItem.id)}
+                tags={tagsByTunnel[activeDragItem.id] ?? []}
                 lastError={tunnelErrors.get(activeDragItem.id)}
                 onStart={() => {}}
                 onStop={() => {}}
                 onCheckHealth={() => {}}
                 onRunPreflight={() => {}}
+                onTagsChange={() => {}}
                 onDelete={() => {}}
                 onDuplicate={() => {}}
                 onEdit={() => {}}

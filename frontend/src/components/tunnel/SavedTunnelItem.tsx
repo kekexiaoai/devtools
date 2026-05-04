@@ -1,7 +1,9 @@
 import React, { useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   Card,
   CardContent,
@@ -47,6 +49,7 @@ import {
   type TunnelPortConflict,
 } from '@/lib/tunnel-port-conflicts'
 import { diagnoseTunnelStartFailure } from '@/lib/tunnel-start-diagnostics'
+import { parseTunnelTags } from '@/lib/tunnel-filters'
 
 interface SavedTunnelItemProps {
   tunnel: sshtunnel.SavedTunnelConfig
@@ -66,6 +69,8 @@ interface SavedTunnelItemProps {
   preflightResult?: sshgate.TunnelPreflightResult
   autoRestartState?: TunnelAutoRestartState
   portConflicts?: TunnelPortConflict[]
+  tags: string[]
+  onTagsChange: (tags: string[]) => void
   isSelected: boolean
 }
 
@@ -203,6 +208,8 @@ export function SavedTunnelItem({
   preflightResult,
   autoRestartState,
   portConflicts = [],
+  tags,
+  onTagsChange,
   isSelected,
 }: SavedTunnelItemProps) {
   const status = activeTunnel?.status
@@ -301,6 +308,26 @@ export function SavedTunnelItem({
       <CardContent className="px-4">
         <div className="space-y-2">
           {formatTunnelDescription(tunnel)}
+          <div className="flex flex-wrap items-center gap-2">
+            {tags.map((tag) => (
+              <Badge key={tag} variant="secondary">
+                {tag}
+              </Badge>
+            ))}
+            <Input
+              defaultValue={tags.join(', ')}
+              placeholder="Tags: db, prod"
+              className="h-7 w-48 text-xs"
+              onBlur={(event) =>
+                onTagsChange(parseTunnelTags(event.currentTarget.value))
+              }
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.currentTarget.blur()
+                }
+              }}
+            />
+          </div>
           {hasLastError && (
             <div className="mt-2 text-xs text-destructive flex items-start gap-2 p-2 bg-destructive/10 rounded-md">
               <AlertTriangle className="h-4 w-4 mt-px shrink-0" />

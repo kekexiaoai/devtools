@@ -175,6 +175,8 @@ interface SavedTunnelsWithMiniMapViewProps {
   tunnelPreflightResults: Map<string, sshgate.TunnelPreflightResult>
   autoRestartState: Record<string, TunnelAutoRestartState>
   portConflicts: Map<string, TunnelPortConflict[]>
+  tagsByTunnel: Record<string, string[]>
+  onTagsChange: (id: string, tags: string[]) => void
   onStartTunnel: (id: string) => void
   onStopTunnel: (runtimeId: string) => void
   onCheckTunnelHealth: (runtimeId: string) => void
@@ -199,6 +201,8 @@ export const SavedTunnelsWithMiniMapView: React.FC<
   tunnelPreflightResults,
   autoRestartState,
   portConflicts,
+  tagsByTunnel,
+  onTagsChange,
   onStartTunnel,
   onStopTunnel,
   onCheckTunnelHealth,
@@ -451,6 +455,8 @@ export const SavedTunnelsWithMiniMapView: React.FC<
                       preflightResult={tunnelPreflightResults.get(tunnel.id)}
                       autoRestartState={autoRestartState[tunnel.id]}
                       portConflicts={portConflicts.get(tunnel.id)}
+                      tags={tagsByTunnel[tunnel.id] ?? []}
+                      onTagsChange={(tags) => onTagsChange(tunnel.id, tags)}
                       isSelected={selectedNavId === tunnel.id}
                     />
                   </div>
