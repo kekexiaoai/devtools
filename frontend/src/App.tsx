@@ -34,7 +34,12 @@ import {
 } from '@wailsjs/runtime/runtime'
 
 import { toolIds, type UiScale } from './types'
-import { DomReady, ForceQuit, GetListeningPorts } from '@wailsjs/go/backend/App'
+import {
+  CancelQuitRequest,
+  DomReady,
+  ForceQuit,
+  GetListeningPorts,
+} from '@wailsjs/go/backend/App'
 import { logToServer } from '@/lib/utils'
 import {
   AlertDialog,
@@ -402,6 +407,7 @@ function AppContent() {
 
   // 新增一个 state 来控制“退出确认”对话框的显示
   const [isQuitConfirmOpen, setIsQuitConfirmOpen] = useState(false)
+  const isConfirmingQuitRef = useRef(false)
 
   // 新增一个 useEffect 来监听来自 Go 后端的退出请求
   useEffect(() => {
@@ -417,7 +423,18 @@ function AppContent() {
 
   // --- 事件处理函数 ---
   const handleConfirmQuit = async () => {
+    isConfirmingQuitRef.current = true
     await ForceQuit() // 调用后端函数，真正退出
+  }
+
+  const handleQuitConfirmOpenChange = (open: boolean) => {
+    setIsQuitConfirmOpen(open)
+    if (!open && !isConfirmingQuitRef.current) {
+      void CancelQuitRequest()
+    }
+    if (!open) {
+      isConfirmingQuitRef.current = false
+    }
   }
 
   // --- tunnel ---
@@ -1499,7 +1516,10 @@ function AppContent() {
         </div>
       </div>
       {/* 5. 在这里渲染我们的“退出确认”对话框 */}
-      <AlertDialog open={isQuitConfirmOpen} onOpenChange={setIsQuitConfirmOpen}>
+      <AlertDialog
+        open={isQuitConfirmOpen}
+        onOpenChange={handleQuitConfirmOpenChange}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <div className="flex items-center space-x-2">

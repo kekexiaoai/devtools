@@ -6,6 +6,10 @@ export function Bootstrap() {
   return window['go']['backend']['App']['Bootstrap']();
 }
 
+export function CancelQuitRequest() {
+  return window['go']['backend']['App']['CancelQuitRequest']();
+}
+
 export function Ctx() {
   return window['go']['backend']['App']['Ctx']();
 }
@@ -48,6 +52,10 @@ export function Menu(arg1) {
 
 export function ReadAppLogTail(arg1) {
   return window['go']['backend']['App']['ReadAppLogTail'](arg1);
+}
+
+export function RequestQuit() {
+  return window['go']['backend']['App']['RequestQuit']();
 }
 
 export function SelectDirectory(arg1) {

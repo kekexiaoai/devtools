@@ -7,6 +7,8 @@ import {menu} from '../models';
 
 export function Bootstrap():Promise<void>;
 
+export function CancelQuitRequest():Promise<void>;
+
 export function Ctx():Promise<context.Context>;
 
 export function DomReady():Promise<void>;
@@ -28,6 +30,8 @@ export function LogFromFrontend(arg1:types.LogEntry):Promise<void>;
 export function Menu(arg1:menu.Menu):Promise<void>;
 
 export function ReadAppLogTail(arg1:number):Promise<Array<string>>;
+
+export function RequestQuit():Promise<void>;
 
 export function SelectDirectory(arg1:string):Promise<string>;
 

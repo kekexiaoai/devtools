@@ -35,6 +35,8 @@ type App struct {
 	isQuitting   bool       // 内部状态标志
 	backendReady bool       // 新增：标记后端服务是否全部成功启动
 	mu           sync.Mutex // 新增：保护 backendReady
+	quitMu       sync.Mutex
+	quitPromptAt time.Time
 	isDebug      bool
 	isMacOS      bool
 	configDir    string
@@ -208,20 +210,9 @@ func (a *App) Shutdown(ctx context.Context) {
 
 // OnBeforeClose is called when the user attempts to close the window.
 func (a *App) OnBeforeClose(ctx context.Context) (prevent bool) {
-	// 这个逻辑只在 macOS 上生效
-	if !a.isMacOS {
-		return false // 在 Windows/Linux 上，总是允许直接退出
-	}
-
-	// 检查通行令牌
-	if a.isQuitting {
-		// 如果是 ForceQuit 发起的，直接允许退出
-		return false
-	}
-
-	// 否则，是用户点击 'X'，发送事件并阻止退出
-	runtime.EventsEmit(ctx, "app:request-quit")
-	return true
+	// Do not block OS shutdown or direct window close events. The interactive
+	// quit confirmation is only attached to the explicit app menu quit action.
+	return false
 }
 
 func (a *App) Menu(appMenu *menu.Menu) {
@@ -229,7 +220,7 @@ func (a *App) Menu(appMenu *menu.Menu) {
 	if a.isMacOS {
 		// macOS 的标准退出选项
 		fileMenu.AddText("Quit DevTools", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
-			runtime.Quit(a.ctx)
+			a.RequestQuit()
 		})
 	} else {
 		// Windows/Linux 的标准退出选项
@@ -348,10 +339,46 @@ func (a *App) LogFromFrontend(entry types.LogEntry) {
 	log.Printf("[FRONTEND] [%s] [%s] %s", timestamp, entry.Level, entry.Message)
 }
 
+// RequestQuit handles the explicit app menu quit action. The first request
+// asks the frontend to confirm; a second request while the prompt is active
+// exits immediately.
+func (a *App) RequestQuit() {
+	a.quitMu.Lock()
+	if a.shouldQuitImmediately(time.Now()) {
+		a.isQuitting = true
+		a.quitPromptAt = time.Time{}
+		a.quitMu.Unlock()
+		runtime.Quit(a.ctx)
+		return
+	}
+	a.quitPromptAt = time.Now()
+	a.quitMu.Unlock()
+
+	runtime.EventsEmit(a.ctx, "app:request-quit")
+}
+
+// CancelQuitRequest clears the pending menu quit confirmation.
+func (a *App) CancelQuitRequest() {
+	a.quitMu.Lock()
+	a.quitPromptAt = time.Time{}
+	a.quitMu.Unlock()
+}
+
 // ForceQuit 强制退出应用程序
 func (a *App) ForceQuit() {
 	log.Println("ForceQuit called from frontend. Setting quit flag and exiting.")
 	// 在调用 Quit 之前，先设置状态标志
+	a.quitMu.Lock()
 	a.isQuitting = true
+	a.quitPromptAt = time.Time{}
+	a.quitMu.Unlock()
 	runtime.Quit(a.ctx)
+}
+
+func (a *App) shouldQuitImmediately(now time.Time) bool {
+	if a.isQuitting {
+		return true
+	}
+
+	return !a.quitPromptAt.IsZero() && now.Sub(a.quitPromptAt) <= 5*time.Second
 }
