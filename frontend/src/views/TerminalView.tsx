@@ -33,6 +33,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 // import { toast } from 'sonner'
@@ -351,15 +353,14 @@ export function TerminalView({
     )
   }, [splitSessionId, terminalSessions])
 
-  const handleOpenSplit = useCallback(() => {
-    if (!activeTerminalId) return
-    const nextSession = terminalSessions.find(
-      (session) => session.id !== activeTerminalId
-    )
-    if (nextSession) {
-      setSplitSessionId(nextSession.id)
-    }
-  }, [activeTerminalId, terminalSessions])
+  const splitCandidates = useMemo(
+    () => terminalSessions.filter((session) => session.id !== activeTerminalId),
+    [activeTerminalId, terminalSessions]
+  )
+
+  const handleSelectSplitSession = useCallback((sessionId: string) => {
+    setSplitSessionId(sessionId)
+  }, [])
 
   const updateSnippets = useCallback((nextSnippets: TerminalSnippet[]) => {
     setSnippets(nextSnippets)
@@ -840,7 +841,42 @@ export function TerminalView({
               </div>
             </PopoverContent>
           </Popover>
-          {splitSession ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                title={
+                  splitSession ? 'Change Split Terminal' : 'Split Terminal'
+                }
+                disabled={!activeTerminalId || splitCandidates.length === 0}
+              >
+                <Columns2 className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel className="text-xs text-muted-foreground">
+                Split current with
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {splitCandidates.map((session) => (
+                <DropdownMenuItem
+                  key={session.id}
+                  onSelect={() => handleSelectSplitSession(session.id)}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <span className="truncate">{session.displayName}</span>
+                  {session.id === splitSession?.id && (
+                    <span className="text-xs text-muted-foreground">
+                      Selected
+                    </span>
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {splitSession && (
             <Button
               onClick={() => setSplitSessionId(null)}
               variant="ghost"
@@ -849,17 +885,6 @@ export function TerminalView({
               title="Close Split"
             >
               <PanelRightClose className="h-4 w-4" />
-            </Button>
-          ) : (
-            <Button
-              onClick={handleOpenSplit}
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              title="Split Terminal"
-              disabled={terminalSessions.length < 2}
-            >
-              <Columns2 className="h-4 w-4" />
             </Button>
           )}
           {/* New Terminal Button */}
