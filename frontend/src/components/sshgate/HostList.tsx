@@ -16,28 +16,35 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { FileInput, GripVertical, Plus } from 'lucide-react'
+import { FileInput, GripVertical, Plus, Star } from 'lucide-react'
+import type { SSHHostMetadataMap } from '@/lib/ssh-host-metadata'
 
 interface HostListProps {
   hosts: types.SSHHost[]
+  metadata: SSHHostMetadataMap
   selectedAlias: string | null
   onSelect: (alias: string) => void
   onNew: () => void
   onImport: () => void
   onHover: (alias: string) => void
   onOrderChange: (orderedIds: string[]) => void
+  onFavoriteToggle: (alias: string) => void
 }
 
 function SortableHostItem({
   host,
+  metadata,
   selectedAlias,
   onSelect,
   onHover,
+  onFavoriteToggle,
 }: {
   host: types.SSHHost
+  metadata: SSHHostMetadataMap
   selectedAlias: string | null
   onSelect: (alias: string) => void
   onHover: (alias: string) => void
+  onFavoriteToggle: (alias: string) => void
 }) {
   const {
     attributes,
@@ -53,6 +60,7 @@ function SortableHostItem({
     transition,
     opacity: isDragging ? 0.5 : 1,
   }
+  const hostMetadata = metadata[host.alias] ?? { tags: [], favorite: false }
 
   return (
     <div ref={setNodeRef} style={style} className="flex items-center gap-1">
@@ -67,13 +75,40 @@ function SortableHostItem({
       <div
         onMouseEnter={() => onHover(host.alias)}
         onClick={() => onSelect(host.alias)}
-        className={`flex-1 px-3 py-2 rounded-md cursor-pointer transition-colors text-sm font-medium ${
+        className={`min-w-0 flex-1 px-3 py-2 rounded-md cursor-pointer transition-colors text-sm font-medium ${
           selectedAlias === host.alias
             ? 'bg-accent text-accent-foreground'
             : 'hover:bg-muted'
         }`}
       >
-        <p>{host.alias}</p>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="truncate">{host.alias}</p>
+            {hostMetadata.tags.length > 0 && (
+              <p className="mt-1 truncate text-xs font-normal text-muted-foreground">
+                {hostMetadata.tags.join(', ')}
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            className={`rounded-sm p-0.5 ${
+              hostMetadata.favorite
+                ? 'text-yellow-500'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+            aria-label="Toggle favorite"
+            onClick={(event) => {
+              event.stopPropagation()
+              onFavoriteToggle(host.alias)
+            }}
+          >
+            <Star
+              className="h-4 w-4"
+              fill={hostMetadata.favorite ? 'currentColor' : 'none'}
+            />
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -82,12 +117,14 @@ function SortableHostItem({
 export function HostList(props: HostListProps) {
   const {
     hosts,
+    metadata,
     selectedAlias,
     onSelect,
     onNew,
     onImport,
     onHover,
     onOrderChange,
+    onFavoriteToggle,
   } = props
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -136,9 +173,11 @@ export function HostList(props: HostListProps) {
               <SortableHostItem
                 key={host.alias}
                 host={host}
+                metadata={metadata}
                 selectedAlias={selectedAlias}
                 onSelect={onSelect}
                 onHover={onHover}
+                onFavoriteToggle={onFavoriteToggle}
               />
             ))}
           </div>

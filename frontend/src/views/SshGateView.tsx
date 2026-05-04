@@ -16,6 +16,14 @@ import { useDialog } from '@/hooks/useDialog'
 
 // --- UI 组件导入 ---
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import CodeMirror from '@uiw/react-codemirror'
 import { oneDark } from '@codemirror/theme-one-dark'
@@ -30,6 +38,15 @@ import { useOnVisible } from '@/hooks/useOnVisible'
 import { EventsOn } from '@wailsjs/runtime'
 import { appLogger } from '@/lib/logger'
 import { toast } from 'sonner'
+import {
+  createEmptyHostMetadata,
+  filterSSHHosts,
+  getAllHostTags,
+  loadSSHHostMetadata,
+  saveSSHHostMetadata,
+  type SSHHostMetadata,
+  type SSHHostMetadataMap,
+} from '@/lib/ssh-host-metadata'
 
 // #############################################################################
 // #  主视图组件 (Main View Component)
@@ -42,12 +59,14 @@ interface SshGateViewProps {
     type: 'local' | 'remote',
     strategy: 'internal' | 'external'
   ) => void
+  onCreateTunnelFromHost: (alias: string) => void
   isDarkMode: boolean
 }
 
 export function SshGateView({
   isActive,
   onConnect,
+  onCreateTunnelFromHost,
   isDarkMode,
 }: SshGateViewProps) {
   // 这个 state 用于在两个 Tab 之间同步数据刷新
@@ -182,6 +201,7 @@ export function SshGateView({
             dataVersion={dataVersion}
             onDataChange={refreshData}
             onConnect={onConnect}
+            onCreateTunnelFromHost={onCreateTunnelFromHost}
             activeTunnels={activeTunnels}
             isDarkMode={isDarkMode}
             onOrderChange={handleOrderChange}
@@ -209,6 +229,7 @@ const HostsView = React.memo(function HostsView({
   isLoading,
   onDataChange,
   onConnect,
+  onCreateTunnelFromHost,
   activeTunnels,
   dataVersion,
   isDarkMode,
@@ -223,6 +244,7 @@ const HostsView = React.memo(function HostsView({
     strategy: 'internal' | 'external',
     sessionID?: string
   ) => void
+  onCreateTunnelFromHost: (alias: string) => void
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
   dataVersion: number
   isDarkMode: boolean
@@ -230,6 +252,12 @@ const HostsView = React.memo(function HostsView({
 }) {
   const [selectedAlias, setSelectedAlias] = useState<string | null>(null)
   const [hoveredAlias, setHoveredAlias] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+  const [tagFilter, setTagFilter] = useState('all')
+  const [favoritesOnly, setFavoritesOnly] = useState(false)
+  const [hostMetadata, setHostMetadata] = useState<SSHHostMetadataMap>(() =>
+    loadSSHHostMetadata()
+  )
 
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingHost, setEditingHost] = useState<types.SSHHost | null>(null)
@@ -248,20 +276,70 @@ const HostsView = React.memo(function HostsView({
     )
   }, [isDarkMode, logger, dataVersion])
 
+  const visibleHosts = useMemo(() => {
+    return filterSSHHosts(hosts, hostMetadata, {
+      query,
+      tag: tagFilter,
+      favoritesOnly,
+    })
+  }, [hosts, hostMetadata, query, tagFilter, favoritesOnly])
+
+  const allTags = useMemo(() => getAllHostTags(hostMetadata), [hostMetadata])
+
+  const handleMetadataChange = useCallback(
+    (alias: string, metadata: SSHHostMetadata) => {
+      setHostMetadata((current) => {
+        const next = { ...current, [alias]: metadata }
+        if (!metadata.favorite && metadata.tags.length === 0) {
+          delete next[alias]
+        }
+        saveSSHHostMetadata(next)
+        return next
+      })
+    },
+    []
+  )
+
+  const handleFavoriteToggle = useCallback(
+    (alias: string) => {
+      const current = hostMetadata[alias] ?? createEmptyHostMetadata()
+      handleMetadataChange(alias, {
+        ...current,
+        favorite: !current.favorite,
+      })
+    },
+    [hostMetadata, handleMetadataChange]
+  )
+
+  const handleVisibleOrderChange = useCallback(
+    (orderedVisibleAliases: string[]) => {
+      const visibleSet = new Set(visibleHosts.map((host) => host.alias))
+      let visibleIndex = 0
+      const mergedAliases = hosts.map((host) => {
+        if (!visibleSet.has(host.alias)) return host.alias
+        const nextVisibleAlias = orderedVisibleAliases[visibleIndex]
+        visibleIndex += 1
+        return nextVisibleAlias
+      })
+      onOrderChange(mergedAliases)
+    },
+    [hosts, visibleHosts, onOrderChange]
+  )
+
   // 这个 effect 只负责在 hosts 列表变化后，处理默认选中
   useEffect(() => {
-    if (hosts.length > 0) {
-      const currentSelectionExists = hosts.some(
+    if (visibleHosts.length > 0) {
+      const currentSelectionExists = visibleHosts.some(
         (h) => h.alias === selectedAlias
       )
       if (!currentSelectionExists) {
-        setSelectedAlias(hosts[0].alias)
+        setSelectedAlias(visibleHosts[0].alias)
       }
     } else {
       setSelectedAlias(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hosts]) // 只依赖 hosts
+  }, [visibleHosts]) // 只依赖可见 hosts
 
   const handleSelectHost = (alias: string) => {
     setSelectedAlias(alias)
@@ -374,8 +452,8 @@ const HostsView = React.memo(function HostsView({
   const hostToDisplay = useMemo(() => {
     const aliasToShow = hoveredAlias || selectedAlias
     if (!aliasToShow) return null
-    return hosts.find((h) => h.alias === aliasToShow) || null
-  }, [hoveredAlias, selectedAlias, hosts])
+    return visibleHosts.find((h) => h.alias === aliasToShow) || null
+  }, [hoveredAlias, selectedAlias, visibleHosts])
 
   const isPreviewing = useMemo(() => {
     return !!hoveredAlias && hoveredAlias !== selectedAlias
@@ -390,14 +468,45 @@ const HostsView = React.memo(function HostsView({
         className="w-1/3 max-w-xs flex-shrink-0 bg-muted/50 rounded-md"
         onMouseLeave={() => setHoveredAlias(null)}
       >
+        <div className="space-y-2 p-2 pb-0">
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search hosts, tags..."
+          />
+          <div className="grid grid-cols-[1fr_auto] gap-2">
+            <Select value={tagFilter} onValueChange={setTagFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Tag" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Tags</SelectItem>
+                {allTags.map((tag) => (
+                  <SelectItem key={tag} value={tag}>
+                    {tag}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              variant={favoritesOnly ? 'default' : 'outline'}
+              onClick={() => setFavoritesOnly((value) => !value)}
+            >
+              Favorites
+            </Button>
+          </div>
+        </div>
         <HostList
-          hosts={hosts}
+          hosts={visibleHosts}
+          metadata={hostMetadata}
           selectedAlias={selectedAlias}
           onSelect={handleSelectHost}
           onNew={handleOpenNew}
           onImport={() => void handleImportConfig()}
           onHover={handleHoverHost}
-          onOrderChange={onOrderChange}
+          onOrderChange={handleVisibleOrderChange}
+          onFavoriteToggle={handleFavoriteToggle}
         />
       </div>
 
@@ -413,11 +522,14 @@ const HostsView = React.memo(function HostsView({
             onConnectExternal={() =>
               void handleConnect(hostToDisplay.alias, 'external')
             }
+            onCreateTunnel={onCreateTunnelFromHost}
             activeTunnels={activeTunnels}
             onConnectInternal={() =>
               void handleConnect(hostToDisplay.alias, 'internal', undefined)
             }
             onDiagnose={(alias) => DiagnoseSSHHost(alias, '')}
+            metadata={hostMetadata[hostToDisplay.alias]}
+            onMetadataChange={handleMetadataChange}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-muted-foreground">

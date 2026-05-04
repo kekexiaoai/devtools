@@ -40,6 +40,7 @@ interface CreateTunnelDialogProps {
   onSuccess: (shouldStart: boolean) => void
   hosts: types.SSHHost[]
   tunnelToEdit?: sshtunnel.SavedTunnelConfig
+  initialHostAlias?: string
 }
 
 // Zod schema for validation
@@ -142,6 +143,7 @@ export function CreateTunnelDialog({
   onSuccess,
   hosts,
   tunnelToEdit,
+  initialHostAlias,
 }: CreateTunnelDialogProps) {
   const [isSaving, setIsSaving] = useState(false)
 
@@ -174,15 +176,20 @@ export function CreateTunnelDialog({
       } else {
         // Creating a new tunnel, set defaults
         const newForm = { ...initialFormState }
+        const initialHostExists = hosts.some(
+          (host) => host.alias === initialHostAlias
+        )
         if (newForm.hostSource === 'ssh_config' && hosts.length > 0) {
-          newForm.hostAlias = hosts[0].alias
+          newForm.hostAlias = initialHostExists
+            ? (initialHostAlias ?? hosts[0].alias)
+            : hosts[0].alias
         } else {
           newForm.hostAlias = ''
         }
         form.reset(newForm)
       }
     }
-  }, [isOpen, tunnelToEdit, hosts, form])
+  }, [isOpen, tunnelToEdit, hosts, form, initialHostAlias])
 
   const hostSource = form.watch('hostSource')
   useEffect(() => {

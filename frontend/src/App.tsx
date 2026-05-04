@@ -205,6 +205,9 @@ function AppContent() {
   const [editingTunnel, setEditingTunnel] = useState<
     sshtunnel.SavedTunnelConfig | undefined
   >(undefined)
+  const [initialTunnelHostAlias, setInitialTunnelHostAlias] = useState<
+    string | undefined
+  >(undefined)
 
   // --- Global Settings Integration ---
   const appTheme = useSettingsStore((state) => state.theme)
@@ -457,12 +460,20 @@ function AppContent() {
   // --- Tunnel Dialog Handlers (lifted from TunnelsView) ---
   const handleOpenCreateTunnel = useCallback(() => {
     setEditingTunnel(undefined)
+    setInitialTunnelHostAlias(undefined)
+    setIsTunnelDialogOpen(true)
+  }, [])
+
+  const handleOpenCreateTunnelFromHost = useCallback((alias: string) => {
+    setEditingTunnel(undefined)
+    setInitialTunnelHostAlias(alias)
     setIsTunnelDialogOpen(true)
   }, [])
 
   const handleEditTunnel = useCallback(
     (tunnel: sshtunnel.SavedTunnelConfig) => {
       setEditingTunnel(tunnel)
+      setInitialTunnelHostAlias(undefined)
       setIsTunnelDialogOpen(true)
     },
     []
@@ -470,7 +481,15 @@ function AppContent() {
 
   const handleTunnelDialogSuccess = useCallback((shouldStart: boolean) => {
     setIsTunnelDialogOpen(false)
+    setInitialTunnelHostAlias(undefined)
     if (shouldStart) setShouldStartNext(true)
+  }, [])
+
+  const handleTunnelDialogOpenChange = useCallback((open: boolean) => {
+    setIsTunnelDialogOpen(open)
+    if (!open) {
+      setInitialTunnelHostAlias(undefined)
+    }
   }, [])
 
   const handleStopTunnel = useCallback(
@@ -1527,6 +1546,7 @@ function AppContent() {
         <SshGateView
           isActive={activeTool === 'SshGate'}
           onConnect={handleTerminalConnect}
+          onCreateTunnelFromHost={handleOpenCreateTunnelFromHost}
           // 传递 isDarkMode
           isDarkMode={isDarkMode}
         />
@@ -1598,6 +1618,7 @@ function AppContent() {
     startingProfileIds,
     stoppingProfileIds,
     handleOpenCreateTunnel,
+    handleOpenCreateTunnelFromHost,
     activeTool,
     isDarkMode,
     handleTerminalConnect,
@@ -1699,10 +1720,11 @@ function AppContent() {
       {/* Tunnel Create/Edit Dialog is now controlled at the App level */}
       <CreateTunnelDialog
         isOpen={isTunnelDialogOpen}
-        onOpenChange={setIsTunnelDialogOpen}
+        onOpenChange={handleTunnelDialogOpenChange}
         onSuccess={handleTunnelDialogSuccess}
         hosts={sshHosts}
         tunnelToEdit={editingTunnel}
+        initialHostAlias={initialTunnelHostAlias}
       />
       <TunnelProfileDialog
         open={isProfileDialogOpen}

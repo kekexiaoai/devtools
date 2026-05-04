@@ -16,11 +16,19 @@ import {
   TrainFrontTunnel,
   Activity,
   Loader2,
+  Star,
+  PlusCircle,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import React, { useState, useEffect, useMemo } from 'react'
 import { TunnelDial } from './TunnelDialog'
 import { toast } from 'sonner'
+import { Input } from '@/components/ui/input'
+import {
+  createEmptyHostMetadata,
+  parseHostTags,
+  type SSHHostMetadata,
+} from '@/lib/ssh-host-metadata'
 
 interface HostDetailProps {
   host: types.SSHHost
@@ -28,7 +36,10 @@ interface HostDetailProps {
   onDelete: (alias: string) => void
   onConnectExternal: (alias: string) => void
   onConnectInternal: (alias: string) => void
+  onCreateTunnel: (alias: string) => void
   onDiagnose: (alias: string) => Promise<sshgate.SSHHostDiagnosticResult>
+  metadata?: SSHHostMetadata
+  onMetadataChange: (alias: string, metadata: SSHHostMetadata) => void
   activeTunnels: sshtunnel.ActiveTunnelInfo[]
   isPreview?: boolean
 }
@@ -47,7 +58,10 @@ export function HostDetail({
   onDelete,
   onConnectExternal,
   onConnectInternal,
+  onCreateTunnel,
   onDiagnose,
+  metadata,
+  onMetadataChange,
   activeTunnels,
   isPreview = false,
 }: HostDetailProps) {
@@ -58,6 +72,8 @@ export function HostDetail({
   const [isDiagnosing, setIsDiagnosing] = useState(false)
   const [diagnosticResult, setDiagnosticResult] =
     useState<sshgate.SSHHostDiagnosticResult | null>(null)
+  const hostMetadata = metadata ?? createEmptyHostMetadata()
+  const [tagText, setTagText] = useState(hostMetadata.tags.join(', '))
 
   const tunnelCount = useMemo(() => {
     if (!activeTunnels) return 0
@@ -73,6 +89,24 @@ export function HostDetail({
     } finally {
       setIsDiagnosing(false)
     }
+  }
+
+  useEffect(() => {
+    setTagText(hostMetadata.tags.join(', '))
+  }, [host.alias, hostMetadata.tags])
+
+  const handleFavoriteToggle = () => {
+    onMetadataChange(host.alias, {
+      ...hostMetadata,
+      favorite: !hostMetadata.favorite,
+    })
+  }
+
+  const commitTags = () => {
+    onMetadataChange(host.alias, {
+      ...hostMetadata,
+      tags: parseHostTags(tagText),
+    })
   }
 
   useEffect(() => {
@@ -151,6 +185,21 @@ export function HostDetail({
                 )}
               </Button>
               <Button
+                onClick={handleFavoriteToggle}
+                variant="ghost"
+                size="icon"
+                title={
+                  hostMetadata.favorite
+                    ? 'Remove from Favorites'
+                    : 'Add to Favorites'
+                }
+              >
+                <Star
+                  className="h-4 w-4"
+                  fill={hostMetadata.favorite ? 'currentColor' : 'none'}
+                />
+              </Button>
+              <Button
                 onClick={() => onConnectInternal(host.alias)}
                 variant="ghost"
                 size="icon"
@@ -214,6 +263,38 @@ export function HostDetail({
         )}
         {/* === 状态显示结束 === */}
         <CardContent className="text-sm space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {hostMetadata.tags.map((tag) => (
+              <Badge key={tag} variant="secondary">
+                {tag}
+              </Badge>
+            ))}
+            {hostMetadata.tags.length === 0 && (
+              <span className="text-xs text-muted-foreground">No tags</span>
+            )}
+          </div>
+          <div className="grid gap-1.5">
+            <p className="text-muted-foreground">Tags</p>
+            <Input
+              value={tagText}
+              onChange={(event) => setTagText(event.target.value)}
+              onBlur={commitTags}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.currentTarget.blur()
+                }
+              }}
+              placeholder="prod, db, vpn"
+            />
+          </div>
+          <Button
+            variant="outline"
+            className="justify-start"
+            onClick={() => onCreateTunnel(host.alias)}
+          >
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Create tunnel from this host
+          </Button>
           <div className="space-y-1">
             <p className="text-muted-foreground">HostName</p>
             <p className="font-mono">{host.hostName}</p>
