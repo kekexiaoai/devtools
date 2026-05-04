@@ -1,9 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { backend, sshgate, sshtunnel } from '@wailsjs/go/models'
-import { GetDiagnosticsSnapshot, ReadAppLogTail } from '@wailsjs/go/backend/App'
+import {
+  GetDiagnosticsSnapshot,
+  GetListeningPorts,
+  ReadAppLogTail,
+} from '@wailsjs/go/backend/App'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { getTunnelHealthSummary } from '@/lib/tunnel-health'
 import { Copy, Loader2, RefreshCw, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -22,6 +34,9 @@ export function DiagnosticsView({
   const [snapshot, setSnapshot] = useState<backend.DiagnosticsSnapshot | null>(
     null
   )
+  const [listeningPorts, setListeningPorts] = useState<backend.ListeningPort[]>(
+    []
+  )
   const [logLines, setLogLines] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
@@ -39,18 +54,28 @@ export function DiagnosticsView({
       `Disconnected tunnels: ${tunnelHealth.disconnected}`,
       `Saved tunnels: ${savedTunnels.length}`,
       `Tunnel profiles: ${tunnelProfiles.length}`,
+      `Listening ports: ${listeningPorts.length}`,
     ].join('\n')
-  }, [snapshot, tunnelHealth, savedTunnels.length, tunnelProfiles.length])
+  }, [
+    snapshot,
+    tunnelHealth,
+    savedTunnels.length,
+    tunnelProfiles.length,
+    listeningPorts.length,
+  ])
 
   const refresh = useCallback(async () => {
     setIsLoading(true)
     try {
-      const [nextSnapshot, nextLogLines] = await Promise.all([
-        GetDiagnosticsSnapshot(),
-        ReadAppLogTail(200),
-      ])
+      const [nextSnapshot, nextLogLines, nextListeningPorts] =
+        await Promise.all([
+          GetDiagnosticsSnapshot(),
+          ReadAppLogTail(200),
+          GetListeningPorts(),
+        ])
       setSnapshot(nextSnapshot)
       setLogLines(nextLogLines)
+      setListeningPorts(nextListeningPorts)
     } catch (error) {
       toast.error(`Failed to load diagnostics: ${String(error)}`)
     } finally {
@@ -131,6 +156,51 @@ export function DiagnosticsView({
             <Metric label="Disconnected" value={tunnelHealth.disconnected} />
             <Metric label="Saved" value={savedTunnels.length} />
             <Metric label="Profiles" value={tunnelProfiles.length} />
+            <Metric label="Listening Ports" value={listeningPorts.length} />
+          </CardContent>
+        </Card>
+
+        <Card className="xl:col-span-3">
+          <CardHeader>
+            <CardTitle>Listening Ports</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {listeningPorts.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Port</TableHead>
+                    <TableHead>Address</TableHead>
+                    <TableHead>Process</TableHead>
+                    <TableHead>PID</TableHead>
+                    <TableHead>Protocol</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {listeningPorts.map((item) => (
+                    <TableRow
+                      key={`${item.protocol}-${item.address}-${item.port}-${item.pid}`}
+                    >
+                      <TableCell className="font-mono font-medium">
+                        {item.port}
+                      </TableCell>
+                      <TableCell className="font-mono">
+                        {item.address}
+                      </TableCell>
+                      <TableCell>{item.command}</TableCell>
+                      <TableCell className="font-mono">{item.pid}</TableCell>
+                      <TableCell className="uppercase">
+                        {item.protocol}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">
+                No listening ports reported.
+              </div>
+            )}
           </CardContent>
         </Card>
 
