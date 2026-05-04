@@ -30,6 +30,10 @@ export function DeleteTunnelConfig(arg1) {
   return window['go']['sshgate']['Service']['DeleteTunnelConfig'](arg1);
 }
 
+export function DeleteTunnelProfile(arg1) {
+  return window['go']['sshgate']['Service']['DeleteTunnelProfile'](arg1);
+}
+
 export function DuplicateTunnelConfig(arg1) {
   return window['go']['sshgate']['Service']['DuplicateTunnelConfig'](arg1);
 }
@@ -48,6 +52,10 @@ export function GetSSHHosts() {
 
 export function GetSavedTunnels() {
   return window['go']['sshgate']['Service']['GetSavedTunnels']();
+}
+
+export function GetTunnelProfiles() {
+  return window['go']['sshgate']['Service']['GetTunnelProfiles']();
 }
 
 export function ReloadSSHHosts() {
@@ -70,12 +78,20 @@ export function SaveTunnelConfig(arg1) {
   return window['go']['sshgate']['Service']['SaveTunnelConfig'](arg1);
 }
 
+export function SaveTunnelProfile(arg1) {
+  return window['go']['sshgate']['Service']['SaveTunnelProfile'](arg1);
+}
+
 export function Shutdown() {
   return window['go']['sshgate']['Service']['Shutdown']();
 }
 
 export function StartTunnelFromConfig(arg1, arg2) {
   return window['go']['sshgate']['Service']['StartTunnelFromConfig'](arg1, arg2);
+}
+
+export function StartTunnelProfile(arg1, arg2) {
+  return window['go']['sshgate']['Service']['StartTunnelProfile'](arg1, arg2);
 }
 
 export function Startup(arg1) {

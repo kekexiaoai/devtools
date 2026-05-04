@@ -96,6 +96,55 @@ export namespace menu {
 
 }
 
+export namespace sshgate {
+	
+	export class TunnelProfile {
+	    id: string;
+	    name: string;
+	    tunnelIds: string[];
+	    createdAt: string;
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TunnelProfile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.tunnelIds = source["tunnelIds"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
+	export class TunnelProfileStartResult {
+	    tunnelId: string;
+	    tunnelName: string;
+	    runtimeId?: string;
+	    status: string;
+	    error?: string;
+	    alreadyRunning: boolean;
+	    missing: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TunnelProfileStartResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tunnelId = source["tunnelId"];
+	        this.tunnelName = source["tunnelName"];
+	        this.runtimeId = source["runtimeId"];
+	        this.status = source["status"];
+	        this.error = source["error"];
+	        this.alreadyRunning = source["alreadyRunning"];
+	        this.missing = source["missing"];
+	    }
+	}
+
+}
+
 export namespace sshtunnel {
 	
 	export class ActiveTunnelInfo {
