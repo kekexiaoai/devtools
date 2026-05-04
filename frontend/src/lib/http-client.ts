@@ -6,6 +6,9 @@ export interface HTTPClientHistoryItem {
   id: string
   method: string
   url: string
+  headersText?: string
+  body?: string
+  timeoutSeconds?: string
   statusCode: number
   durationMs: number
   createdAt: string
@@ -55,12 +58,20 @@ export function saveHTTPClientHistory(items: HTTPClientHistoryItem[]) {
 export function createHTTPClientHistoryItem(
   method: string,
   url: string,
-  response: backend.HTTPClientResponse
+  response: backend.HTTPClientResponse,
+  request?: {
+    headersText: string
+    body: string
+    timeoutSeconds: string
+  }
 ): HTTPClientHistoryItem {
   return {
     id: crypto.randomUUID(),
     method,
     url,
+    headersText: request?.headersText,
+    body: request?.body,
+    timeoutSeconds: request?.timeoutSeconds,
     statusCode: response.statusCode,
     durationMs: response.durationMs,
     createdAt: new Date().toISOString(),

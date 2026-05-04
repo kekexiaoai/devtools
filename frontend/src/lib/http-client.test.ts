@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { backend } from '@wailsjs/go/models'
 
-import { parseHTTPHeadersText } from './http-client'
+import {
+  createHTTPClientHistoryItem,
+  parseHTTPHeadersText,
+} from './http-client'
 
 describe('http client helpers', () => {
   it('parses HTTP header text', () => {
@@ -16,5 +20,31 @@ describe('http client helpers', () => {
     expect(() => parseHTTPHeadersText('bad header')).toThrow(
       'Headers must use "Name: value" format.'
     )
+  })
+
+  it('stores request details in HTTP history items', () => {
+    const item = createHTTPClientHistoryItem(
+      'POST',
+      'https://api.example.com/users',
+      new backend.HTTPClientResponse({
+        statusCode: 201,
+        durationMs: 42,
+      }),
+      {
+        headersText: 'Content-Type: application/json',
+        body: '{"name":"Ada"}',
+        timeoutSeconds: '10',
+      }
+    )
+
+    expect(item).toMatchObject({
+      method: 'POST',
+      url: 'https://api.example.com/users',
+      headersText: 'Content-Type: application/json',
+      body: '{"name":"Ada"}',
+      timeoutSeconds: '10',
+      statusCode: 201,
+      durationMs: 42,
+    })
   })
 })

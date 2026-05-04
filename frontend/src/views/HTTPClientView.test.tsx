@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { httpClientHistoryKey } from '@/lib/http-client'
 import { HTTPClientView } from './HTTPClientView'
 
 vi.mock('@wailsjs/go/backend/App', () => ({
@@ -8,6 +9,10 @@ vi.mock('@wailsjs/go/backend/App', () => ({
 }))
 
 describe('HTTPClientView', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
   it('keeps request and response as the primary workspace', () => {
     render(<HTTPClientView />)
 
@@ -28,5 +33,49 @@ describe('HTTPClientView', () => {
 
     expect(screen.getByTestId('http-history-panel')).toBeTruthy()
     expect(screen.getByText('No requests sent yet.')).toBeTruthy()
+  })
+
+  it('opens history rows in a replay modal before loading the request', () => {
+    window.localStorage.setItem(
+      httpClientHistoryKey,
+      JSON.stringify([
+        {
+          id: 'history-1',
+          method: 'POST',
+          url: 'https://api.example.com/users',
+          headersText: 'Content-Type: application/json',
+          body: '{"name":"Ada"}',
+          timeoutSeconds: '10',
+          statusCode: 201,
+          durationMs: 42,
+          createdAt: '2026-05-04T12:00:00.000Z',
+        },
+      ])
+    )
+
+    render(<HTTPClientView />)
+    fireEvent.click(screen.getByTestId('http-history-trigger'))
+
+    expect(screen.getByTestId('http-history-list')).toBeTruthy()
+
+    fireEvent.click(screen.getByText('https://api.example.com/users'))
+
+    expect(screen.getByText('Replay Request')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Review the saved request before loading it into the editor.'
+      )
+    ).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load Request' }))
+
+    expect(
+      screen.getByDisplayValue('https://api.example.com/users')
+    ).toBeTruthy()
+    expect(
+      screen.getByDisplayValue('Content-Type: application/json')
+    ).toBeTruthy()
+    expect(screen.getByDisplayValue('{"name":"Ada"}')).toBeTruthy()
+    expect(screen.getByDisplayValue('10')).toBeTruthy()
   })
 })

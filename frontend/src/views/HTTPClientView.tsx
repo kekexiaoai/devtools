@@ -9,6 +9,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { SendHTTPRequest } from '@wailsjs/go/backend/App'
@@ -39,6 +47,8 @@ export function HTTPClientView() {
     loadHTTPClientHistory()
   )
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  const [selectedHistoryItem, setSelectedHistoryItem] =
+    useState<HTTPClientHistoryItem | null>(null)
 
   const responseHeadersText = useMemo(() => {
     return response ? formatHTTPHeaders(response.headers) : ''
@@ -60,7 +70,11 @@ export function HTTPClientView() {
       )
       setResponse(nextResponse)
       const nextHistory = [
-        createHTTPClientHistoryItem(method, url, nextResponse),
+        createHTTPClientHistoryItem(method, url, nextResponse, {
+          headersText,
+          body,
+          timeoutSeconds,
+        }),
         ...history,
       ].slice(0, 20)
       setHistory(nextHistory)
@@ -77,6 +91,17 @@ export function HTTPClientView() {
     if (!response) return
     await navigator.clipboard.writeText(response.body)
     toast.success('Response body copied.')
+  }
+
+  const loadHistoryItem = () => {
+    if (!selectedHistoryItem) return
+    setMethod(selectedHistoryItem.method as typeof method)
+    setUrl(selectedHistoryItem.url)
+    setHeadersText(selectedHistoryItem.headersText ?? '')
+    setBody(selectedHistoryItem.body ?? '')
+    setTimeoutSeconds(selectedHistoryItem.timeoutSeconds ?? '30')
+    setSelectedHistoryItem(null)
+    setIsHistoryOpen(false)
   }
 
   return (
@@ -128,27 +153,34 @@ export function HTTPClientView() {
             className="max-h-44 overflow-auto border-t p-2"
           >
             {history.length ? (
-              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+              <div
+                data-testid="http-history-list"
+                className="min-w-[720px] divide-y rounded-md border bg-background"
+              >
+                <div className="grid grid-cols-[6rem_5rem_6rem_minmax(0,1fr)_10rem] gap-3 px-3 py-2 text-xs font-medium uppercase text-muted-foreground">
+                  <span>Method</span>
+                  <span>Status</span>
+                  <span>Duration</span>
+                  <span>URL</span>
+                  <span>Time</span>
+                </div>
                 {history.map((item) => (
                   <button
                     key={item.id}
-                    onClick={() => {
-                      setMethod(item.method as typeof method)
-                      setUrl(item.url)
-                      setIsHistoryOpen(false)
-                    }}
-                    className="grid gap-1 rounded-md border bg-background p-2 text-left text-sm hover:bg-muted"
+                    type="button"
+                    onClick={() => setSelectedHistoryItem(item)}
+                    className="grid w-full grid-cols-[6rem_5rem_6rem_minmax(0,1fr)_10rem] gap-3 px-3 py-2 text-left text-sm hover:bg-muted"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium">
-                        {item.method} {item.statusCode}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {item.durationMs} ms
-                      </span>
-                    </div>
+                    <span className="font-medium">{item.method}</span>
+                    <span className="font-mono">{item.statusCode}</span>
+                    <span className="font-mono text-muted-foreground">
+                      {item.durationMs} ms
+                    </span>
                     <span className="truncate font-mono text-xs text-muted-foreground">
                       {item.url}
+                    </span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {new Date(item.createdAt).toLocaleString()}
                     </span>
                   </button>
                 ))}
@@ -274,6 +306,89 @@ export function HTTPClientView() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog
+        open={!!selectedHistoryItem}
+        onOpenChange={(open) => {
+          if (!open) setSelectedHistoryItem(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Replay Request</DialogTitle>
+            <DialogDescription>
+              Review the saved request before loading it into the editor.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedHistoryItem && (
+            <div className="grid gap-3">
+              <div className="grid gap-2 rounded-md border bg-muted/30 p-3 text-sm">
+                <HistoryDetailRow
+                  label="Method"
+                  value={selectedHistoryItem.method}
+                />
+                <HistoryDetailRow
+                  label="Status"
+                  value={String(selectedHistoryItem.statusCode)}
+                />
+                <HistoryDetailRow
+                  label="Duration"
+                  value={`${selectedHistoryItem.durationMs} ms`}
+                />
+                <HistoryDetailRow
+                  label="Time"
+                  value={new Date(
+                    selectedHistoryItem.createdAt
+                  ).toLocaleString()}
+                />
+                <div className="grid gap-1">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    URL
+                  </span>
+                  <span className="break-all font-mono text-sm">
+                    {selectedHistoryItem.url}
+                  </span>
+                </div>
+              </div>
+              {(selectedHistoryItem.headersText ||
+                selectedHistoryItem.body) && (
+                <div className="grid gap-2 md:grid-cols-2">
+                  <Textarea
+                    readOnly
+                    value={selectedHistoryItem.headersText ?? ''}
+                    className="h-32 resize-none font-mono text-xs"
+                    placeholder="No saved request headers."
+                  />
+                  <Textarea
+                    readOnly
+                    value={selectedHistoryItem.body ?? ''}
+                    className="h-32 resize-none font-mono text-xs"
+                    placeholder="No saved request body."
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setSelectedHistoryItem(null)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={loadHistoryItem}>Load Request</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+function HistoryDetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid grid-cols-[6rem_minmax(0,1fr)] gap-3">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <span className="truncate font-mono text-sm">{value}</span>
     </div>
   )
 }
