@@ -1,3 +1,26 @@
+export namespace backend {
+	
+	export class DiagnosticsSnapshot {
+	    platform: string;
+	    debug: boolean;
+	    configDir: string;
+	    logFilePath: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DiagnosticsSnapshot(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.platform = source["platform"];
+	        this.debug = source["debug"];
+	        this.configDir = source["configDir"];
+	        this.logFilePath = source["logFilePath"];
+	    }
+	}
+
+}
+
 export namespace keys {
 	
 	export class Accelerator {

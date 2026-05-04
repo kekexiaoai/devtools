@@ -18,6 +18,10 @@ export function ForceQuit() {
   return window['go']['backend']['App']['ForceQuit']();
 }
 
+export function GetDiagnosticsSnapshot() {
+  return window['go']['backend']['App']['GetDiagnosticsSnapshot']();
+}
+
 export function IsDebug() {
   return window['go']['backend']['App']['IsDebug']();
 }
@@ -32,6 +36,10 @@ export function LogFromFrontend(arg1) {
 
 export function Menu(arg1) {
   return window['go']['backend']['App']['Menu'](arg1);
+}
+
+export function ReadAppLogTail(arg1) {
+  return window['go']['backend']['App']['ReadAppLogTail'](arg1);
 }
 
 export function SelectDirectory(arg1) {
