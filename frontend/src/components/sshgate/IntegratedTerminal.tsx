@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/select'
 
 import { Switch } from '@/components/ui/switch'
+import { FontFamilyCombobox } from '@/components/terminal/FontFamilyCombobox'
 interface IntegratedTerminalProps {
   websocketUrl: string
   id: string
@@ -54,12 +55,7 @@ import { Terminal, type ITheme } from '@xterm/xterm'
 
 // --- 复用全局主题定义 ---
 import { NAMED_THEMES } from '@/themes/terminalThemes'
-import {
-  CUSTOM_FONT_FAMILY_VALUE,
-  FONT_FAMILIES,
-  getTerminalFontFamilySelectValue,
-  resolveTerminalFontFamily,
-} from '@/themes/terminalThemes'
+import { resolveTerminalFontFamily } from '@/themes/terminalThemes'
 
 // 扩展Terminal类型以解决类型定义问题（如果类型文件缺失）
 import { useTerminalSetting } from '@/hooks/useTerminalSetting'
@@ -710,60 +706,16 @@ export function IntegratedTerminal({
                       }`}
                     />
                   </div>
-                  <div className="col-span-3 grid gap-2">
-                    <Select
-                      value={getTerminalFontFamilySelectValue(
-                        localFontFamily ?? fontFamily
-                      )}
-                      onValueChange={(key) => {
-                        if (key === 'default') {
-                          setLocalFontFamily(null)
-                          return
-                        }
-
-                        if (key === CUSTOM_FONT_FAMILY_VALUE) {
-                          setLocalFontFamily(localFontFamily || 'SF Mono')
-                          return
-                        }
-
-                        setLocalFontFamily(key)
-                      }}
-                    >
-                      <SelectTrigger id="font-family">
-                        <SelectValue placeholder="Select font" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(FONT_FAMILIES).map(
-                          ([key, { name }]) => (
-                            <SelectItem key={key} value={key}>
-                              {name}
-                            </SelectItem>
-                          )
-                        )}
-                        <SelectItem value={CUSTOM_FONT_FAMILY_VALUE}>
-                          Custom system font...
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {getTerminalFontFamilySelectValue(
-                      localFontFamily ?? fontFamily
-                    ) === CUSTOM_FONT_FAMILY_VALUE && (
-                      <Input
-                        aria-label="Custom session font family"
-                        value={
-                          localFontFamily ??
-                          (getTerminalFontFamilySelectValue(fontFamily) ===
-                          CUSTOM_FONT_FAMILY_VALUE
-                            ? (fontFamily ?? '')
-                            : '')
-                        }
-                        onChange={(event) =>
-                          setLocalFontFamily(event.target.value)
-                        }
-                        placeholder="SF Mono, Hack, Iosevka..."
-                      />
-                    )}
-                  </div>
+                  <FontFamilyCombobox
+                    id="font-family"
+                    value={localFontFamily ?? fontFamily}
+                    onChange={(nextFont) => {
+                      setLocalFontFamily(
+                        nextFont === 'default' ? null : nextFont
+                      )
+                    }}
+                    className="col-span-3"
+                  />
                 </div>
                 {/* Theme */}
                 <div className="grid grid-cols-5 items-center gap-4">

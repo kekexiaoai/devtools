@@ -387,6 +387,28 @@ export const FONT_FAMILIES: Record<string, { name: string; value: string }> = {
     value: '"Source Code Pro", monospace',
   },
   hack: { name: 'Hack', value: 'Hack, monospace' },
+  iosevka: { name: 'Iosevka', value: 'Iosevka, monospace' },
+  'meslo-lg': { name: 'Meslo LG', value: '"Meslo LG", monospace' },
+  'meslo-lgs-nf': {
+    name: 'MesloLGS NF',
+    value: '"MesloLGS NF", monospace',
+  },
+  'dejavu-sans-mono': {
+    name: 'DejaVu Sans Mono',
+    value: '"DejaVu Sans Mono", monospace',
+  },
+  'liberation-mono': {
+    name: 'Liberation Mono',
+    value: '"Liberation Mono", monospace',
+  },
+  'roboto-mono': {
+    name: 'Roboto Mono',
+    value: '"Roboto Mono", monospace',
+  },
+  inconsolata: {
+    name: 'Inconsolata',
+    value: 'Inconsolata, monospace',
+  },
   'ibm-plex-mono': {
     name: 'IBM Plex Mono',
     value: '"IBM Plex Mono", monospace',
@@ -399,6 +421,34 @@ export const FONT_FAMILIES: Record<string, { name: string; value: string }> = {
 }
 
 export const CUSTOM_FONT_FAMILY_VALUE = '__custom-font-family__'
+
+export type TerminalFontFamilyOption = {
+  key: string
+  name: string
+  value: string
+}
+
+export function getTerminalFontFamilyOptions(
+  query = ''
+): TerminalFontFamilyOption[] {
+  const normalizedQuery = query.trim().toLowerCase()
+  const options = Object.entries(FONT_FAMILIES).map(([key, font]) => ({
+    key,
+    ...font,
+  }))
+
+  if (!normalizedQuery) {
+    return options
+  }
+
+  return options.filter((font) => {
+    return (
+      font.name.toLowerCase().includes(normalizedQuery) ||
+      font.key.toLowerCase().includes(normalizedQuery) ||
+      font.value.toLowerCase().includes(normalizedQuery)
+    )
+  })
+}
 
 export function resolveTerminalFontFamily(fontFamily?: string | null): string {
   const trimmed = fontFamily?.trim()
@@ -418,6 +468,17 @@ export function getTerminalFontFamilySelectValue(
   }
 
   return FONT_FAMILIES[trimmed] ? trimmed : CUSTOM_FONT_FAMILY_VALUE
+}
+
+export function getFilteredTerminalFontFamilyLabel(
+  fontFamily?: string | null
+): string {
+  const trimmed = fontFamily?.trim()
+  if (!trimmed) {
+    return FONT_FAMILIES.default.name
+  }
+
+  return FONT_FAMILIES[trimmed]?.name ?? trimmed
 }
 
 export function formatCustomFontFamily(fontFamily: string): string {
