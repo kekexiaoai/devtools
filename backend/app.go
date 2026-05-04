@@ -216,13 +216,11 @@ func (a *App) OnBeforeClose(ctx context.Context) (prevent bool) {
 }
 
 func (a *App) Menu(appMenu *menu.Menu) {
-	fileMenu := appMenu.AddSubmenu("File")
 	if a.isMacOS {
-		// macOS 的标准退出选项
-		fileMenu.AddText("Quit DevTools", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
-			a.RequestQuit()
-		})
+		a.addMacApplicationMenu(appMenu)
+		appMenu.Append(menu.EditMenu())
 	} else {
+		fileMenu := appMenu.AddSubmenu("File")
 		// Windows/Linux 的标准退出选项
 		fileMenu.AddText("Exit", keys.OptionOrAlt("f4"), func(_ *menu.CallbackData) {
 			runtime.Quit(a.ctx)
@@ -267,6 +265,21 @@ func (a *App) Menu(appMenu *menu.Menu) {
 	// 为 "Actual Size" (重置) 添加菜单项和快捷键
 	viewMenu.AddText(resetZoomLabel, resetZoomAccelerator, func(_ *menu.CallbackData) {
 		runtime.EventsEmit(a.ctx, "zoom_change", "default")
+	})
+
+	if a.isMacOS {
+		appMenu.Append(menu.WindowMenu())
+	}
+}
+
+func (a *App) addMacApplicationMenu(appMenu *menu.Menu) {
+	applicationMenu := appMenu.AddSubmenu("DevTools")
+	applicationMenu.AddText("About DevTools", nil, func(_ *menu.CallbackData) {
+		a.ShowInfoDialog("About DevTools", "DevTools")
+	})
+	applicationMenu.AddSeparator()
+	applicationMenu.AddText("Quit DevTools", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
+		a.RequestQuit()
 	})
 }
 

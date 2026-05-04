@@ -36,14 +36,6 @@ func main() {
 
 	// 创建应用主菜单 (跨平台)
 	appMenu := menu.NewMenu()
-
-	// 如果是 macOS，添加标准的 "Edit" 菜单
-	// 这会自动包含剪切、复制、粘贴等所有原生文本编辑功能
-	if isMacOS {
-		appMenu.Append(menu.AppMenu())
-		appMenu.Append(menu.EditMenu())
-		appMenu.Append(menu.WindowMenu())
-	}
 	app.Menu(appMenu)
 
 	// 解决 Windows 和 macOS 窗口尺寸计算差异问题
