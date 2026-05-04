@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useDialog } from '@/hooks/useDialog'
 import {
@@ -40,6 +40,8 @@ type TextToolAction =
   | 'jwt-decode'
   | 'timestamp-convert'
   | 'uuid-generate'
+
+type ToolAction = 'json' | TextToolAction
 
 type TextToolStatus = {
   tone: 'success' | 'error' | 'info'
@@ -149,23 +151,16 @@ function createInitialTextToolStates(): Record<TextToolAction, TextToolState> {
   ) as Record<TextToolAction, TextToolState>
 }
 
-export function JsonToolsView({
-  isDarkMode,
-  defaultTab = 'json',
-}: {
-  isDarkMode: boolean
-  defaultTab?: 'json' | 'text'
-}) {
+export function JsonToolsView({ isDarkMode }: { isDarkMode: boolean }) {
   const [input, setInput] = useState('')
-  const [outputObject, setOutputObject] = useState({})
+  const [outputObject, setOutputObject] = useState<Record<string, unknown>>({})
   const [isInputVisible, setIsInputVisible] = useState(true)
   const [validation, setValidation] = useState<{
     isValid: boolean | null
     message: string
   }>({ isValid: null, message: '' })
 
-  const [activeTextTool, setActiveTextTool] =
-    useState<TextToolAction>('base64-encode')
+  const [activeTool, setActiveTool] = useState<ToolAction>('json')
   const [textToolStates, setTextToolStates] = useState<
     Record<TextToolAction, TextToolState>
   >(createInitialTextToolStates)
@@ -239,10 +234,13 @@ export function JsonToolsView({
     setValidation({ isValid: null, message: '' })
   }
 
-  const currentTextTool = textToolConfigs.find(
-    (config) => config.action === activeTextTool
-  )
-  const currentTextToolState = textToolStates[activeTextTool]
+  const currentTextAction = activeTool === 'json' ? null : activeTool
+  const currentTextTool = currentTextAction
+    ? textToolConfigs.find((config) => config.action === currentTextAction)
+    : undefined
+  const currentTextToolState = currentTextAction
+    ? textToolStates[currentTextAction]
+    : undefined
 
   const updateTextToolState = (
     action: TextToolAction,
@@ -257,7 +255,7 @@ export function JsonToolsView({
   const runTextTool = async () => {
     const config = currentTextTool
     const state = currentTextToolState
-    if (!config) return
+    if (!config || !state) return
 
     if (config.requiresInput && !state.input.trim()) {
       updateTextToolState(config.action, (prev) => ({
@@ -294,6 +292,8 @@ export function JsonToolsView({
   }
 
   const copyTextOutput = async () => {
+    if (!currentTextToolState) return
+
     try {
       await navigator.clipboard.writeText(currentTextToolState.output)
       await showDialog({
@@ -311,7 +311,9 @@ export function JsonToolsView({
   }
 
   const clearTextTools = () => {
-    updateTextToolState(activeTextTool, () => ({
+    if (!currentTextAction) return
+
+    updateTextToolState(currentTextAction, () => ({
       input: '',
       output: '',
       status: null,
@@ -319,144 +321,84 @@ export function JsonToolsView({
   }
 
   return (
-    <Tabs defaultValue={defaultTab} className="h-full bg-background p-2">
-      <div className="flex-shrink-0">
-        <TabsList>
-          <TabsTrigger value="json">
-            <Braces className="h-4 w-4" />
-            JSON
-          </TabsTrigger>
-          <TabsTrigger value="text">
-            <LockKeyhole className="h-4 w-4" />
-            Text Tools
-          </TabsTrigger>
-        </TabsList>
-      </div>
-
-      <TabsContent value="json" className="min-h-0">
-        <div className="flex h-full min-h-0 gap-3">
-          <div className="flex w-44 shrink-0 flex-col gap-2 overflow-y-auto border-r border-border pr-3">
-            <Button onClick={formatAndValidate} className="justify-start">
-              <ArrowRightLeft className="mr-2 h-4 w-4" />
-              Format
-            </Button>
-            <Button
-              onClick={() => void minifyAndCopy()}
-              variant="outline"
-              className="justify-start"
+    <Tabs
+      value={activeTool}
+      onValueChange={(value) => setActiveTool(value as ToolAction)}
+      className="h-full bg-background p-2"
+    >
+      <div className="flex h-full min-h-0 gap-3">
+        <div className="flex w-48 shrink-0 flex-col gap-3 overflow-y-auto border-r border-border pr-3">
+          <TabsList className="h-auto w-full flex-col items-stretch justify-start">
+            <TabsTrigger
+              value="json"
+              className="w-full justify-start"
+              onClick={() => setActiveTool('json')}
             >
-              <Download className="mr-2 h-4 w-4" />
-              Minify
-            </Button>
-            <Button
-              onClick={() => void copyJsonOutput()}
-              variant="secondary"
-              disabled={Object.keys(outputObject).length === 0}
-              className="justify-start"
-            >
-              <ClipboardCopy className="mr-2 h-4 w-4" />
-              Copy
-            </Button>
-            <Button
-              onClick={clearJson}
-              variant="destructive"
-              className="justify-start"
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Clear
-            </Button>
-
-            {validation.isValid !== null && (
-              <StatusMessage
-                isValid={validation.isValid}
-                message={validation.message}
-              />
-            )}
-          </div>
-
-          <div className="min-w-0 flex-grow flex items-stretch gap-x-2 overflow-hidden min-h-0">
-            {isInputVisible && (
-              <ToolTextPanel
-                label="Input"
-                value={input}
-                onChange={setInput}
-                placeholder="Paste your JSON here..."
-                className="w-1/2"
-              />
-            )}
-
-            <div className="flex-shrink-0 flex items-center justify-center">
-              <Button
-                onClick={toggleInputView}
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
+              <Braces className="h-4 w-4" />
+              JSON
+            </TabsTrigger>
+            {textToolConfigs.map((config) => (
+              <TabsTrigger
+                key={config.action}
+                value={config.action}
+                className="w-full justify-start"
+                onClick={() => setActiveTool(config.action)}
               >
-                {isInputVisible ? (
-                  <ChevronLeft className="h-4 w-4" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
+                {config.action.startsWith('base64') && (
+                  <LockKeyhole className="h-4 w-4" />
                 )}
-              </Button>
-            </div>
+                {config.action.startsWith('url') && (
+                  <Link className="h-4 w-4" />
+                )}
+                {config.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-            <div
-              className={`h-full flex flex-col transition-all duration-75 ${isInputVisible ? 'w-1/2' : 'w-full'}`}
-            >
-              <label className="mb-1 text-sm font-semibold text-foreground">
-                Output
-              </label>
-              <div className="w-full flex-grow p-2 bg-muted/50 rounded-md border border-border overflow-auto">
-                {Object.keys(outputObject).length > 0 ? (
-                  <ReactJson
-                    src={outputObject}
-                    theme={isDarkMode ? 'ocean' : 'rjv-default'}
-                    iconStyle="square"
-                    collapsed={3}
-                    displayDataTypes={false}
-                    name={false}
-                  />
-                ) : (
-                  <div className="text-muted-foreground">
-                    Result will be shown here...
-                  </div>
-                )}
+          {activeTool === 'json' ? (
+            <>
+              <div className="flex flex-col gap-2">
+                <Button onClick={formatAndValidate} className="justify-start">
+                  <ArrowRightLeft className="mr-2 h-4 w-4" />
+                  Format
+                </Button>
+                <Button
+                  onClick={() => void minifyAndCopy()}
+                  variant="outline"
+                  className="justify-start"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Minify
+                </Button>
+                <Button
+                  onClick={() => void copyJsonOutput()}
+                  variant="secondary"
+                  disabled={Object.keys(outputObject).length === 0}
+                  className="justify-start"
+                >
+                  <ClipboardCopy className="mr-2 h-4 w-4" />
+                  Copy
+                </Button>
+                <Button
+                  onClick={clearJson}
+                  variant="destructive"
+                  className="justify-start"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Clear
+                </Button>
               </div>
-            </div>
-          </div>
-        </div>
-      </TabsContent>
 
-      <TabsContent value="text" className="min-h-0">
-        {currentTextTool && (
-          <Tabs
-            value={activeTextTool}
-            onValueChange={(value) =>
-              setActiveTextTool(value as TextToolAction)
-            }
-            className="h-full min-h-0"
-          >
-            <div className="flex h-full min-h-0 gap-3">
-              <div className="flex w-48 shrink-0 flex-col gap-3 overflow-y-auto border-r border-border pr-3">
-                <TabsList className="h-auto w-full flex-col items-stretch justify-start">
-                  {textToolConfigs.map((config) => (
-                    <TabsTrigger
-                      key={config.action}
-                      value={config.action}
-                      onClick={() => setActiveTextTool(config.action)}
-                      className="w-full justify-start"
-                    >
-                      {config.action.startsWith('base64') && (
-                        <LockKeyhole className="h-4 w-4" />
-                      )}
-                      {config.action.startsWith('url') && (
-                        <Link className="h-4 w-4" />
-                      )}
-                      {config.label}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-
+              {validation.isValid !== null && (
+                <StatusMessage
+                  isValid={validation.isValid}
+                  message={validation.message}
+                />
+              )}
+            </>
+          ) : (
+            currentTextToolState && (
+              <>
                 <div className="flex flex-col gap-2">
                   <Button
                     onClick={() => void runTextTool()}
@@ -490,38 +432,144 @@ export function JsonToolsView({
                     message={currentTextToolState.status.message}
                   />
                 )}
-              </div>
+              </>
+            )
+          )}
+        </div>
 
-              <div className="min-w-0 flex-grow grid grid-cols-1 gap-3 overflow-hidden min-h-0 lg:grid-cols-2">
-                <ToolTextPanel
-                  label={`${currentTextTool.label} Input`}
-                  value={currentTextToolState.input}
-                  onChange={(value) =>
-                    updateTextToolState(activeTextTool, (prev) => ({
-                      ...prev,
-                      input: value,
-                    }))
-                  }
-                  placeholder={currentTextTool.inputPlaceholder}
-                />
-                <ToolTextPanel
-                  label={`${currentTextTool.label} Output`}
-                  value={currentTextToolState.output}
-                  onChange={(value) =>
-                    updateTextToolState(activeTextTool, (prev) => ({
-                      ...prev,
-                      output: value,
-                    }))
-                  }
-                  placeholder={currentTextTool.outputPlaceholder}
-                  readOnly
-                />
-              </div>
-            </div>
-          </Tabs>
-        )}
-      </TabsContent>
+        <div className="min-w-0 flex-grow overflow-hidden">
+          {activeTool === 'json' ? (
+            <JsonToolWorkspace
+              input={input}
+              isDarkMode={isDarkMode}
+              isInputVisible={isInputVisible}
+              onInputChange={setInput}
+              onToggleInput={toggleInputView}
+              outputObject={outputObject}
+            />
+          ) : (
+            currentTextTool &&
+            currentTextToolState && (
+              <TextToolWorkspace
+                config={currentTextTool}
+                state={currentTextToolState}
+                onInputChange={(value) =>
+                  updateTextToolState(currentTextTool.action, (prev) => ({
+                    ...prev,
+                    input: value,
+                  }))
+                }
+                onOutputChange={(value) =>
+                  updateTextToolState(currentTextTool.action, (prev) => ({
+                    ...prev,
+                    output: value,
+                  }))
+                }
+              />
+            )
+          )}
+        </div>
+      </div>
     </Tabs>
+  )
+}
+
+function JsonToolWorkspace({
+  input,
+  isDarkMode,
+  isInputVisible,
+  onInputChange,
+  onToggleInput,
+  outputObject,
+}: {
+  input: string
+  isDarkMode: boolean
+  isInputVisible: boolean
+  onInputChange: (value: string) => void
+  onToggleInput: () => void
+  outputObject: Record<string, unknown>
+}) {
+  return (
+    <div className="flex h-full min-h-0 items-stretch gap-x-2 overflow-hidden">
+      {isInputVisible && (
+        <ToolTextPanel
+          label="JSON Input"
+          value={input}
+          onChange={onInputChange}
+          placeholder="Paste your JSON here..."
+          className="w-1/2"
+        />
+      )}
+
+      <div className="flex-shrink-0 flex items-center justify-center">
+        <Button
+          onClick={onToggleInput}
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+        >
+          {isInputVisible ? (
+            <ChevronLeft className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+        </Button>
+      </div>
+
+      <div
+        className={`h-full flex flex-col transition-all duration-75 ${isInputVisible ? 'w-1/2' : 'w-full'}`}
+      >
+        <label className="mb-1 text-sm font-semibold text-foreground">
+          JSON Output
+        </label>
+        <div className="w-full flex-grow p-2 bg-muted/50 rounded-md border border-border overflow-auto">
+          {Object.keys(outputObject).length > 0 ? (
+            <ReactJson
+              src={outputObject}
+              theme={isDarkMode ? 'ocean' : 'rjv-default'}
+              iconStyle="square"
+              collapsed={3}
+              displayDataTypes={false}
+              name={false}
+            />
+          ) : (
+            <div className="text-muted-foreground">
+              Result will be shown here...
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TextToolWorkspace({
+  config,
+  onInputChange,
+  onOutputChange,
+  state,
+}: {
+  config: TextToolConfig
+  onInputChange: (value: string) => void
+  onOutputChange: (value: string) => void
+  state: TextToolState
+}) {
+  return (
+    <div className="grid h-full min-h-0 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2">
+      <ToolTextPanel
+        label={`${config.label} Input`}
+        value={state.input}
+        onChange={onInputChange}
+        placeholder={config.inputPlaceholder}
+      />
+      <ToolTextPanel
+        label={`${config.label} Output`}
+        value={state.output}
+        onChange={onOutputChange}
+        placeholder={config.outputPlaceholder}
+        readOnly
+      />
+    </div>
   )
 }
 

@@ -7,15 +7,23 @@ import { JsonToolsView } from './JsonToolsView'
 function renderJsonToolsView() {
   render(
     <DialogProvider>
-      <JsonToolsView defaultTab="text" isDarkMode={false} />
+      <JsonToolsView isDarkMode={false} />
     </DialogProvider>
   )
 }
 
 describe('JsonToolsView text tools', () => {
+  it('shows JSON as a tool instead of a separate top-level category', () => {
+    renderJsonToolsView()
+
+    expect(screen.getByRole('tab', { name: 'JSON' })).toBeTruthy()
+    expect(screen.queryByRole('tab', { name: /Text Tools/i })).toBeNull()
+  })
+
   it('keeps input isolated for each text tool page', () => {
     renderJsonToolsView()
 
+    fireEvent.click(screen.getByRole('tab', { name: /Base64 Encode/i }))
     fireEvent.change(
       screen.getByPlaceholderText('Text to encode as Base64...'),
       {
