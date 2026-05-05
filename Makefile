@@ -9,7 +9,7 @@ FRONTEND_DIR := frontend
 BACKEND_DIR := backend
 OUTPUT_DIR := build/bin # 建议将构建输出统一到 build/bin
 
-.PHONY: help install hooks clean-hooks show-hooks lint format format-check lint-all \
+.PHONY: help install hooks clean-hooks show-hooks refresh-icon-cache lint format format-check lint-all \
 		 lint-staged lint-staged-debug \
          frontend-dev frontend-build frontend-preview \
          dev build preview
@@ -18,7 +18,7 @@ OUTPUT_DIR := build/bin # 建议将构建输出统一到 build/bin
 help:  ## 📜 显示所有可用命令（分类展示）
 	@echo "  使用 \033[36mmake <command>\033[0m 执行以下命令：\n"
 	@echo " 🔧 Git Hooks 管理"
-	@grep -E '^(hooks|clean-hooks|show-hooks):.*?## ' $(MAKEFILE_LIST) | \
+	@grep -E '^(hooks|clean-hooks|show-hooks|refresh-icon-cache):.*?## ' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo " 📦 项目安装与初始化"
 	@grep -E '^(install|install-frontend|install-wails):.*?## ' $(MAKEFILE_LIST) | \
@@ -63,6 +63,12 @@ clean-hooks:  ## 🧹 清理 Git hooks 配置和脚本
 
 show-hooks:  ## 🔍 显示当前 Git hooks 配置路径
 	@echo "➡️ 当前 Git hooks 路径为：$$(git config core.hooksPath)"
+
+refresh-icon-cache:  ## 🧹 刷新 macOS LaunchServices/Dock 图标缓存
+	@echo "🧹 刷新 DevTools 应用图标缓存..."
+	@/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f build/bin/DevTools.app || true
+	@killall Dock || true
+	@echo "✅ 图标缓存刷新完成"
 
 # --------- 项目安装与初始化 -----------
 install: install-frontend install-wails hooks ## 📦 安装所有依赖并初始化环境

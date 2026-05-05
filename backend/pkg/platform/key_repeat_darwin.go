@@ -3,20 +3,18 @@
 package platform
 
 import (
-	"fmt"
 	"log"
 	"os/exec"
 	"strings"
 )
 
+const macOSBundleIdentifier = "com.hongbo.devtools"
+
 // setupMacOSKeyRepeat enables continuous key press behavior on macOS
 // by setting an application-specific default. This avoids forcing users
 // to change their global system settings.
 func setupMacOSKeyRepeat(name string) {
-	// IMPORTANT: Replace this with your application's Bundle Identifier.
-	// You can find or set this in your `wails.json` file under the "mac" -> "BundleIdentifier" key.
-	// e.g., "com.yourcompany.your-app-name"
-	bundleIdentifier := fmt.Sprintf("com.wails.%s", name)
+	bundleIdentifier := macOSBundleIdentifier
 
 	// 我们使用 `defaults read` 来检查这个值是否已经被设置为 "0" (即 false).
 	// 如果已经设置，我们就不需要再做任何事。
