@@ -770,6 +770,7 @@ func sshExec(sshCmd string) error {
 	default: // Linux
 		cmd = exec.Command("gnome-terminal", "--", "bash", "-c", sshCmd+"; exec bash")
 	}
+	configureTerminalLauncherCommand(cmd)
 
 	// Start() 启动命令，不等待它完成
 	if err := cmd.Start(); err != nil {

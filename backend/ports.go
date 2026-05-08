@@ -24,6 +24,7 @@ func (a *App) GetListeningPorts() ([]ListeningPort, error) {
 	default:
 		cmd = exec.Command("lsof", "-nP", "-iTCP", "-sTCP:LISTEN")
 	}
+	configureBackgroundCommand(cmd)
 
 	output, err := cmd.Output()
 	if err != nil {
