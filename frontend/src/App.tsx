@@ -107,6 +107,7 @@ import {
   getAutoRestorableTerminalSessions,
   parseRestorableTerminalSessions,
   serializeRestorableTerminalSessions,
+  supportsLocalTerminalAutoRecovery,
   terminalSessionRestoreKey,
 } from './lib/terminal-session-restore'
 
@@ -115,6 +116,12 @@ export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
 export type TerminalSession = types.TerminalSessionInfo & {
   displayName: string
   status: ConnectionStatus
+}
+
+function getRuntimePlatform(): string | undefined {
+  if (typeof navigator === 'undefined') return undefined
+  if (navigator.userAgent.includes('Windows')) return 'windows'
+  return undefined
 }
 
 interface StartTunnelOptions {
@@ -1282,10 +1289,16 @@ function AppContent() {
     if (!isBackendReady || terminalSessionsRestoredRef.current) return
 
     terminalSessionsRestoredRef.current = true
+    const runtimePlatform = getRuntimePlatform()
+    if (!supportsLocalTerminalAutoRecovery(runtimePlatform)) {
+      return
+    }
+
     const restoredSessions = getAutoRestorableTerminalSessions(
       parseRestorableTerminalSessions(
         localStorage.getItem(terminalSessionRestoreKey)
-      )
+      ),
+      runtimePlatform
     )
 
     restoredSessions.forEach((session) => {

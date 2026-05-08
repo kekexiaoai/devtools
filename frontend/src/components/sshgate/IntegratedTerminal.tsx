@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/popover'
 import { Input } from '@/components/ui/input'
 import { debounce } from '@/lib/utils'
+import { supportsLocalTerminalAutoRecovery } from '@/lib/terminal-session-restore'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import {
@@ -62,6 +63,12 @@ import { useTerminalSetting } from '@/hooks/useTerminalSetting'
 interface ExtendedTerminal extends Terminal {
   on?(event: 'focus' | 'blur', handler: () => void): void
   off?(event: 'focus' | 'blur', handler: () => void): void
+}
+
+function getRuntimePlatform(): string | undefined {
+  if (typeof navigator === 'undefined') return undefined
+  if (navigator.userAgent.includes('Windows')) return 'windows'
+  return undefined
 }
 
 export function IntegratedTerminal({
@@ -480,10 +487,12 @@ export function IntegratedTerminal({
   }
   // 自动重连本地会话
   useEffect(() => {
+    const runtimePlatform = getRuntimePlatform()
     if (
       sessionType === 'local' &&
       connectionStatus === 'disconnected' &&
-      isVisible
+      isVisible &&
+      supportsLocalTerminalAutoRecovery(runtimePlatform)
     ) {
       logger.info(
         'Local terminal disconnected, attempting to auto-reconnect...'

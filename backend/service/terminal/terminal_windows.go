@@ -22,6 +22,7 @@ func terminateProcessGroup(cmd *exec.Cmd) {
 	// /T terminates the specified process and any child processes which were started by it.
 	// /F forcefully terminates the process(es).
 	killCmd := exec.Command("taskkill", "/F", "/T", "/PID", fmt.Sprintf("%d", pid))
+	killCmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	_ = killCmd.Run()
 }
 

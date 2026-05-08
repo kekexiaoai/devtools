@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   getAutoRestorableTerminalSessions,
+  supportsLocalTerminalAutoRecovery,
   parseRestorableTerminalSessions,
   serializeRestorableTerminalSessions,
 } from './terminal-session-restore'
@@ -50,5 +51,21 @@ describe('terminal session restore', () => {
     expect(
       getAutoRestorableTerminalSessions(sessions).map((session) => session.id)
     ).toEqual(['local-1'])
+  })
+
+  it('disables local terminal auto recovery on windows', () => {
+    const sessions = parseRestorableTerminalSessions(
+      JSON.stringify([
+        { id: 'local-1', alias: 'local', type: 'local', displayName: 'local' },
+        { id: 'remote-1', alias: 'prod', type: 'remote', displayName: 'prod' },
+      ])
+    )
+
+    expect(supportsLocalTerminalAutoRecovery('windows')).toBe(false)
+    expect(
+      getAutoRestorableTerminalSessions(sessions, 'windows').map(
+        (session) => session.id
+      )
+    ).toEqual([])
   })
 })

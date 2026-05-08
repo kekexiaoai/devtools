@@ -9,6 +9,10 @@ export interface RestorableTerminalSession {
   displayName: string
 }
 
+export function supportsLocalTerminalAutoRecovery(platform?: string): boolean {
+  return platform !== 'windows'
+}
+
 export function serializeRestorableTerminalSessions(
   sessions: TerminalSession[]
 ): string {
@@ -38,8 +42,13 @@ export function parseRestorableTerminalSessions(
 }
 
 export function getAutoRestorableTerminalSessions(
-  sessions: RestorableTerminalSession[]
+  sessions: RestorableTerminalSession[],
+  platform?: string
 ): RestorableTerminalSession[] {
+  if (!supportsLocalTerminalAutoRecovery(platform)) {
+    return []
+  }
+
   return sessions.filter((session) => session.type === 'local')
 }
 

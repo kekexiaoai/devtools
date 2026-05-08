@@ -43,6 +43,7 @@ func StartWithSize(cmd *exec.Cmd, ws *Winsize) (Pty, error) {
 		return nil, err
 	}
 	c := p.Command(cmd.Path, cmd.Args[1:]...)
+	copyExecCmdMetadata(c, cmd)
 	if err := c.Start(); err != nil {
 		p.Close()
 		return nil, err
