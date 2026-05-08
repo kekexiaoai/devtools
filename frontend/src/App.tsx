@@ -118,12 +118,6 @@ export type TerminalSession = types.TerminalSessionInfo & {
   status: ConnectionStatus
 }
 
-function getRuntimePlatform(): string | undefined {
-  if (typeof navigator === 'undefined') return undefined
-  if (navigator.userAgent.includes('Windows')) return 'windows'
-  return undefined
-}
-
 interface StartTunnelOptions {
   skipPortConflictConfirmation?: boolean
 }
@@ -1286,11 +1280,12 @@ function AppContent() {
   })
 
   useEffect(() => {
-    if (!isBackendReady || terminalSessionsRestoredRef.current) return
+    if (!isBackendReady || terminalSessionsRestoredRef.current || !platform) {
+      return
+    }
 
     terminalSessionsRestoredRef.current = true
-    const runtimePlatform = getRuntimePlatform()
-    if (!supportsLocalTerminalAutoRecovery(runtimePlatform)) {
+    if (!supportsLocalTerminalAutoRecovery(platform)) {
       return
     }
 
@@ -1298,7 +1293,7 @@ function AppContent() {
       parseRestorableTerminalSessions(
         localStorage.getItem(terminalSessionRestoreKey)
       ),
-      runtimePlatform
+      platform
     )
 
     restoredSessions.forEach((session) => {
@@ -1313,7 +1308,7 @@ function AppContent() {
         strategy: 'internal',
       })
     })
-  }, [connect, isBackendReady])
+  }, [connect, isBackendReady, platform])
 
   useEffect(() => {
     if (!terminalSessionsRestoredRef.current) return

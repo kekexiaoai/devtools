@@ -1,13 +1,16 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { TerminalSession } from '@/App'
 import { TerminalView } from './TerminalView'
 
+const integratedTerminalMock = vi.fn()
+
 vi.mock('@/components/sshgate/IntegratedTerminal', () => ({
-  IntegratedTerminal: ({ displayName }: { displayName: string }) => (
-    <div data-testid="integrated-terminal">{displayName}</div>
-  ),
+  IntegratedTerminal: (props: { displayName: string; platform?: string }) => {
+    integratedTerminalMock(props)
+    return <div data-testid="integrated-terminal">{props.displayName}</div>
+  },
 }))
 
 beforeAll(() => {
@@ -20,15 +23,20 @@ beforeAll(() => {
   globalThis.ResizeObserver = ResizeObserverMock
 })
 
+beforeEach(() => {
+  integratedTerminalMock.mockClear()
+})
+
 function createSession(
   id: string,
   displayName: string,
-  alias = displayName
+  alias = displayName,
+  type: 'local' | 'remote' = 'local'
 ): TerminalSession {
   return {
     id,
     alias,
-    type: 'local',
+    type,
     url: `ws://localhost/terminal/${id}`,
     displayName,
     status: 'connected',
@@ -39,8 +47,8 @@ function renderTerminalView() {
   const props = {
     terminalSessions: [
       createSession('terminal-1', 'local'),
-      createSession('terminal-2', 'local (2)'),
-      createSession('terminal-3', 'bastion'),
+      createSession('terminal-2', 'local (2)', 'local (2)', 'local'),
+      createSession('terminal-3', 'bastion', 'bastion', 'remote'),
     ],
     activeTerminalId: 'terminal-1',
     onActiveTerminalChange: vi.fn(),
@@ -59,6 +67,38 @@ function renderTerminalView() {
 }
 
 describe('TerminalView split panes', () => {
+  it('passes platform through to integrated terminals', () => {
+    renderTerminalView()
+
+    expect(integratedTerminalMock.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ displayName: 'local', platform: 'darwin' })
+    )
+  })
+
+  it('uses the session type instead of alias to classify terminals', () => {
+    const props = {
+      terminalSessions: [
+        createSession('terminal-4', 'jumpbox', 'local', 'remote'),
+      ],
+      activeTerminalId: 'terminal-4',
+      onActiveTerminalChange: vi.fn(),
+      onCloseTerminal: vi.fn(),
+      onConnect: vi.fn(),
+      onReconnectTerminal: vi.fn(),
+      onRenameTerminal: vi.fn(),
+      onStatusChange: vi.fn(),
+      isActive: true,
+      isDarkMode: false,
+      platform: 'windows',
+    }
+
+    render(<TerminalView {...props} />)
+
+    expect(integratedTerminalMock.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ sessionType: 'remote' })
+    )
+  })
+
   it('lets the user choose which terminal to split with', async () => {
     renderTerminalView()
 

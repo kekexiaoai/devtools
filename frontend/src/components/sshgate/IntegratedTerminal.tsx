@@ -38,6 +38,7 @@ interface IntegratedTerminalProps {
   websocketUrl: string
   id: string
   displayName: string
+  platform: string
   isVisible: boolean // Triggers resize when the component becomes visible
   sessionType: 'local' | 'remote'
   onReconnect: () => void
@@ -65,16 +66,11 @@ interface ExtendedTerminal extends Terminal {
   off?(event: 'focus' | 'blur', handler: () => void): void
 }
 
-function getRuntimePlatform(): string | undefined {
-  if (typeof navigator === 'undefined') return undefined
-  if (navigator.userAgent.includes('Windows')) return 'windows'
-  return undefined
-}
-
 export function IntegratedTerminal({
   websocketUrl,
   id,
   displayName,
+  platform,
   isVisible,
   sessionType,
   onReconnect,
@@ -487,12 +483,11 @@ export function IntegratedTerminal({
   }
   // 自动重连本地会话
   useEffect(() => {
-    const runtimePlatform = getRuntimePlatform()
     if (
       sessionType === 'local' &&
       connectionStatus === 'disconnected' &&
       isVisible &&
-      supportsLocalTerminalAutoRecovery(runtimePlatform)
+      supportsLocalTerminalAutoRecovery(platform)
     ) {
       logger.info(
         'Local terminal disconnected, attempting to auto-reconnect...'

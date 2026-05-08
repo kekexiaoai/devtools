@@ -997,12 +997,13 @@ export function TerminalView({
               websocketUrl={session.url}
               id={session.id}
               displayName={session.displayName}
+              platform={platform}
               isVisible={
                 isActive &&
                 (activeTerminalId === session.id ||
                   splitSession?.id === session.id)
               }
-              sessionType={session.alias === 'local' ? 'local' : 'remote'}
+              sessionType={session.type as 'local' | 'remote'}
               onReconnect={() => onReconnectTerminal(session.id)}
               onStatusChange={onStatusChange}
               // 在 `TerminalView` 中为 `onStatusChange` prop 创建内联箭头函数，导致传递给 `IntegratedTerminal` 的函数引用在每次渲染时都发生变化。
